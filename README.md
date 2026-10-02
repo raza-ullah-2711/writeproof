@@ -7,7 +7,8 @@ passwords or email: you unlock your account by signing by hand. Every letter is
 signed and committed to an append-only ledger — once sent, it can't be edited or
 unsent.
 
-See [`docs/architecture.md`](docs/architecture.md) for the design rules and backlog.
+See [`docs/architecture.md`](docs/architecture.md) for the design rules and backlog,
+and [`docs/identity.md`](docs/identity.md) for the wallet login protocol.
 
 ## Layout
 
@@ -20,10 +21,10 @@ See [`docs/architecture.md`](docs/architecture.md) for the design rules and back
 ## Running locally
 
 ```bash
-cp .env.example .env            # then set DB_PASSWORD
+cp .env.example .env            # then set DB_PASSWORD and JWT_SECRET
 docker compose up -d            # PostgreSQL on :5432
 
-# Backend on :8080 (reads DB_URL / DB_USERNAME / DB_PASSWORD from the environment)
+# Backend on :8080 (reads DB_* and JWT_SECRET from the environment)
 cd backend
 set -a; . ../.env; set +a
 ./mvnw spring-boot:run          # health: http://localhost:8080/actuator/health

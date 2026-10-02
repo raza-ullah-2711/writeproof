@@ -1,0 +1,30 @@
+<section class="wallet">
+  @switch (wallet.state()) {
+    @case ('unknown') {
+      <p>Opening wallet&hellip;</p>
+    }
+    @case ('none') {
+      <p>Your identity is a key that lives only in this browser. No username, password or email.</p>
+      <button type="button" (click)="createWallet()" [disabled]="busy()">Create wallet</button>
+    }
+    @case ('ready') {
+      @if (auth.account(); as account) {
+        <p>Signed in.</p>
+        <dl>
+          <dt>Account</dt>
+          <dd class="account-id">{{ account.accountId }}</dd>
+          <dt>Public key</dt>
+          <dd class="public-key">{{ account.publicKey }}</dd>
+        </dl>
+        <button type="button" (click)="auth.logout()">Sign out</button>
+      } @else {
+        <p>A wallet is saved in this browser.</p>
+        <button type="button" (click)="signIn()" [disabled]="busy()">Sign in</button>
+      }
+    }
+  }
+
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+</section>

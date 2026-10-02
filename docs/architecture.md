@@ -46,7 +46,7 @@ sent it can't be edited or unsent — like a sealed letter.
 2. **Wallet identity** — Ed25519 keypair generated client-side; register with
    public key; login via challenge-response (server issues nonce, client signs,
    server verifies, issues JWT). Private key never leaves the browser
-   (encrypted in IndexedDB).
+   (encrypted in IndexedDB). ✅ — see [identity.md](identity.md).
 3. **Handwriting capture** — Angular canvas component using Pointer Events that
    records strokes as `{x, y, t, pressure, penDown}` arrays, with replay preview
    and JSON export.

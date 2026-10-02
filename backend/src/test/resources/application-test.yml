@@ -1,0 +1,4 @@
+# Test-only settings. This key signs throwaway tokens in tests and is not a secret.
+writeproof:
+  auth:
+    jwt-secret: dGVzdC1vbmx5LWp3dC1zZWNyZXQtMzItYnl0ZXMtbG9uZyE=
