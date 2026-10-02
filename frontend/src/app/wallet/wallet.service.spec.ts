@@ -68,6 +68,55 @@ describe('WalletService', () => {
     );
   });
 
+  it('creates an X25519 encryption key alongside the identity key', async () => {
+    const alice = freshService();
+    await alice.create();
+    const other = (await crypto.subtle.generateKey({ name: 'X25519' }, false, [
+      'deriveBits',
+    ])) as CryptoKeyPair;
+    const otherPublic = new Uint8Array(await crypto.subtle.exportKey('raw', other.publicKey));
+    const alicePublic = await crypto.subtle.importKey(
+      'raw',
+      fromBase64Url(alice.encryptionPublicKey()!),
+      { name: 'X25519' },
+      false,
+      [],
+    );
+
+    const mine = new Uint8Array(await alice.ecdh(otherPublic));
+    const theirs = new Uint8Array(
+      await crypto.subtle.deriveBits(
+        { name: 'X25519', public: alicePublic },
+        other.privateKey,
+        256,
+      ),
+    );
+
+    expect(mine).toEqual(theirs);
+    expect((await TestBed.inject(KeyStore).load())!.encryption).toBeDefined();
+  });
+
+  it('adds an encryption key to a wallet created before letters existed', async () => {
+    const wallet = freshService();
+    await wallet.create();
+    const store = TestBed.inject(KeyStore);
+    const stored = (await store.load())!;
+    // Recreate the pre-letters record (no encryption key).
+    globalThis.indexedDB = new IDBFactory();
+    const { encryption: _, ...legacy } = stored;
+    await TestBed.inject(KeyStore).saveNew(legacy);
+
+    const upgraded = freshService();
+    await upgraded.load();
+
+    expect(upgraded.publicKey()).toBe(wallet.publicKey());
+    expect(upgraded.encryptionPublicKey()).toMatch(/^[A-Za-z0-9_-]{43}$/);
+    expect((await TestBed.inject(KeyStore).load())!.encryption).toBeDefined();
+    const again = freshService();
+    await again.load();
+    expect(again.encryptionPublicKey()).toBe(upgraded.encryptionPublicKey());
+  });
+
   it('never overwrites an existing wallet', async () => {
     const wallet = freshService();
     await wallet.create();

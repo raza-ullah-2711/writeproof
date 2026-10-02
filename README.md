@@ -8,7 +8,10 @@ signed and committed to an append-only ledger — once sent, it can't be edited 
 unsent.
 
 See [`docs/architecture.md`](docs/architecture.md) for the design rules and backlog,
-and [`docs/identity.md`](docs/identity.md) for the wallet login protocol.
+and the per-feature docs: [identity](docs/identity.md),
+[handwriting capture](docs/handwriting-capture.md),
+[handwriting verification](docs/handwriting-verification.md),
+[letters and ledger](docs/letters-and-ledger.md).
 
 ## Layout
 

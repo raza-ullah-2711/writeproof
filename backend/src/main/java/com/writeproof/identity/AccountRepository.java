@@ -12,6 +12,8 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class AccountRepository {
 
+    private static final String COLUMNS = "id, public_key, created_at, encryption_key, encryption_key_signature";
+
     private final JdbcClient jdbc;
 
     AccountRepository(JdbcClient jdbc) {
@@ -32,15 +34,27 @@ public class AccountRepository {
         return rows == 1;
     }
 
+    /** Sets the encryption key once; returns {@code false} if the account already has one. */
+    public boolean setEncryptionKeyIfAbsent(UUID id, byte[] encryptionKey, byte[] signature) {
+        return jdbc.sql("""
+                UPDATE accounts SET encryption_key = :key, encryption_key_signature = :signature
+                 WHERE id = :id AND encryption_key IS NULL
+                """)
+                .param("id", id)
+                .param("key", encryptionKey)
+                .param("signature", signature)
+                .update() == 1;
+    }
+
     public Optional<Account> findById(UUID id) {
-        return jdbc.sql("SELECT id, public_key, created_at FROM accounts WHERE id = :id")
+        return jdbc.sql("SELECT " + COLUMNS + " FROM accounts WHERE id = :id")
                 .param("id", id)
                 .query(AccountRepository::map)
                 .optional();
     }
 
     public Optional<Account> findByPublicKey(byte[] publicKey) {
-        return jdbc.sql("SELECT id, public_key, created_at FROM accounts WHERE public_key = :publicKey")
+        return jdbc.sql("SELECT " + COLUMNS + " FROM accounts WHERE public_key = :publicKey")
                 .param("publicKey", publicKey)
                 .query(AccountRepository::map)
                 .optional();
@@ -50,6 +64,8 @@ public class AccountRepository {
         return new Account(
                 rs.getObject("id", UUID.class),
                 rs.getBytes("public_key"),
-                rs.getObject("created_at", OffsetDateTime.class).toInstant());
+                rs.getObject("created_at", OffsetDateTime.class).toInstant(),
+                rs.getBytes("encryption_key"),
+                rs.getBytes("encryption_key_signature"));
     }
 }
