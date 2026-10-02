@@ -66,9 +66,10 @@ sent it can't be edited or unsent — like a sealed letter.
 7. **Wallet backup & recovery** — recovery code (128-bit, checksummed), encrypted backup stored
    server-side as ciphertext, restore on a new device with proof the keys match the address,
    second device via the same code. ✅ — see [backup-and-recovery.md](backup-and-recovery.md).
-8. **Security hardening** — CSP and security headers, rate limits (registration, challenges,
-   handwriting verification, sending), encrypt enrolment data at rest plus a deletion path,
-   return only `verified` from `/verify` in production.
+8. **Security hardening** — API security headers and a production CSP with Trusted Types,
+   rate limits, 4 MiB body cap, handwriting encrypted at rest (with a Java migration for
+   existing rows), deletion that requires a fresh verified signature, scores hidden by
+   default. ✅ — see [security.md](security.md).
 9. **Real-data calibration** — opt-in sample collection, FAR/FRR evaluation harness, retuned
    thresholds, per-device templates.
 10. **Independent ledger** — anchor signed checkpoints externally or pick a chain; Merkle

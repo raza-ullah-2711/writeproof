@@ -49,15 +49,34 @@
         >
           Verify
         </button>
+        <button
+          type="button"
+          class="danger"
+          (click)="deleteEnrolment()"
+          [disabled]="busy() || pad()?.empty()"
+        >
+          Delete my enrolment
+        </button>
       </div>
+      <p class="hint">
+        To delete your enrolment, sign above first: it must be you. Your stored handwriting is then
+        erased, and you can enrol again. Letters you already sent stay signed.
+      </p>
 
       @if (result(); as r) {
         <div class="result" [class.ok]="r.verified" role="status">
           <strong>{{ r.verified ? 'Verified' : 'Not verified' }}</strong>
-          <span class="score">
-            similarity {{ r.score.toFixed(2) }} (needs {{ r.threshold.toFixed(2) }}) &middot; shape
-            {{ r.shapeScore.toFixed(2) }} &middot; timing {{ r.durationScore.toFixed(2) }}
-          </span>
+          @if (
+            r.score !== null &&
+            r.threshold !== null &&
+            r.shapeScore !== null &&
+            r.durationScore !== null
+          ) {
+            <span class="score">
+              similarity {{ r.score.toFixed(2) }} (needs {{ r.threshold.toFixed(2) }}) &middot;
+              shape {{ r.shapeScore.toFixed(2) }} &middot; timing {{ r.durationScore.toFixed(2) }}
+            </span>
+          }
           @for (flag of r.livenessFlags; track flag) {
             <span class="flag">{{ label(flag) }}</span>
           }

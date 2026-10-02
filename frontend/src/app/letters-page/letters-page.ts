@@ -3,7 +3,11 @@ import { Component, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
-import { HandwritingApi, LIVENESS_LABELS, LivenessFlag } from '../handwriting/handwriting-api';
+import {
+  HandwritingApi,
+  HandwritingRejection,
+  describeRejection,
+} from '../handwriting/handwriting-api';
 import { HandwritingPad } from '../handwriting/handwriting-pad';
 import { HandwritingSample } from '../handwriting/handwriting-sample';
 import { SignatureView } from '../handwriting/signature-view';
@@ -147,10 +151,9 @@ function describe(e: unknown): string {
     if (e.status === 404) {
       return 'No account with that address.';
     }
-    const problem = e.error as { detail?: string; score?: number; livenessFlags?: LivenessFlag[] };
-    if (e.status === 422 && problem?.score !== undefined) {
-      const reasons = (problem.livenessFlags ?? []).map((f) => LIVENESS_LABELS[f]);
-      return [`${problem.detail} (similarity ${problem.score.toFixed(2)}).`, ...reasons].join(' ');
+    const problem = e.error as HandwritingRejection | null;
+    if (e.status === 422 && Array.isArray(problem?.livenessFlags)) {
+      return describeRejection(problem);
     }
     return (e.error as { detail?: string } | null)?.detail ?? `Request failed (${e.status}).`;
   }

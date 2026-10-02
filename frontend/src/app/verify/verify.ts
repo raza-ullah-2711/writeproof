@@ -5,7 +5,9 @@ import { AuthService } from '../auth/auth.service';
 import {
   Enrolment,
   HandwritingApi,
+  HandwritingRejection,
   LIVENESS_LABELS,
+  describeRejection,
   LivenessFlag,
   MAX_ENROLMENT_SAMPLES,
   MIN_ENROLMENT_SAMPLES,
@@ -83,6 +85,22 @@ export class Verify {
     });
   }
 
+  protected deleteEnrolment(): Promise<void> {
+    const sample = this.pad()?.sample();
+    if (!sample) {
+      return Promise.resolve();
+    }
+    return this.run(async () => {
+      try {
+        await this.api.deleteEnrolment(sample);
+        this.result.set(null);
+        this.enrolment.set(await this.api.enrolment());
+      } finally {
+        this.pad()?.clear();
+      }
+    });
+  }
+
   protected verify(): Promise<void> {
     const sample = this.pad()?.sample();
     if (!sample) {
@@ -111,6 +129,10 @@ function describe(e: unknown): string {
   if (e instanceof HttpErrorResponse) {
     if (e.status === 0) {
       return 'The server is unreachable.';
+    }
+    const problem = e.error as HandwritingRejection | null;
+    if (e.status === 422 && Array.isArray(problem?.livenessFlags)) {
+      return describeRejection(problem);
     }
     return (e.error as { detail?: string } | null)?.detail ?? `Request failed (${e.status}).`;
   }

@@ -113,6 +113,21 @@ public class HandwritingService {
         return e.verification(properties.threshold());
     }
 
+    /**
+     * Deletes the account's enrolment and signature history. Requires a fresh signature that
+     * verifies like one sealing a letter: otherwise anyone holding a stolen recovery code could
+     * delete the owner's enrolment, enrol their own hand, and send letters as the owner.
+     */
+    @org.springframework.transaction.annotation.Transactional
+    public void deleteEnrolment(UUID accountId, HandwritingSample sample) {
+        Verification verification = verifyForLetter(accountId, sample);
+        if (!verification.verified()) {
+            throw new HandwritingRejectedException(verification);
+        }
+        enrolments.delete(accountId);
+        history.deleteAll(accountId);
+    }
+
     /** Remembers a signature that sealed a letter, keeping only the newest {@link #HISTORY_SIZE}. */
     public void recordLetterSignature(UUID accountId, HandwritingSample sample) {
         history.add(accountId, sample, clock.instant(), HISTORY_SIZE);

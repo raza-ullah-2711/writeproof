@@ -78,12 +78,12 @@ Within-stroke speed CV: synthetic humans ≥ 0.52, constant-speed scripts ≤ 0.
   real forgery attempts) and measure false-accept and false-reject rates.
 - **Liveness heuristics raise the bar but don't prove humanity.** A determined attacker
   can add speed variation and jitter to a script. They stop naive bots and replays.
-- **Biometric data at rest.** Raw enrolment samples are stored as JSONB in plaintext.
-  They aren't a secret key, but they are personal data. Encrypt them at rest, and add a
-  deletion path, before real users.
-- **No attempt limit on `/verify`.** Someone holding a token could probe scores. Add rate
-  limiting, and consider returning only `verified` (not component scores) in production.
+- **Biometric data at rest** is encrypted (AES-256-GCM, `HANDWRITING_DATA_KEY`), and enrolments
+  can be deleted with a fresh verified signature (Task 8, [security.md](security.md)).
+- **`/verify` is rate-limited** (20/hour per account) and omits scores unless
+  `HANDWRITING_EXPOSE_SCORES=true` (Task 8).
 - **The result isn't bound to anything yet.** Task 5 should require a fresh, short-lived,
   server-signed verification (bound to the letter hash) before accepting a letter.
-- **One-time enrolment.** There's no re-enrolment or device-specific template yet. Enrolling
-  with a pen and verifying with a mouse will score lower, since dynamics differ by device.
+- **Re-enrolment** means deleting the enrolment first, which needs a fresh verified signature
+  (Task 8). There's still no device-specific template: enrolling with a pen and verifying with a
+  mouse will score lower, since dynamics differ by device.

@@ -31,20 +31,25 @@ class HandwritingController {
 
     record VerifyRequest(@NotNull HandwritingSample sample) {}
 
+    /** Scores are null unless {@code writeproof.handwriting.expose-scores} is on. */
     record VerifyResponse(
             boolean verified,
-            double score,
-            double threshold,
+            Double score,
+            Double threshold,
             boolean match,
             boolean live,
             Set<LivenessFlag> livenessFlags,
-            double shapeScore,
-            double durationScore) {}
+            Double shapeScore,
+            Double durationScore) {}
+
+    record DeletionRequest(@NotNull HandwritingSample sample) {}
 
     private final HandwritingService handwriting;
+    private final HandwritingProperties properties;
 
-    HandwritingController(HandwritingService handwriting) {
+    HandwritingController(HandwritingService handwriting, HandwritingProperties properties) {
         this.handwriting = handwriting;
+        this.properties = properties;
     }
 
     @PostMapping("/enrolment")
@@ -64,8 +69,17 @@ class HandwritingController {
     @PostMapping("/verify")
     VerifyResponse verify(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody VerifyRequest request) {
         HandwritingService.Verification v = handwriting.verify(accountId(jwt), request.sample());
-        return new VerifyResponse(v.verified(), round(v.score()), v.threshold(), v.match(), v.live(),
-                v.livenessFlags(), round(v.details().shapeScore()), round(v.details().durationScore()));
+        boolean expose = properties.exposeScores();
+        return new VerifyResponse(v.verified(), expose ? round(v.score()) : null, expose ? v.threshold() : null,
+                v.match(), v.live(), v.livenessFlags(), expose ? round(v.details().shapeScore()) : null,
+                expose ? round(v.details().durationScore()) : null);
+    }
+
+    /** Deletes the enrolment (and recent signatures). Proving it's you takes a fresh signature. */
+    @PostMapping("/enrolment/deletion")
+    ResponseEntity<Void> delete(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody DeletionRequest request) {
+        handwriting.deleteEnrolment(accountId(jwt), request.sample());
+        return ResponseEntity.noContent().build();
     }
 
     @ExceptionHandler(HandwritingService.NotLiveException.class)

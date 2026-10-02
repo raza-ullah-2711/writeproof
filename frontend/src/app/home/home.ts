@@ -102,7 +102,10 @@ export class Home implements OnInit {
 
 function describe(e: unknown): string {
   if (e instanceof HttpErrorResponse) {
-    return e.status === 0 ? 'The server is unreachable.' : `Request failed (${e.status}).`;
+    if (e.status === 0) {
+      return 'The server is unreachable.';
+    }
+    return (e.error as { detail?: string } | null)?.detail ?? `Request failed (${e.status}).`;
   }
   return e instanceof Error ? e.message : 'Something went wrong.';
 }
