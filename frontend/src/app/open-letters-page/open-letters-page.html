@@ -1,0 +1,88 @@
+<section class="open-letters">
+  <h2>Open letters</h2>
+  <p class="intro">
+    An open letter is signed by your wallet and your hand and recorded on the ledger, like any
+    letter, but it is <strong>not sealed</strong>: anyone with its link can read it and check that
+    you wrote it. There is no feed; people see it only if you share the link.
+  </p>
+
+  @if (!auth.authenticated()) {
+    <p>Sign in with your <a routerLink="/">wallet</a> to write one.</p>
+  } @else {
+    <form class="compose" (ngSubmit)="publish()">
+      <label>
+        Your open letter
+        <textarea
+          name="body"
+          [(ngModel)]="body"
+          rows="8"
+          [maxlength]="maxLength"
+          required
+        ></textarea>
+      </label>
+      @if (enrolled() === false) {
+        <p class="error">
+          Open letters are signed by hand. <a routerLink="/handwriting">Enrol your handwriting</a>
+          first.
+        </p>
+      } @else {
+        <div class="sign">
+          <span>Sign by hand</span>
+          <app-handwriting-pad [height]="200" />
+          <button type="button" (click)="pad()?.clear()" [disabled]="busy() || pad()?.empty()">
+            Clear signature
+          </button>
+          <p class="hint">
+            Your handwritten signature is verified but never published: readers see only that
+            Writeproof verified it, and its hash.
+          </p>
+        </div>
+      }
+      <label class="confirm">
+        <input type="checkbox" name="understood" [(ngModel)]="understood" />
+        I understand this is public to anyone with the link, signed by me, and can never be edited
+        or deleted.
+      </label>
+      <button
+        type="submit"
+        class="primary"
+        [disabled]="busy() || !body.trim() || !understood || enrolled() !== true || pad()?.empty()"
+      >
+        Sign and publish
+      </button>
+    </form>
+
+    @if (published(); as letter) {
+      <p class="notice" role="status">
+        Published as ledger entry #{{ letter.ledger.seq }}.
+        <a [routerLink]="['/open', letter.letterHash]">Open it</a> or
+        <button type="button" (click)="copy(letter)">
+          {{ copied() === letter.letterHash ? 'Link copied' : 'copy the link' }}
+        </button>
+      </p>
+    }
+    @if (error(); as message) {
+      <p class="error" role="alert">{{ message }}</p>
+    }
+
+    <h3>Yours</h3>
+    @if (mine(); as letters) {
+      @if (letters.length === 0) {
+        <p class="empty">You haven't published any open letters.</p>
+      }
+      <ul class="list">
+        @for (letter of letters; track letter.letterHash) {
+          <li>
+            <a [routerLink]="['/open', letter.letterHash]">{{ letter.body.slice(0, 80) }}</a>
+            <span class="meta">{{ letter.sentAt }} · ledger #{{ letter.ledger.seq }}</span>
+            <button type="button" (click)="copy(letter)">
+              {{ copied() === letter.letterHash ? 'Copied' : 'Copy link' }}
+            </button>
+          </li>
+        }
+      </ul>
+    } @else if (!error()) {
+      <p>Loading&hellip;</p>
+    }
+  }
+</section>

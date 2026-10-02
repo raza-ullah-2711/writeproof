@@ -68,8 +68,12 @@ class LetterRepository {
                 .update();
     }
 
+    /** One signature seals one letter, sealed or open. */
     boolean existsByHandwritingHash(byte[] handwritingHash) {
-        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM letters WHERE handwriting_hash = :hash)")
+        return jdbc.sql("""
+                SELECT EXISTS (SELECT 1 FROM letters WHERE handwriting_hash = :hash)
+                    OR EXISTS (SELECT 1 FROM open_letters WHERE handwriting_hash = :hash)
+                """)
                 .param("hash", handwritingHash)
                 .query(Boolean.class)
                 .single();

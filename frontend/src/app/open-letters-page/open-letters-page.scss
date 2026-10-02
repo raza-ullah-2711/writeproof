@@ -1,0 +1,82 @@
+.open-letters {
+  font-family: system-ui, sans-serif;
+}
+
+.intro,
+.hint,
+.empty,
+.meta {
+  font-size: 0.8125rem;
+  color: #555;
+}
+
+.compose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+  }
+
+  textarea {
+    font: inherit;
+    font-family: Georgia, 'Times New Roman', serif;
+    padding: 0.4rem;
+  }
+
+  .confirm {
+    flex-direction: row;
+    align-items: flex-start;
+    gap: 0.5rem;
+  }
+
+  > button {
+    align-self: flex-start;
+  }
+}
+
+.sign {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+
+  app-handwriting-pad {
+    max-width: 30rem;
+  }
+
+  button {
+    align-self: flex-start;
+  }
+}
+
+.primary {
+  font-weight: 600;
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    align-items: center;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #ddd;
+  }
+}
+
+.notice {
+  color: #1b5e20;
+}
+
+.error {
+  color: #b00020;
+}
