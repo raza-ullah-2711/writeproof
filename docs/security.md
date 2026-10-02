@@ -45,6 +45,8 @@ In-memory token buckets (`security/`), refilled continuously. A limited request 
 | `POST /api/letters`                        | 30 / hour   | account |
 | `GET /api/backups/{id}`                    | 20 / hour   | IP      |
 | `PUT /api/me/backup`                       | 10 / hour   | account |
+| `POST /api/calibration/samples`            | 60 / hour   | account |
+| `GET /api/calibration/forgery-target`      | 60 / hour   | account |
 
 `RATE_LIMITS_ENABLED` (default `true`). The limits are per process. Behind a reverse proxy, set
 `server.forward-headers-strategy` so per-IP limits see the real client. With more than one

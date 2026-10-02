@@ -73,7 +73,7 @@ Within-stroke speed CV: synthetic humans ≥ 0.52, constant-speed scripts ≤ 0.
 
 ## Known limitations / follow-ups
 
-- **All constants are calibrated on synthetic data.** Before relying on this, collect
+- **All constants are calibrated on synthetic data** (measuring them on real hands: [calibration.md](calibration.md)). Before relying on this, collect
   real enrolment/verification samples (several devices, several sessions per person,
   real forgery attempts) and measure false-accept and false-reject rates.
 - **Liveness heuristics raise the bar but don't prove humanity.** A determined attacker
