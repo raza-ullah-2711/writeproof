@@ -6,6 +6,7 @@ import {
   letterHash,
   letterHeader,
   letterHeaderV2,
+  letterHeaderV3,
 } from './letter-format';
 
 /**
@@ -35,6 +36,8 @@ export interface SealInput {
    * always provides it (the server rejects letters without it); omitting it produces a v1 letter.
    */
   handwriting?: string;
+  /** For a reply: the hash of the letter it answers, committed to by the v3 header. */
+  inReplyTo?: string;
 }
 
 export interface Sealed {
@@ -47,15 +50,26 @@ export interface Sealed {
 export type Ecdh = (ephemeralPublicKey: Uint8Array<ArrayBuffer>) => Promise<ArrayBuffer>;
 
 export async function sealLetter(input: SealInput): Promise<Sealed> {
+  if (input.inReplyTo !== undefined && input.handwriting === undefined) {
+    throw new Error('A reply must be hand-signed');
+  }
   const header =
     input.handwriting === undefined
       ? letterHeader(input.senderKey, input.recipientKey, input.sentAt)
-      : letterHeaderV2(
-          input.senderKey,
-          input.recipientKey,
-          input.sentAt,
-          await handwritingHash(input.handwriting),
-        );
+      : input.inReplyTo === undefined
+        ? letterHeaderV2(
+            input.senderKey,
+            input.recipientKey,
+            input.sentAt,
+            await handwritingHash(input.handwriting),
+          )
+        : letterHeaderV3(
+            input.senderKey,
+            input.recipientKey,
+            input.sentAt,
+            await handwritingHash(input.handwriting),
+            input.inReplyTo,
+          );
   const aad = utf8(header);
   const contentKey = crypto.getRandomValues(new Uint8Array(32));
   const iv = crypto.getRandomValues(new Uint8Array(12));

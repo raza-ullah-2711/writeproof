@@ -144,3 +144,58 @@
   margin-left: 0.5rem;
   font-size: 0.8125rem;
 }
+
+.reply-mark {
+  color: #555;
+}
+
+.replying {
+  margin: 0;
+  padding: 0.5rem;
+  background: #f4f1ea;
+  font-size: 0.875rem;
+}
+
+.letter-actions {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.threads {
+  list-style: none;
+  padding: 0;
+
+  .thread {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.5rem 1rem;
+    width: 100%;
+    padding: 0.5rem;
+    text-align: left;
+    font: inherit;
+    background: none;
+    border: 0;
+    border-bottom: 1px solid #ddd;
+    cursor: pointer;
+  }
+}
+
+.conversation {
+  h3 {
+    font-size: 1rem;
+  }
+
+  .back {
+    margin-top: 0.75rem;
+  }
+}
+
+.thread-check {
+  font-size: 0.875rem;
+  color: #b00020;
+
+  &.ok {
+    color: #1b5e20;
+  }
+}

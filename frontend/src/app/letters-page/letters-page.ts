@@ -1,4 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
+import { NgTemplateOutlet } from '@angular/common';
 import { Component, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
@@ -12,14 +13,29 @@ import {
 import { HandwritingPad } from '../handwriting/handwriting-pad';
 import { HandwritingSample } from '../handwriting/handwriting-sample';
 import { SignatureView } from '../handwriting/signature-view';
-import { Letter, LettersService, MAX_BODY_LENGTH, OpenedLetter } from '../letters/letters.service';
+import {
+  Letter,
+  LettersService,
+  MAX_BODY_LENGTH,
+  OpenedLetter,
+  ThreadSummary,
+  checkThread,
+} from '../letters/letters.service';
 import { WalletService } from '../wallet/wallet.service';
 
-type Box = 'inbox' | 'sent';
+type Box = 'inbox' | 'sent' | 'threads';
+
+/** An open conversation: its letters oldest first, and whether they link up. */
+interface Conversation {
+  threadId: string;
+  counterpart: string;
+  letters: Letter[];
+  problem: string | null;
+}
 
 @Component({
   selector: 'app-letters-page',
-  imports: [FormsModule, RouterLink, HandwritingPad, SignatureView],
+  imports: [FormsModule, NgTemplateOutlet, RouterLink, HandwritingPad, SignatureView],
   templateUrl: './letters-page.html',
   styleUrl: './letters-page.scss',
 })
@@ -42,6 +58,15 @@ export class LettersPage {
   protected readonly error = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
   protected readonly copied = signal(false);
+  protected readonly threadList = signal<ThreadSummary[] | null>(null);
+  protected readonly conversation = signal<Conversation | null>(null);
+  /** The letter being answered, while composing a reply. */
+  protected readonly replyTo = signal<Letter | null>(null);
+  protected readonly tabs: { box: Box; label: string }[] = [
+    { box: 'inbox', label: 'Inbox' },
+    { box: 'sent', label: 'Sent' },
+    { box: 'threads', label: 'Conversations' },
+  ];
 
   protected recipient = '';
   protected body = '';
@@ -87,14 +112,58 @@ export class LettersPage {
   }
 
   protected selectBox(box: Box): void {
+    this.conversation.set(null);
     this.box.set(box);
   }
 
   protected async show(box: Box): Promise<void> {
     await this.run(async () => {
+      if (box === 'threads') {
+        this.threadList.set(null);
+        this.threadList.set(await this.letters.threads());
+        return;
+      }
       this.list.set(null);
       this.list.set(box === 'inbox' ? await this.letters.inbox() : await this.letters.sent());
     });
+  }
+
+  /** The other person in a letter's conversation. */
+  protected otherParty(letter: Letter): string {
+    const me = this.wallet.publicKey();
+    return letter.sender.publicKey === me ? letter.recipient.publicKey : letter.sender.publicKey;
+  }
+
+  protected openThread(threadId: string, counterpart: string): Promise<void> {
+    return this.run(async () => {
+      const letters = await this.letters.thread(threadId);
+      this.conversation.set({
+        threadId,
+        counterpart,
+        letters,
+        problem: checkThread(threadId, letters),
+      });
+      this.box.set('threads');
+    });
+  }
+
+  protected closeThread(): void {
+    this.conversation.set(null);
+    void this.show('threads');
+  }
+
+  protected startReply(letter: Letter): void {
+    this.replyTo.set(letter);
+    this.recipient = this.otherParty(letter);
+    this.notice.set(null);
+    this.error.set(null);
+    queueMicrotask(() =>
+      document.querySelector<HTMLTextAreaElement>('textarea[name=body]')?.focus(),
+    );
+  }
+
+  protected cancelReply(): void {
+    this.replyTo.set(null);
   }
 
   protected send(): Promise<void> {
@@ -116,13 +185,19 @@ export class LettersPage {
 
   private async sendSigned(signature: HandwritingSample): Promise<void> {
     const to = this.recipient.trim();
-    const letter = await this.letters.send(to, this.body, signature);
+    const parent = this.replyTo() ?? undefined;
+    const letter = await this.letters.send(to, this.body, signature, parent);
     this.body = '';
+    this.replyTo.set(null);
     const name = this.petname(to);
     this.notice.set(
       `Sealed${name ? ` for ${name}` : ''} and recorded as ledger entry #${letter.ledger.seq}.`,
     );
-    if (this.box() === 'sent') {
+    const open = this.conversation();
+    if (open && open.threadId === letter.threadId) {
+      const letters = await this.letters.thread(open.threadId);
+      this.conversation.set({ ...open, letters, problem: checkThread(open.threadId, letters) });
+    } else if (this.box() === 'sent') {
       await this.show('sent');
     } else {
       this.box.set('sent');

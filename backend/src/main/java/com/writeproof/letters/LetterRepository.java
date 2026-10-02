@@ -21,7 +21,8 @@ class LetterRepository {
     private static final String SELECT = """
             SELECT l.id, l.sender_id, s.public_key AS sender_key, l.recipient_id, r.public_key AS recipient_key,
                    l.sent_at, l.envelope::text AS envelope, l.signature, l.letter_hash,
-                   l.handwriting_hash, l.handwriting_score,
+                   l.handwriting_hash, l.handwriting_score, l.in_reply_to,
+                   COALESCE(l.thread_id, l.letter_hash) AS thread_id,
                    e.seq, e.prev_hash, e.payload_hash, e.recorded_at, e.entry_hash
               FROM letters l
               JOIN accounts s ON s.id = l.sender_id
@@ -37,13 +38,19 @@ class LetterRepository {
         this.json = json;
     }
 
+    /** A conversation as seen by one of its two parties. */
+    record ThreadSummary(byte[] threadId, UUID counterpartId, byte[] counterpartKey, int letterCount,
+                         long latestSeq, String latestSentAt) {}
+
+    /** {@code inReplyTo} and {@code threadId} are null for a letter that starts a thread. */
     void insert(UUID id, UUID senderId, UUID recipientId, String sentAt, LetterEnvelope envelope, byte[] signature,
-                byte[] letterHash, long ledgerSeq, Instant createdAt, byte[] handwritingHash, double handwritingScore) {
+                byte[] letterHash, long ledgerSeq, Instant createdAt, byte[] handwritingHash, double handwritingScore,
+                byte[] inReplyTo, byte[] threadId) {
         jdbc.sql("""
                 INSERT INTO letters (id, sender_id, recipient_id, sent_at, envelope, signature, letter_hash,
-                                     ledger_seq, created_at, handwriting_hash, handwriting_score)
+                                     ledger_seq, created_at, handwriting_hash, handwriting_score, in_reply_to, thread_id)
                 VALUES (:id, :sender, :recipient, :sentAt, CAST(:envelope AS jsonb), :signature, :hash, :seq, :createdAt,
-                        :handwritingHash, :handwritingScore)
+                        :handwritingHash, :handwritingScore, :inReplyTo, :threadId)
                 """)
                 .param("id", id)
                 .param("sender", senderId)
@@ -56,6 +63,8 @@ class LetterRepository {
                 .param("createdAt", OffsetDateTime.ofInstant(createdAt, ZoneOffset.UTC))
                 .param("handwritingHash", handwritingHash)
                 .param("handwritingScore", handwritingScore)
+                .param("inReplyTo", inReplyTo)
+                .param("threadId", threadId)
                 .update();
     }
 
@@ -71,6 +80,38 @@ class LetterRepository {
                 .param("hash", letterHash)
                 .query(Boolean.class)
                 .single();
+    }
+
+    Optional<Letter> findByHash(byte[] letterHash) {
+        return jdbc.sql(SELECT + " WHERE l.letter_hash = :hash").param("hash", letterHash).query(this::map).optional();
+    }
+
+    List<ThreadSummary> threads(UUID accountId) {
+        return jdbc.sql("""
+                SELECT t.thread, t.counterpart, a.public_key, count(*) AS letters, max(t.ledger_seq) AS latest_seq,
+                       (array_agg(t.sent_at ORDER BY t.ledger_seq DESC))[1] AS latest_sent_at
+                  FROM (SELECT COALESCE(thread_id, letter_hash) AS thread, ledger_seq, sent_at,
+                               CASE WHEN sender_id = :id THEN recipient_id ELSE sender_id END AS counterpart
+                          FROM letters
+                         WHERE sender_id = :id OR recipient_id = :id) t
+                  JOIN accounts a ON a.id = t.counterpart
+                 GROUP BY t.thread, t.counterpart, a.public_key
+                 ORDER BY latest_seq DESC
+                """)
+                .param("id", accountId)
+                .query((rs, row) -> new ThreadSummary(rs.getBytes("thread"), rs.getObject("counterpart", UUID.class),
+                        rs.getBytes("public_key"), rs.getInt("letters"), rs.getLong("latest_seq"),
+                        rs.getString("latest_sent_at")))
+                .list();
+    }
+
+    List<Letter> thread(UUID accountId, byte[] threadId) {
+        return jdbc.sql(SELECT + """
+                 WHERE COALESCE(l.thread_id, l.letter_hash) = :thread
+                   AND (l.sender_id = :id OR l.recipient_id = :id)
+                 ORDER BY l.ledger_seq
+                """)
+                .param("thread", threadId).param("id", accountId).query(this::map).list();
     }
 
     Optional<Letter> findById(UUID id) {
@@ -105,7 +146,9 @@ class LetterRepository {
                         rs.getObject("recorded_at", OffsetDateTime.class).toInstant(),
                         rs.getBytes("entry_hash")),
                 rs.getBytes("handwriting_hash"),
-                rs.getObject("handwriting_score", Double.class));
+                rs.getObject("handwriting_score", Double.class),
+                rs.getBytes("in_reply_to"),
+                rs.getBytes("thread_id"));
     }
 
     private String write(LetterEnvelope envelope) {

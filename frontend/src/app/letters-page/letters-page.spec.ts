@@ -41,7 +41,15 @@ function letter(id: string, handSigned = true): Letter {
     ledger: { seq: 4, prevHash: '', payloadHash: '', recordedAtMillis: 0, entryHash: '' },
     handwritingHash: handSigned ? 'h' : null,
     handwritingScore: handSigned ? 0.913 : null,
+    inReplyTo: null,
+    threadId: `thread-${id}`,
   };
+}
+
+/** A letter Alice (this wallet) sent to Bob. */
+function sentToBob(id: string): Letter {
+  const l = letter(id);
+  return { ...l, sender: l.recipient, recipient: l.sender };
 }
 
 function opened(overrides: Partial<OpenedLetter> = {}): OpenedLetter {
@@ -65,6 +73,8 @@ describe('LettersPage', () => {
     sent: ReturnType<typeof vi.fn>;
     send: ReturnType<typeof vi.fn>;
     open: ReturnType<typeof vi.fn>;
+    threads: ReturnType<typeof vi.fn>;
+    thread: ReturnType<typeof vi.fn>;
   };
   let enrolment: ReturnType<typeof vi.fn>;
   let petnames: Record<string, string>;
@@ -81,6 +91,8 @@ describe('LettersPage', () => {
       sent: vi.fn().mockResolvedValue([]),
       send: vi.fn(),
       open: vi.fn(),
+      threads: vi.fn().mockResolvedValue([]),
+      thread: vi.fn(),
     };
     enrolment = vi.fn().mockResolvedValue({ enrolled: true, sampleCount: 3, enrolledAt: '' });
     petnames = {};
@@ -171,7 +183,7 @@ describe('LettersPage', () => {
   });
 
   it('shows your names for contacts, and offers to add strangers', async () => {
-    service.sent.mockResolvedValue([letter('out-1')]);
+    service.sent.mockResolvedValue([sentToBob('out-1')]);
     const fixture = await render();
     const el: HTMLElement = fixture.nativeElement;
 
@@ -179,11 +191,10 @@ describe('LettersPage', () => {
     expect(stranger.textContent).toBe('Add to contacts');
     expect(stranger.getAttribute('href')).toBe(`/contacts?add=${BOB}`);
 
-    petnames[ALICE] = 'Me, on paper';
     petnames[BOB] = 'Bob from choir';
     fixture.componentInstance['selectBox']('sent');
     await settle(fixture, (e) => !!e.querySelector('.letter .petname'));
-    expect(el.querySelector('.letter .meta .petname')?.textContent).toBe('Me, on paper');
+    expect(el.querySelector('.letter .meta')?.textContent).toContain('To Bob from choir');
     expect(el.querySelector('.letter .meta a.add-contact')).toBeNull();
   });
 
@@ -207,6 +218,85 @@ describe('LettersPage', () => {
     button(el, 'Seal and send').click();
     await settle(fixture, (e) => !!e.querySelector('.notice'));
     expect(el.querySelector('.notice')?.textContent).toContain('Sealed for Bob from choir');
+  });
+
+  it('lists conversations and checks that a conversation links up', async () => {
+    const first = { ...letter('in-1'), letterHash: 'h1', threadId: 'h1' };
+    const reply = { ...sentToBob('out-1'), letterHash: 'h2', threadId: 'h1', inReplyTo: 'h1' };
+    petnames[BOB] = 'Bob from choir';
+    service.threads.mockResolvedValue([
+      {
+        threadId: 'h1',
+        counterpart: { accountId: 'b', publicKey: BOB },
+        letters: 2,
+        latestSeq: 5,
+        latestSentAt: '2026-10-02T12:05:00.000Z',
+      },
+    ]);
+    service.thread.mockResolvedValue([first, reply]);
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+
+    [...el.querySelectorAll<HTMLButtonElement>('[role=tab]')].at(-1)!.click();
+    await settle(fixture, (e) => !!e.querySelector('.threads .thread'));
+    expect(el.querySelector('.threads .thread')?.textContent).toContain('Bob from choir');
+    expect(el.querySelector('.threads .thread')?.textContent).toContain('2 letters');
+
+    el.querySelector<HTMLButtonElement>('.threads .thread')!.click();
+    await settle(fixture, (e) => !!e.querySelector('.conversation .letter'));
+    expect(service.thread).toHaveBeenCalledWith('h1');
+    expect(el.querySelector('.conversation h3')?.textContent).toContain(
+      'Conversation with Bob from choir',
+    );
+    expect(el.querySelector('.thread-check')?.textContent).toContain('✓ Every letter answers');
+    const metas = [...el.querySelectorAll('.conversation .letter .meta')].map((m) => m.textContent);
+    expect(metas[0]).toContain('From Bob from choir');
+    expect(metas[1]).toContain('To Bob from choir');
+    expect(metas[1]).toContain('↳ reply');
+  });
+
+  it('flags a conversation whose letters do not link up', async () => {
+    service.thread.mockResolvedValue([
+      { ...letter('in-1'), letterHash: 'h1', threadId: 'h1' },
+      { ...sentToBob('out-1'), letterHash: 'h2', threadId: 'h1', inReplyTo: 'elsewhere' },
+    ]);
+    const fixture = await render();
+    await fixture.componentInstance['openThread']('h1', BOB);
+    await fixture.whenStable();
+
+    expect(fixture.nativeElement.querySelector('.thread-check')?.textContent).toContain(
+      "✗ Letter #4 doesn't answer an earlier letter",
+    );
+  });
+
+  it('replies to an opened letter: addressed to its sender, linked, and hand-signed', async () => {
+    const incoming = { ...letter('in-1'), letterHash: 'h1', threadId: 'h1' };
+    service.inbox.mockResolvedValue([incoming]);
+    service.open.mockResolvedValue(opened());
+    service.send.mockResolvedValue({ ...sentToBob('out-1'), threadId: 'h1', inReplyTo: 'h1' });
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+    button(el, 'Open and verify').click();
+    await settle(fixture, (e) => !!e.querySelector('.letter-actions'));
+
+    button(el, 'Reply').click();
+    await fixture.whenStable();
+    const recipient = el.querySelector<HTMLInputElement>('input[name=recipient]')!;
+    expect(recipient.value).toBe(BOB);
+    expect(recipient.readOnly).toBe(true);
+    expect(el.querySelector('.replying')?.textContent).toContain('Replying to the letter of');
+
+    const body = el.querySelector<HTMLTextAreaElement>('textarea[name=body]')!;
+    body.value = 'Thank you, Bob';
+    body.dispatchEvent(new Event('input'));
+    scribble(el.querySelector('.sign canvas')!);
+    await fixture.whenStable();
+    button(el, 'Seal and send').click();
+    await settle(fixture, (e) => !!e.querySelector('.notice'));
+
+    const [to, text, , parent] = service.send.mock.calls[0];
+    expect([to, text, parent]).toEqual([BOB, 'Thank you, Bob', incoming]);
+    expect(el.querySelector('.replying')).toBeNull();
   });
 
   it('asks to enrol handwriting before letters can be sent', async () => {

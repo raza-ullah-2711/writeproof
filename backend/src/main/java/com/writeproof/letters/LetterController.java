@@ -30,7 +30,9 @@ class LetterController {
             @NotNull @Valid LetterEnvelope envelope,
             @NotBlank String signature,
             /** The handwriting sample (writeproof.handwriting v1) as a JSON string, hashed byte-for-byte. */
-            @NotBlank @Size(max = MAX_HANDWRITING_JSON) String handwriting) {}
+            @NotBlank @Size(max = MAX_HANDWRITING_JSON) String handwriting,
+            /** For a reply: the hash of the letter it answers (signed into the v3 header). */
+            String inReplyTo) {}
 
     static final int MAX_HANDWRITING_JSON = 500_000;
 
@@ -43,10 +45,14 @@ class LetterController {
         }
     }
 
-    /** {@code handwritingHash} and {@code handwritingScore} are null for v1 letters (before hand-signing). */
+    /**
+     * {@code handwritingHash} and {@code handwritingScore} are null for v1 letters (before
+     * hand-signing); {@code inReplyTo} is null unless the letter is a reply. {@code threadId} is the
+     * hash of the letter that started the thread (its own hash, if it did).
+     */
     record LetterResponse(UUID letterId, Party sender, Party recipient, String sentAt, LetterEnvelope envelope,
                           String signature, String letterHash, LedgerRef ledger, String handwritingHash,
-                          Double handwritingScore) {
+                          Double handwritingScore, String inReplyTo, String threadId) {
         static LetterResponse of(Letter l) {
             return new LetterResponse(
                     l.id(),
@@ -58,7 +64,17 @@ class LetterController {
                     Base64Url.encode(l.letterHash()),
                     LedgerRef.of(l.ledgerEntry()),
                     l.handSigned() ? Base64Url.encode(l.handwritingHash()) : null,
-                    l.handwritingScore() == null ? null : Math.round(l.handwritingScore() * 1000) / 1000.0);
+                    l.handwritingScore() == null ? null : Math.round(l.handwritingScore() * 1000) / 1000.0,
+                    l.isReply() ? Base64Url.encode(l.inReplyTo()) : null,
+                    Base64Url.encode(l.threadId()));
+        }
+    }
+
+    record ThreadResponse(String threadId, Party counterpart, int letters, long latestSeq, String latestSentAt) {
+        static ThreadResponse of(LetterRepository.ThreadSummary t) {
+            return new ThreadResponse(Base64Url.encode(t.threadId()),
+                    new Party(t.counterpartId(), Base64Url.encode(t.counterpartKey())), t.letterCount(), t.latestSeq(),
+                    t.latestSentAt());
         }
     }
 
@@ -76,7 +92,8 @@ class LetterController {
                 request.sentAt(),
                 request.envelope(),
                 Base64Url.decode(request.signature()),
-                request.handwriting());
+                request.handwriting(),
+                request.inReplyTo() == null ? null : hash32(request.inReplyTo()));
         return ResponseEntity.created(URI.create("/api/letters/" + letter.id())).body(LetterResponse.of(letter));
     }
 
@@ -88,6 +105,24 @@ class LetterController {
     @GetMapping("/sent")
     List<LetterResponse> sent(@AuthenticationPrincipal Jwt jwt) {
         return letters.sent(accountId(jwt)).stream().map(LetterResponse::of).toList();
+    }
+
+    @GetMapping("/threads")
+    List<ThreadResponse> threads(@AuthenticationPrincipal Jwt jwt) {
+        return letters.threads(accountId(jwt)).stream().map(ThreadResponse::of).toList();
+    }
+
+    @GetMapping("/threads/{threadId}")
+    List<LetterResponse> thread(@AuthenticationPrincipal Jwt jwt, @PathVariable String threadId) {
+        return letters.thread(accountId(jwt), hash32(threadId)).stream().map(LetterResponse::of).toList();
+    }
+
+    private static byte[] hash32(String value) {
+        byte[] hash = Base64Url.decode(value);
+        if (hash.length != 32) {
+            throw new IllegalArgumentException("A letter hash is 32 bytes");
+        }
+        return hash;
     }
 
     @GetMapping("/{id}")

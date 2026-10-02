@@ -53,7 +53,8 @@ Every letter is signed twice: by the sender's wallet and by their hand.
    and `handwriting_score` (never the strokes), and records the sample in `handwriting_history`.
 
 Letters sent before hand-signing (v1: header `writeproof/letter/v1` without the handwriting
-hash) are still readable and verifiable. New letters must be v2.
+hash) are still readable and verifiable. New letters must be v2, or v3 for replies (v2 plus the
+hash of the letter answered; see [threads.md](threads.md)).
 
 ## Reading and verifying (recipient or sender)
 
