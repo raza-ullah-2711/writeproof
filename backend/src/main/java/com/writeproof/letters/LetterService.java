@@ -58,6 +58,16 @@ public class LetterService {
     @Transactional
     public Letter send(UUID senderId, byte[] recipientKey, String sentAt, LetterEnvelope envelope, byte[] signature,
                        String handwritingJson) {
+        return send(senderId, recipientKey, sentAt, envelope, signature, handwritingJson, null);
+    }
+
+    /**
+     * As {@link #send}, optionally as a reply: {@code inReplyTo} is the hash of a letter between
+     * the same two people, and the signed (v3) header commits to it.
+     */
+    @Transactional
+    public Letter send(UUID senderId, byte[] recipientKey, String sentAt, LetterEnvelope envelope, byte[] signature,
+                       String handwritingJson, byte[] inReplyTo) {
         envelope.validate();
         HandwritingSample handwriting = parseHandwriting(handwritingJson);
         byte[] handwritingHash = LetterHashing.handwritingHash(handwritingJson);
@@ -74,8 +84,18 @@ public class LetterService {
             throw unprocessable("Both sender and recipient need a registered encryption key");
         }
 
-        byte[] hash = LetterHashing.letterHash(
-                LetterHashing.headerV2(sender.publicKey(), recipient.publicKey(), sentAt, handwritingHash), envelope);
+        byte[] threadId = null;
+        if (inReplyTo != null) {
+            // Unknown and not-yours look the same, so this can't probe for other people's letters.
+            Letter parent = letters.findByHash(inReplyTo)
+                    .filter(l -> sameParties(l, sender.id(), recipient.id()))
+                    .orElseThrow(() -> unprocessable("A reply must answer a letter between you and this recipient"));
+            threadId = parent.threadId();
+        }
+        String header = inReplyTo == null
+                ? LetterHashing.headerV2(sender.publicKey(), recipient.publicKey(), sentAt, handwritingHash)
+                : LetterHashing.headerV3(sender.publicKey(), recipient.publicKey(), sentAt, handwritingHash, inReplyTo);
+        byte[] hash = LetterHashing.letterHash(header, envelope);
         if (!Ed25519.verify(sender.publicKey(), LetterHashing.signedMessage(hash), signature)) {
             throw unprocessable("Signature does not verify against the sender's key");
         }
@@ -98,10 +118,16 @@ public class LetterService {
         LedgerEntry entry = ledger.append(hash);
         UUID id = UUID.randomUUID();
         letters.insert(id, sender.id(), recipient.id(), sentAt, envelope, signature, hash, entry.seq(), now,
-                handwritingHash, verification.score());
+                handwritingHash, verification.score(), inReplyTo, threadId);
         handwritingService.recordLetterSignature(sender.id(), handwriting);
         return new Letter(id, sender.id(), sender.publicKey(), recipient.id(), recipient.publicKey(), sentAt,
-                envelope, signature, hash, entry, handwritingHash, verification.score());
+                envelope, signature, hash, entry, handwritingHash, verification.score(), inReplyTo,
+                threadId == null ? hash : threadId);
+    }
+
+    private static boolean sameParties(Letter l, UUID a, UUID b) {
+        return (l.senderId().equals(a) && l.recipientId().equals(b))
+                || (l.senderId().equals(b) && l.recipientId().equals(a));
     }
 
     private HandwritingSample parseHandwriting(String json) {
@@ -125,6 +151,20 @@ public class LetterService {
 
     public List<Letter> sent(UUID accountId) {
         return letters.sent(accountId);
+    }
+
+    /** The account's conversations, most recently active first. */
+    public List<LetterRepository.ThreadSummary> threads(UUID accountId) {
+        return letters.threads(accountId);
+    }
+
+    /** Every letter in a thread, oldest first; to anyone but its two parties it doesn't exist. */
+    public List<Letter> thread(UUID accountId, byte[] threadId) {
+        List<Letter> thread = letters.thread(accountId, threadId);
+        if (thread.isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.NOT_FOUND, "No such conversation");
+        }
+        return thread;
     }
 
     private static ResponseStatusException unprocessable(String reason) {

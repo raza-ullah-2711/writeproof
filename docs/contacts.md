@@ -72,5 +72,5 @@ blob   = iv(12) || AES-GCM(key, iv, JSON(book), aad = "writeproof/contacts/v1\n"
 
 ## Next slices
 
-- **Threads**: replies that are signed and point to the hash of the letter they answer.
+- **Threads**: done, see [threads.md](threads.md).
 - **Open letters**: signed by hand and wallet but not sealed, readable by anyone with the link.

@@ -18,6 +18,7 @@ import {
   letterHash,
   letterHeader,
   letterHeaderV2,
+  letterHeaderV3,
   letterSignedMessage,
 } from './letter-format';
 
@@ -39,6 +40,42 @@ export interface Letter {
   handwritingHash: string | null;
   /** Similarity the server measured when the letter was sent (v2 only). */
   handwritingScore: number | null;
+  /** For a reply (v3): the hash of the letter it answers. Signed, so checked on opening. */
+  inReplyTo: string | null;
+  /** Hash of the letter that started the conversation (its own hash, if it did). */
+  threadId: string;
+}
+
+/** A conversation, as listed by the server. */
+export interface ThreadSummary {
+  threadId: string;
+  counterpart: Party;
+  letters: number;
+  latestSeq: number;
+  latestSentAt: string;
+}
+
+/** Whether a conversation's letters link up; null if they do, otherwise what's wrong. */
+export function checkThread(threadId: string, letters: readonly Letter[]): string | null {
+  if (letters.length === 0) {
+    return 'The conversation is empty';
+  }
+  const [first, ...rest] = letters;
+  if (first.letterHash !== threadId || first.inReplyTo !== null) {
+    return "The conversation doesn't start with the letter it is named after";
+  }
+  const pair = [first.sender.publicKey, first.recipient.publicKey].sort().join();
+  const seen = new Set([first.letterHash]);
+  for (const letter of rest) {
+    if ([letter.sender.publicKey, letter.recipient.publicKey].sort().join() !== pair) {
+      return 'A letter in this conversation is between different people';
+    }
+    if (letter.threadId !== threadId || !letter.inReplyTo || !seen.has(letter.inReplyTo)) {
+      return `Letter #${letter.ledger.seq} doesn't answer an earlier letter in this conversation`;
+    }
+    seen.add(letter.letterHash);
+  }
+  return null;
 }
 
 /** What the reader's own browser established about a letter. Nothing here is taken on trust. */
@@ -87,6 +124,7 @@ export class LettersService {
     recipientAddress: string,
     body: string,
     signature: HandwritingSample,
+    inReplyTo?: Letter,
   ): Promise<Letter> {
     const me = this.wallet.publicKey();
     const myEncryptionKey = this.wallet.encryptionPublicKey();
@@ -95,6 +133,14 @@ export class LettersService {
     }
     if (body.trim().length === 0 || body.length > MAX_BODY_LENGTH) {
       throw new Error(`A letter needs 1 to ${MAX_BODY_LENGTH} characters`);
+    }
+    if (inReplyTo) {
+      // A conversation is between two people: the reply goes to whoever else is in it.
+      const parties = [inReplyTo.sender.publicKey, inReplyTo.recipient.publicKey];
+      const other = parties.find((p) => p !== me) ?? me;
+      if (!parties.includes(me) || recipientAddress !== other) {
+        throw new Error('A reply goes to the other person in the conversation');
+      }
     }
     const recipient = await firstValueFrom(
       this.http.get<Account>(`/api/accounts/by-key/${encodeURIComponent(recipientAddress)}`),
@@ -120,6 +166,7 @@ export class LettersService {
       senderEncryptionKey: myEncryptionKey,
       recipientEncryptionKey: recipient.encryptionKey,
       sentAt,
+      inReplyTo: inReplyTo?.letterHash,
     });
     const walletSignature = await this.wallet.sign(letterSignedMessage(sealed.hash));
     const letter = await firstValueFrom(
@@ -129,6 +176,7 @@ export class LettersService {
         envelope: sealed.envelope,
         signature: toBase64Url(walletSignature),
         handwriting,
+        ...(inReplyTo ? { inReplyTo: inReplyTo.letterHash } : {}),
       }),
     );
     if (letter.letterHash !== toBase64Url(sealed.hash)) {
@@ -145,6 +193,17 @@ export class LettersService {
     return firstValueFrom(this.http.get<Letter[]>('/api/letters/sent'));
   }
 
+  threads(): Promise<ThreadSummary[]> {
+    return firstValueFrom(this.http.get<ThreadSummary[]>('/api/letters/threads'));
+  }
+
+  /** A conversation's letters, oldest first. */
+  thread(threadId: string): Promise<Letter[]> {
+    return firstValueFrom(
+      this.http.get<Letter[]>(`/api/letters/threads/${encodeURIComponent(threadId)}`),
+    );
+  }
+
   /** Decrypts and independently verifies a letter: signature, sealing and ledger proofs. */
   async open(letter: Letter): Promise<OpenedLetter> {
     const me = this.wallet.publicKey();
@@ -152,14 +211,7 @@ export class LettersService {
     if (!me || !myEncryptionKey) {
       throw new Error('No wallet is loaded');
     }
-    const header = letter.handwritingHash
-      ? letterHeaderV2(
-          letter.sender.publicKey,
-          letter.recipient.publicKey,
-          letter.sentAt,
-          letter.handwritingHash,
-        )
-      : letterHeader(letter.sender.publicKey, letter.recipient.publicKey, letter.sentAt);
+    const header = headerOf(letter);
     const hash = await letterHash(header, letter.envelope);
     const hashMatches = toBase64Url(hash) === letter.letterHash;
     const signatureValid =
@@ -299,4 +351,15 @@ export class LettersService {
       ? null
       : 'The ledger was rewritten since this browser last checked: it does not extend the checkpoint seen before';
   }
+}
+
+/** The signed header a letter claims: v3 for replies, v2 for hand-signed, v1 from before. */
+function headerOf(letter: Letter): string {
+  const { sender, recipient, sentAt, handwritingHash: hw, inReplyTo } = letter;
+  if (!hw) {
+    return letterHeader(sender.publicKey, recipient.publicKey, sentAt);
+  }
+  return inReplyTo
+    ? letterHeaderV3(sender.publicKey, recipient.publicKey, sentAt, hw, inReplyTo)
+    : letterHeaderV2(sender.publicKey, recipient.publicKey, sentAt, hw);
 }

@@ -81,7 +81,8 @@ sent it can't be edited or unsent — like a sealed letter.
 11. **Social layer** — contacts (petnames, QR address exchange), threads, open (unsealed but
     signed) letters. Decided: address exchange only (no directory), contact book encrypted with
     the wallet and stored as ciphertext, open letters readable by anyone with the link.
-    11a **Contacts** ✅ — see [contacts.md](contacts.md). Threads and open letters to follow.
+    11a **Contacts** ✅ — see [contacts.md](contacts.md). 11b **Threads** ✅ — signed replies
+    and conversations, see [threads.md](threads.md). Open letters to follow.
 12. **Deployment packaging** — production images (non-root, layered), Caddy with automatic HTTPS
     and the required headers, health-ordered Compose stack, secrets generator, backup/restore,
     smoke test run in CI. ✅ — see [deployment.md](deployment.md).

@@ -20,9 +20,10 @@ import {
   handwritingHash,
   letterHash,
   letterHeaderV2,
+  letterHeaderV3,
   letterSignedMessage,
 } from './letter-format';
-import { Letter, LettersService } from './letters.service';
+import { Letter, LettersService, checkThread } from './letters.service';
 
 /** A correspondent whose keys live in the test, not in a wallet. */
 async function correspondent() {
@@ -196,18 +197,17 @@ describe('LettersService', () => {
   }
 
   /** Sends a hand-signed letter to Bob, playing the server; returns what the server stored. */
-  async function sendToBob(body: string): Promise<Letter> {
-    const sending = letters.send(bob.publicKey, body, SIGNATURE);
+  async function sendToBob(body: string, inReplyTo?: Letter): Promise<Letter> {
+    const sending = letters.send(bob.publicKey, body, SIGNATURE, inReplyTo);
     (await nextRequest(http, `/api/accounts/by-key/${bob.publicKey}`)).flush(bob.account);
     const post = await nextRequest(http, '/api/letters');
     const { sentAt, envelope, signature, handwriting } = post.request.body;
+    expect(post.request.body.inReplyTo).toBe(inReplyTo?.letterHash);
     const hwHash = await handwritingHash(handwriting);
-    const hash = toBase64Url(
-      await letterHash(
-        letterHeaderV2(wallet.publicKey()!, bob.publicKey, sentAt, hwHash),
-        envelope,
-      ),
-    );
+    const header = inReplyTo
+      ? letterHeaderV3(wallet.publicKey()!, bob.publicKey, sentAt, hwHash, inReplyTo.letterHash)
+      : letterHeaderV2(wallet.publicKey()!, bob.publicKey, sentAt, hwHash);
+    const hash = toBase64Url(await letterHash(header, envelope));
     const stored: Letter = {
       letterId: 'l1',
       sender: { accountId: 'alice', publicKey: wallet.publicKey()! },
@@ -219,6 +219,8 @@ describe('LettersService', () => {
       ledger: await ledgerFor(hash),
       handwritingHash: hwHash,
       handwritingScore: 0.91,
+      inReplyTo: inReplyTo?.letterHash ?? null,
+      threadId: inReplyTo?.threadId ?? hash,
     };
     post.flush(stored);
     await sending;
@@ -329,6 +331,8 @@ describe('LettersService', () => {
       ledger: await ledgerFor(hash),
       handwritingHash: null,
       handwritingScore: null,
+      inReplyTo: null,
+      threadId: hash,
     };
 
     await expect(openWithLedger(letter)).resolves.toMatchObject({
@@ -463,10 +467,76 @@ describe('LettersService', () => {
     });
   });
 
+  it('sends a reply whose signature commits to the letter it answers', async () => {
+    const first = await sendToBob('Dear Bob,');
+    const reply = await sendToBob('And another thing.', first);
+
+    const opened = await openWithLedger(reply);
+    expect(opened).toMatchObject({
+      body: 'And another thing.',
+      signatureValid: true,
+      handSigned: true,
+    });
+
+    // A server that re-threads the reply (points it at another letter) breaks the signature.
+    const rethreaded = await openWithLedger({ ...reply, inReplyTo: reply.letterHash });
+    expect(rethreaded).toMatchObject({ signatureValid: false, decrypted: false });
+    // ...and so does one that strips the link to pass it off as a fresh letter.
+    expect((await openWithLedger({ ...reply, inReplyTo: null })).signatureValid).toBe(false);
+  });
+
+  it('sends a reply only to the other person in the conversation', async () => {
+    const first = await sendToBob('Dear Bob,');
+    const carol = await correspondent();
+
+    await expect(letters.send(carol.publicKey, 'psst', SIGNATURE, first)).rejects.toThrow(
+      /other person in the conversation/,
+    );
+  });
+
   it('rejects empty and oversized letters before contacting the server', async () => {
     await expect(letters.send(bob.publicKey, '   ', SIGNATURE)).rejects.toThrow(/1 to/);
     await expect(letters.send(bob.publicKey, 'x'.repeat(10_001), SIGNATURE)).rejects.toThrow(
       /1 to/,
+    );
+  });
+});
+
+describe('checkThread', () => {
+  const party = (k: string) => ({ accountId: k, publicKey: k });
+  const letter = (hash: string, inReplyTo: string | null, from = 'A', to = 'B', seq = 1): Letter =>
+    ({
+      letterHash: hash,
+      inReplyTo,
+      threadId: 'h1',
+      sender: party(from),
+      recipient: party(to),
+      ledger: { seq },
+    }) as unknown as Letter;
+
+  it('accepts letters that each answer an earlier one, between the same two people', () => {
+    expect(
+      checkThread('h1', [
+        letter('h1', null),
+        letter('h2', 'h1', 'B', 'A'),
+        letter('h3', 'h1', 'A', 'B'),
+        letter('h4', 'h3', 'B', 'A'),
+      ]),
+    ).toBeNull();
+  });
+
+  it('rejects a thread that does not start with its namesake, or links outside itself', () => {
+    expect(checkThread('h1', [])).toMatch(/empty/);
+    expect(checkThread('h1', [letter('h2', null)])).toMatch(/doesn't start/);
+    expect(checkThread('h1', [letter('h1', 'h0')])).toMatch(/doesn't start/);
+    expect(checkThread('h1', [letter('h1', null), letter('h3', 'h2', 'B', 'A', 7)])).toMatch(
+      /#7 doesn't answer an earlier letter/,
+    );
+    expect(checkThread('h1', [letter('h1', null), letter('h2', null, 'B', 'A', 8)])).toMatch(
+      /#8 doesn't answer/,
+    );
+    expect(checkThread('h1', [letter('h1', null), letter('h2', 'h1', 'C', 'A')])).toMatch(
+      /different people/,
     );
   });
 });

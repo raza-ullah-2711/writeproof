@@ -11,6 +11,13 @@
     </div>
 
     <form class="compose" (ngSubmit)="send()">
+      @if (replyTo(); as parent) {
+        <p class="replying">
+          Replying to the letter of {{ parent.sentAt }} (ledger #{{ parent.ledger.seq }}). Your
+          signature will commit to which letter this answers.
+          <button type="button" (click)="cancelReply()">Cancel reply</button>
+        </p>
+      }
       <label>
         To (a contact, or paste an address)
         <input
@@ -20,6 +27,7 @@
           autocomplete="off"
           spellcheck="false"
           list="contact-addresses"
+          [readonly]="replyTo() !== null"
         />
       </label>
       <datalist id="contact-addresses">
@@ -83,92 +91,77 @@
     }
 
     <div class="tabs" role="tablist">
-      <button
-        type="button"
-        role="tab"
-        [attr.aria-selected]="box() === 'inbox'"
-        (click)="selectBox('inbox')"
-      >
-        Inbox
-      </button>
-      <button
-        type="button"
-        role="tab"
-        [attr.aria-selected]="box() === 'sent'"
-        (click)="selectBox('sent')"
-      >
-        Sent
-      </button>
+      @for (tab of tabs; track tab.box) {
+        <button
+          type="button"
+          role="tab"
+          [attr.aria-selected]="box() === tab.box"
+          (click)="selectBox(tab.box)"
+        >
+          {{ tab.label }}
+        </button>
+      }
     </div>
 
-    @if (list(); as letters) {
+    @if (box() === 'threads') {
+      @if (conversation(); as c) {
+        <div class="conversation">
+          <button type="button" class="back" (click)="closeThread()">
+            &larr; All conversations
+          </button>
+          <h3>
+            Conversation with
+            <ng-container *ngTemplateOutlet="who; context: { $implicit: c.counterpart }" />
+          </h3>
+          <p class="thread-check" [class.ok]="!c.problem">
+            @if (c.problem) {
+              ✗ {{ c.problem }}
+            } @else {
+              ✓ Every letter answers an earlier one in this conversation ({{ c.letters.length }}
+              {{ c.letters.length === 1 ? 'letter' : 'letters' }}). Open a letter to check its
+              signed link.
+            }
+          </p>
+          <ul class="list">
+            @for (letter of c.letters; track letter.letterId) {
+              <ng-container *ngTemplateOutlet="card; context: { $implicit: letter }" />
+            }
+          </ul>
+          @if (c.letters.at(-1); as last) {
+            <button type="button" class="primary" (click)="startReply(last)">Reply</button>
+          }
+        </div>
+      } @else if (threadList(); as threads) {
+        @if (threads.length === 0) {
+          <p class="empty">No conversations yet.</p>
+        }
+        <ul class="threads">
+          @for (t of threads; track t.threadId) {
+            <li>
+              <button
+                type="button"
+                class="thread"
+                (click)="openThread(t.threadId, t.counterpart.publicKey)"
+              >
+                <ng-container
+                  *ngTemplateOutlet="who; context: { $implicit: t.counterpart.publicKey }"
+                />
+                <span>{{ t.letters }} {{ t.letters === 1 ? 'letter' : 'letters' }}</span>
+                <span>{{ t.latestSentAt }}</span>
+              </button>
+            </li>
+          }
+        </ul>
+      } @else {
+        <p>Loading&hellip;</p>
+      }
+    } @else if (list(); as letters) {
       @if (letters.length === 0) {
         <p class="empty">No letters yet.</p>
       }
       <ul class="list">
         @for (letter of letters; track letter.letterId) {
-          <li class="letter">
-            <div class="meta">
-              <span>
-                @let party = box() === 'inbox' ? letter.sender : letter.recipient;
-                {{ box() === 'inbox' ? 'From' : 'To' }}
-                @if (petname(party.publicKey); as name) {
-                  <strong class="petname">{{ name }}</strong>
-                } @else {
-                  <code>{{ short(party.publicKey) }}</code>
-                  <a
-                    class="add-contact"
-                    routerLink="/contacts"
-                    [queryParams]="{ add: party.publicKey }"
-                    >Add to contacts</a
-                  >
-                }
-              </span>
-              <span>{{ letter.sentAt }}</span>
-              <span>ledger #{{ letter.ledger.seq }}</span>
-            </div>
-            @let state = result(letter);
-            @if (state === undefined) {
-              <button type="button" (click)="open(letter)">Open and verify</button>
-            } @else if (state === 'opening') {
-              <p>Verifying&hellip;</p>
-            } @else if (asOpened(state); as o) {
-              @if (o.body !== null) {
-                <blockquote class="body">{{ o.body }}</blockquote>
-              }
-              @if (o.handwriting; as signature) {
-                <app-signature-view [sample]="signature" />
-              }
-              <ul class="checks">
-                @if (o.handSigned !== null) {
-                  <li [class.ok]="o.handSigned">
-                    {{ o.handSigned ? '✓' : '✗' }} Signed by hand
-                    @if (o.handSigned && letter.handwritingScore !== null) {
-                      (similarity {{ letter.handwritingScore.toFixed(2) }}, verified by Writeproof
-                      at sending)
-                    }
-                  </li>
-                } @else {
-                  <li class="legacy">&ndash; Sent before hand-signing (wallet signature only)</li>
-                }
-                <li [class.ok]="o.signatureValid">
-                  {{ o.signatureValid ? '✓' : '✗' }} Signed by the sender's wallet
-                </li>
-                <li [class.ok]="o.decrypted">
-                  {{ o.decrypted ? '✓' : '✗' }} Sealed for you, unaltered
-                </li>
-                <li [class.ok]="o.ledgerValid">
-                  {{ o.ledgerValid ? '✓' : '✗' }} In the ledger as entry #{{ letter.ledger.seq }}
-                  @if (o.ledgerCheckpointSize !== null) {
-                    (proven against a signed checkpoint of {{ o.ledgerCheckpointSize }} entries)
-                  }
-                  @if (o.ledgerProblem) {
-                    <span class="problem">{{ o.ledgerProblem }}</span>
-                  }
-                </li>
-              </ul>
-            }
-          </li>
+          <ng-container *ngTemplateOutlet="card; context: { $implicit: letter }" />
         }
       </ul>
     } @else {
@@ -176,3 +169,86 @@
     }
   }
 </section>
+
+<ng-template #who let-address>
+  @if (petname(address); as name) {
+    <strong class="petname">{{ name }}</strong>
+  } @else {
+    <code>{{ short(address) }}</code>
+  }
+</ng-template>
+
+<ng-template #card let-letter>
+  <li class="letter">
+    <div class="meta">
+      <span>
+        @let mine = letter.sender.publicKey === wallet.publicKey();
+        @let party = mine ? letter.recipient : letter.sender;
+        {{ mine ? 'To' : 'From' }}
+        <ng-container *ngTemplateOutlet="who; context: { $implicit: party.publicKey }" />
+        @if (!petname(party.publicKey)) {
+          <a class="add-contact" routerLink="/contacts" [queryParams]="{ add: party.publicKey }"
+            >Add to contacts</a
+          >
+        }
+      </span>
+      @if (letter.inReplyTo) {
+        <span class="reply-mark">&#8627; reply</span>
+      }
+      <span>{{ letter.sentAt }}</span>
+      <span>ledger #{{ letter.ledger.seq }}</span>
+    </div>
+    @let state = result(letter);
+    @if (state === undefined) {
+      <button type="button" (click)="open(letter)">Open and verify</button>
+    } @else if (state === 'opening') {
+      <p>Verifying&hellip;</p>
+    } @else if (asOpened(state); as o) {
+      @if (o.body !== null) {
+        <blockquote class="body">{{ o.body }}</blockquote>
+      }
+      @if (o.handwriting; as signature) {
+        <app-signature-view [sample]="signature" />
+      }
+      <ul class="checks">
+        @if (o.handSigned !== null) {
+          <li [class.ok]="o.handSigned">
+            {{ o.handSigned ? '✓' : '✗' }} Signed by hand
+            @if (o.handSigned && letter.handwritingScore !== null) {
+              (similarity {{ letter.handwritingScore.toFixed(2) }}, verified by Writeproof at
+              sending)
+            }
+          </li>
+        } @else {
+          <li class="legacy">&ndash; Sent before hand-signing (wallet signature only)</li>
+        }
+        <li [class.ok]="o.signatureValid">
+          {{ o.signatureValid ? '✓' : '✗' }} Signed by the sender's wallet
+          @if (letter.inReplyTo && o.signatureValid) {
+            (including which letter it answers)
+          }
+        </li>
+        <li [class.ok]="o.decrypted">{{ o.decrypted ? '✓' : '✗' }} Sealed for you, unaltered</li>
+        <li [class.ok]="o.ledgerValid">
+          {{ o.ledgerValid ? '✓' : '✗' }} In the ledger as entry #{{ letter.ledger.seq }}
+          @if (o.ledgerCheckpointSize !== null) {
+            (proven against a signed checkpoint of {{ o.ledgerCheckpointSize }} entries)
+          }
+          @if (o.ledgerProblem) {
+            <span class="problem">{{ o.ledgerProblem }}</span>
+          }
+        </li>
+      </ul>
+      @if (o.decrypted && o.signatureValid) {
+        <div class="letter-actions">
+          <button type="button" (click)="startReply(letter)">Reply</button>
+          @if (box() !== 'threads') {
+            <button type="button" (click)="openThread(letter.threadId, otherParty(letter))">
+              Show conversation
+            </button>
+          }
+        </div>
+      }
+    }
+  </li>
+</ng-template>

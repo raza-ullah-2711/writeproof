@@ -127,6 +127,25 @@ class LettersApiTests {
         return body;
     }
 
+    /** A reply: the v3 header commits to the hash of the letter it answers. */
+    private Map<String, Object> signedReply(TestWallet from, TestWallet to, String inReplyTo, String handwriting)
+            throws Exception {
+        String sentAt = now();
+        LetterEnvelope envelope = envelope();
+        String header = LetterHashing.headerV3(from.publicKey, to.publicKey, sentAt,
+                LetterHashing.handwritingHash(handwriting), Base64Url.decode(inReplyTo));
+        byte[] signature = TestWallet.sign(from.identity.getPrivate(),
+                LetterHashing.signedMessage(LetterHashing.letterHash(header, envelope)));
+        Map<String, Object> body = new HashMap<>();
+        body.put("recipientPublicKey", Base64Url.encode(to.publicKey));
+        body.put("sentAt", sentAt);
+        body.put("envelope", envelope);
+        body.put("signature", Base64Url.encode(signature));
+        body.put("handwriting", handwriting);
+        body.put("inReplyTo", inReplyTo);
+        return body;
+    }
+
     private Map<String, Object> aliceToBob() throws Exception {
         return signedLetter(alice, bob, now(), envelope(), aliceSignsNow());
     }
@@ -384,6 +403,96 @@ class LettersApiTests {
     void requiresAuthentication() {
         assertThat(rest.getForEntity("/api/letters/inbox", Map.class).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
         assertThat(rest.getForEntity("/api/ledger/entries", Map.class).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
+    private final SyntheticSignatures.Writer bobHand = new SyntheticSignatures.Writer(2002);
+
+    private String bobSignsNow() throws Exception {
+        return toJson(capturedAt(bobHand.genuine(seeds.incrementAndGet(), "pen"), Instant.now()));
+    }
+
+    private List<Map<String, Object>> threads(TestWallet as) {
+        return rest.exchange("/api/letters/threads", HttpMethod.GET, new HttpEntity<>(as.headers()), List.class)
+                .getBody();
+    }
+
+    /** Object, not List: errors come back as a problem-detail map. */
+    private ResponseEntity<Object> thread(TestWallet as, String threadId) {
+        return rest.exchange("/api/letters/threads/" + threadId, HttpMethod.GET, new HttpEntity<>(as.headers()),
+                Object.class);
+    }
+
+    @Test
+    void aNewLetterStartsItsOwnThread() throws Exception {
+        Map<String, Object> letter = send(alice, aliceToBob()).getBody();
+
+        assertThat(letter.get("inReplyTo")).isNull();
+        assertThat(letter.get("threadId")).isEqualTo(letter.get("letterHash"));
+    }
+
+    @Test
+    void repliesFormAThreadInWhichEachLetterCommitsToTheOneItAnswers() throws Exception {
+        enrol(bob, bobHand);
+        Map<String, Object> first = send(alice, aliceToBob()).getBody();
+        String firstHash = (String) first.get("letterHash");
+        ResponseEntity<Map> reply = send(bob, signedReply(bob, alice, firstHash, bobSignsNow()));
+        assertThat(reply.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        String replyHash = (String) reply.getBody().get("letterHash");
+        Map<String, Object> second = send(alice, signedReply(alice, bob, replyHash, aliceSignsNow())).getBody();
+        send(alice, aliceToBob()); // a separate conversation
+
+        assertThat(reply.getBody()).containsEntry("inReplyTo", firstHash).containsEntry("threadId", firstHash);
+        assertThat(second).containsEntry("inReplyTo", replyHash).containsEntry("threadId", firstHash);
+
+        List<Map<String, Object>> aliceThreads = threads(alice);
+        assertThat(aliceThreads).hasSize(2);
+        Map<String, Object> conversation = aliceThreads.stream()
+                .filter(t -> firstHash.equals(t.get("threadId"))).findFirst().orElseThrow();
+        assertThat(conversation).containsEntry("letters", 3).containsEntry("latestSentAt", second.get("sentAt"));
+        assertThat((Map<String, Object>) conversation.get("counterpart"))
+                .containsEntry("publicKey", Base64Url.encode(bob.publicKey));
+        assertThat(threads(bob)).extracting(t -> t.get("threadId")).contains(firstHash);
+
+        List<Map<String, Object>> letters = (List<Map<String, Object>>) thread(bob, firstHash).getBody();
+        assertThat(letters).extracting(l -> l.get("letterHash"))
+                .containsExactly(firstHash, replyHash, second.get("letterHash"));
+        assertThat(letters).extracting(l -> l.get("inReplyTo")).containsExactly(null, firstHash, replyHash);
+    }
+
+    @Test
+    void aReplyMustAnswerALetterBetweenTheSameTwoPeopleAndSignTheLink() throws Exception {
+        enrol(bob, bobHand);
+        TestWallet carol = TestWallet.create(rest);
+        carol.registerEncryptionKey(rest);
+        Map<String, Object> first = send(alice, aliceToBob()).getBody();
+        String firstHash = (String) first.get("letterHash");
+
+        // Alice can't attach Bob's letter to a conversation with Carol.
+        assertThat(send(alice, signedReply(alice, carol, firstHash, aliceSignsNow())).getStatusCode())
+                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        // An unknown letter looks the same as someone else's.
+        assertThat(send(bob, signedReply(bob, alice, b64(32), bobSignsNow())).getStatusCode())
+                .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        // The link is signed: claiming a reply on a letter signed as a fresh (v2) one fails.
+        Map<String, Object> unsigned = signedLetter(bob, alice, now(), envelope(), bobSignsNow());
+        unsigned.put("inReplyTo", firstHash);
+        assertThat(send(bob, unsigned).getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        Map<String, Object> malformed = signedReply(bob, alice, firstHash, bobSignsNow());
+        malformed.put("inReplyTo", b64(16));
+        assertThat(send(bob, malformed).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+    }
+
+    @Test
+    void onlyTheTwoPartiesCanReadAThread() throws Exception {
+        TestWallet carol = TestWallet.create(rest);
+        String threadId = (String) send(alice, aliceToBob()).getBody().get("threadId");
+
+        assertThat(thread(bob, threadId).getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(thread(carol, threadId).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
+        assertThat(thread(carol, "not-a-hash").getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        assertThat(threads(carol)).isEmpty();
+        assertThat(rest.getForEntity("/api/letters/threads", Map.class).getStatusCode())
+                .isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
     private ResponseEntity<Map> get(TestWallet as, String id) {

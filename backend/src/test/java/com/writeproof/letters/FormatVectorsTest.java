@@ -68,6 +68,22 @@ class FormatVectorsTest {
     }
 
     @Test
+    void replyHeaderAndHash() {
+        byte[] handwritingHash = LetterHashing.handwritingHash("{\"format\":\"writeproof.handwriting\"}");
+        String header = LetterHashing.headerV3(bytes(101, 32), bytes(1, 32), "2026-10-02T12:05:00.000Z",
+                handwritingHash, Base64Url.decode("0POqYGKL8NfQmv7K-jvj8VrFCxClE7yi8Tu3WRxPMKE"));
+
+        assertThat(header).isEqualTo("writeproof/letter/v3\n"
+                + "ZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGCg4Q\n"
+                + "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA\n"
+                + "2026-10-02T12:05:00.000Z\n"
+                + "ENPXVYNKkitwzrhusxhzz4zgCM6PlNr31tF_pUxw9QQ\n"
+                + "0POqYGKL8NfQmv7K-jvj8VrFCxClE7yi8Tu3WRxPMKE");
+        assertThat(Base64Url.encode(LetterHashing.letterHash(header, ENVELOPE)))
+                .isEqualTo("o9Kh3vyRofTJuiyDzC6mG2PPLAiIGq5wHo0iv9KT4fQ");
+    }
+
+    @Test
     void encryptionKeyBinding() {
         assertThat(new String(EncryptionKeyBinding.of(bytes(1, 32), bytes(101, 32)), StandardCharsets.UTF_8))
                 .isEqualTo("writeproof/encryption-key/v1\n"

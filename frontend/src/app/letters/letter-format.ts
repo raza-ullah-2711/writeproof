@@ -22,6 +22,7 @@ export interface LetterEnvelope {
 export const LETTER_DOMAIN = 'writeproof/letter/v1';
 /** Hand-signed letters: the header also commits to the handwriting sample's hash. */
 export const LETTER_DOMAIN_V2 = 'writeproof/letter/v2';
+export const LETTER_DOMAIN_V3 = 'writeproof/letter/v3';
 export const LETTER_SIGNATURE_DOMAIN = 'writeproof/letter-signature/v1';
 export const ENCRYPTION_KEY_DOMAIN = 'writeproof/encryption-key/v1';
 export const LEDGER_DOMAIN = 'writeproof/ledger/v1';
@@ -41,6 +42,17 @@ export function letterHeaderV2(
   handwritingHash: string,
 ): string {
   return `${LETTER_DOMAIN_V2}\n${senderKey}\n${recipientKey}\n${sentAt}\n${handwritingHash}`;
+}
+
+/** v3 header (replies): a v2 header that also commits to the hash of the letter it answers. */
+export function letterHeaderV3(
+  senderKey: string,
+  recipientKey: string,
+  sentAt: string,
+  handwritingHash: string,
+  inReplyTo: string,
+): string {
+  return `${LETTER_DOMAIN_V3}\n${senderKey}\n${recipientKey}\n${sentAt}\n${handwritingHash}\n${inReplyTo}`;
 }
 
 /** SHA-256 of the exact handwriting JSON string, base64url. */
