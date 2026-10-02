@@ -1,0 +1,100 @@
+<section class="calibration">
+  <h2>Help improve verification</h2>
+
+  @if (!auth.authenticated()) {
+    <p>Sign in with your <a routerLink="/">wallet</a> first.</p>
+  } @else if (status(); as s) {
+    @if (!s.contributing) {
+      <p>
+        Writeproof's handwriting checks were tuned on simulated signatures. Real handwriting is
+        needed to measure how often they get it wrong, and to tune them.
+      </p>
+      <ul class="terms">
+        <li>
+          <strong>You never give your real signature.</strong> You'll get a made-up name to write in
+          your own style, and you'll try to imitate other contributors' made-up names.
+        </li>
+        <li>
+          Your samples are stored encrypted under a random contributor id, not your account. Other
+          contributors may be shown your practice-name samples to imitate.
+        </li>
+        <li>Nothing here affects your account, your enrolment or your letters.</li>
+        <li>You can withdraw at any time, which deletes everything you contributed.</li>
+      </ul>
+      <button type="button" class="primary" (click)="consent()" [disabled]="busy()">
+        I agree, let me contribute
+      </button>
+    } @else {
+      <p class="counts">
+        You've contributed {{ s.genuineSamples }} practice samples and {{ s.forgerySamples }}
+        imitations. Thank you.
+      </p>
+
+      <h3>Write your practice name</h3>
+      <p class="hint">
+        Write <strong class="practice-name">{{ s.practiceName }}</strong> as if it were your own
+        signature, the same way each time. Five per visit is plenty; coming back on another day
+        helps even more.
+      </p>
+      <app-handwriting-pad #ownPad [height]="200" />
+      <div class="toolbar">
+        <button type="button" (click)="ownPad.clear()" [disabled]="busy() || ownPad.empty()">
+          Clear
+        </button>
+        <button
+          type="button"
+          class="primary"
+          (click)="saveOwn()"
+          [disabled]="busy() || ownPad.empty()"
+        >
+          Save practice sample
+        </button>
+      </div>
+
+      <h3>Imitate someone else's</h3>
+      @if (target(); as t) {
+        <p class="hint">
+          Copy this <strong>{{ t.practiceName }}</strong> as closely as you can, including how it
+          was written. Replay it as often as you like.
+        </p>
+        <app-signature-view [sample]="t.sample" />
+        <app-handwriting-pad #imitationPad [height]="200" />
+        <div class="toolbar">
+          <button
+            type="button"
+            (click)="imitationPad.clear()"
+            [disabled]="busy() || imitationPad.empty()"
+          >
+            Clear
+          </button>
+          <button
+            type="button"
+            class="primary"
+            (click)="saveImitation()"
+            [disabled]="busy() || imitationPad.empty()"
+          >
+            Save imitation
+          </button>
+        </div>
+      } @else {
+        @if (noTargets()) {
+          <p class="hint">No practice signatures to imitate yet. Check back later.</p>
+        }
+        <button type="button" (click)="loadTarget()" [disabled]="busy()">
+          Show me one to imitate
+        </button>
+      }
+
+      <h3>Stop contributing</h3>
+      <button type="button" class="danger" (click)="withdraw()" [disabled]="busy()">
+        Withdraw and delete my samples
+      </button>
+    }
+  } @else {
+    <p>Loading&hellip;</p>
+  }
+
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+</section>

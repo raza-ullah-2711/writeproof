@@ -1,5 +1,6 @@
 package com.writeproof.handwriting;
 
+import com.fasterxml.jackson.annotation.JsonIgnore;
 import java.util.List;
 
 /**
@@ -20,6 +21,7 @@ public record HandwritingSample(
 
     public record StrokePoint(double x, double y, double t, double pressure, boolean penDown) {}
 
+    @JsonIgnore // a helper, not part of the format
     public boolean isPen() {
         return "pen".equals(device);
     }

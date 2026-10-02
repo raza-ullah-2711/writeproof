@@ -70,8 +70,10 @@ sent it can't be edited or unsent — like a sealed letter.
    rate limits, 4 MiB body cap, handwriting encrypted at rest (with a Java migration for
    existing rows), deletion that requires a fresh verified signature, scores hidden by
    default. ✅ — see [security.md](security.md).
-9. **Real-data calibration** — opt-in sample collection, FAR/FRR evaluation harness, retuned
-   thresholds, per-device templates.
+9. **Real-data calibration** — opt-in collection using made-up practice names (never real
+   signatures), encrypted and withdrawable; operator export; offline evaluator with
+   confidence-bounded threshold recommendations. Tooling ✅; real data and retuning pending —
+   see [calibration.md](calibration.md).
 10. **Independent ledger** — anchor signed checkpoints externally or pick a chain; Merkle
     inclusion proofs instead of re-walking from genesis.
 11. **Social layer** — contacts (petnames, QR address exchange), threads, open (unsealed but

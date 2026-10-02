@@ -6,6 +6,7 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.util.Base64;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
+import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import com.writeproof.security.RateLimitFilter;
@@ -35,7 +36,9 @@ class SecurityConfig {
 
     private static final int MIN_SECRET_BYTES = 32;
 
+    /** Only when serving HTTP: one-shot commands (e.g. the calibration export) run without a web server. */
     @Bean
+    @ConditionalOnWebApplication
     SecurityFilterChain securityFilterChain(HttpSecurity http, TokenBucketRateLimiter rateLimiter,
                                             RateLimitProperties rateLimits) throws Exception {
         return http

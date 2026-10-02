@@ -1,4 +1,5 @@
 import { Routes } from '@angular/router';
+import { Calibration } from './calibration/calibration';
 import { Capture } from './capture/capture';
 import { Home } from './home/home';
 import { LettersPage } from './letters-page/letters-page';
@@ -9,4 +10,5 @@ export const routes: Routes = [
   { path: 'letters', component: LettersPage, title: 'Letters · Writeproof' },
   { path: 'handwriting', component: Verify, title: 'Handwriting · Writeproof' },
   { path: 'capture', component: Capture, title: 'Capture playground · Writeproof' },
+  { path: 'calibration', component: Calibration, title: 'Help improve verification · Writeproof' },
 ];

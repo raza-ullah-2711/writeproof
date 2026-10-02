@@ -12,7 +12,8 @@ and the per-feature docs: [identity](docs/identity.md),
 [handwriting capture](docs/handwriting-capture.md),
 [handwriting verification](docs/handwriting-verification.md),
 [letters and ledger](docs/letters-and-ledger.md),
-[backup and recovery](docs/backup-and-recovery.md), [security](docs/security.md).
+[backup and recovery](docs/backup-and-recovery.md), [security](docs/security.md),
+[calibration](docs/calibration.md).
 
 ## Layout
 

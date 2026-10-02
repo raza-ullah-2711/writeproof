@@ -87,6 +87,13 @@
     <p>Loading&hellip;</p>
   }
 
+  @if (auth.authenticated()) {
+    <p class="hint">
+      <a routerLink="/calibration">Help improve verification</a> by contributing practice samples
+      (never your real signature).
+    </p>
+  }
+
   @if (error(); as message) {
     <p class="error" role="alert">{{ message }}</p>
   }
