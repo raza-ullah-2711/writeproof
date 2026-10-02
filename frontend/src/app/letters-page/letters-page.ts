@@ -1,8 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, effect, inject, signal } from '@angular/core';
+import { Component, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
+import { HandwritingApi, LIVENESS_LABELS, LivenessFlag } from '../handwriting/handwriting-api';
+import { HandwritingPad } from '../handwriting/handwriting-pad';
+import { HandwritingSample } from '../handwriting/handwriting-sample';
+import { SignatureView } from '../handwriting/signature-view';
 import { Letter, LettersService, MAX_BODY_LENGTH, OpenedLetter } from '../letters/letters.service';
 import { WalletService } from '../wallet/wallet.service';
 
@@ -10,7 +14,7 @@ type Box = 'inbox' | 'sent';
 
 @Component({
   selector: 'app-letters-page',
-  imports: [FormsModule, RouterLink],
+  imports: [FormsModule, RouterLink, HandwritingPad, SignatureView],
   templateUrl: './letters-page.html',
   styleUrl: './letters-page.scss',
 })
@@ -18,6 +22,11 @@ export class LettersPage {
   protected readonly auth = inject(AuthService);
   protected readonly wallet = inject(WalletService);
   private readonly letters = inject(LettersService);
+  private readonly handwriting = inject(HandwritingApi);
+
+  protected readonly pad = viewChild(HandwritingPad);
+  /** Null while unknown; sending needs enrolled handwriting. */
+  protected readonly enrolled = signal<boolean | null>(null);
 
   protected readonly maxLength = MAX_BODY_LENGTH;
   protected readonly box = signal<Box>('inbox');
@@ -35,6 +44,14 @@ export class LettersPage {
     effect(() => {
       if (this.auth.authenticated()) {
         void this.show(this.box());
+      }
+    });
+    effect(() => {
+      if (this.auth.authenticated()) {
+        this.handwriting.enrolment().then(
+          (e) => this.enrolled.set(e.enrolled),
+          () => this.enrolled.set(null),
+        );
       }
     });
   }
@@ -64,16 +81,30 @@ export class LettersPage {
 
   protected send(): Promise<void> {
     this.notice.set(null);
+    const signature = this.pad()?.sample();
+    if (!signature) {
+      this.error.set('Sign the letter by hand first.');
+      return Promise.resolve();
+    }
     return this.run(async () => {
-      const letter = await this.letters.send(this.recipient.trim(), this.body);
-      this.body = '';
-      this.notice.set(`Sealed and recorded as ledger entry #${letter.ledger.seq}.`);
-      if (this.box() === 'sent') {
-        await this.show('sent');
-      } else {
-        this.box.set('sent');
+      try {
+        await this.sendSigned(signature);
+      } finally {
+        // A signature is single-use: success or failure, the next attempt needs a fresh one.
+        this.pad()?.clear();
       }
     });
+  }
+
+  private async sendSigned(signature: HandwritingSample): Promise<void> {
+    const letter = await this.letters.send(this.recipient.trim(), this.body, signature);
+    this.body = '';
+    this.notice.set(`Sealed and recorded as ledger entry #${letter.ledger.seq}.`);
+    if (this.box() === 'sent') {
+      await this.show('sent');
+    } else {
+      this.box.set('sent');
+    }
   }
 
   protected async open(letter: Letter): Promise<void> {
@@ -115,6 +146,11 @@ function describe(e: unknown): string {
     }
     if (e.status === 404) {
       return 'No account with that address.';
+    }
+    const problem = e.error as { detail?: string; score?: number; livenessFlags?: LivenessFlag[] };
+    if (e.status === 422 && problem?.score !== undefined) {
+      const reasons = (problem.livenessFlags ?? []).map((f) => LIVENESS_LABELS[f]);
+      return [`${problem.detail} (similarity ${problem.score.toFixed(2)}).`, ...reasons].join(' ');
     }
     return (e.error as { detail?: string } | null)?.detail ?? `Request failed (${e.status}).`;
   }

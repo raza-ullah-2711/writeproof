@@ -18,7 +18,10 @@ export interface LetterEnvelope {
   senderKey: WrappedKey;
 }
 
+/** Letters sent before hand-signing; still readable and verifiable. */
 export const LETTER_DOMAIN = 'writeproof/letter/v1';
+/** Hand-signed letters: the header also commits to the handwriting sample's hash. */
+export const LETTER_DOMAIN_V2 = 'writeproof/letter/v2';
 export const LETTER_SIGNATURE_DOMAIN = 'writeproof/letter-signature/v1';
 export const ENCRYPTION_KEY_DOMAIN = 'writeproof/encryption-key/v1';
 export const LEDGER_DOMAIN = 'writeproof/ledger/v1';
@@ -28,6 +31,21 @@ const utf8 = (text: string) => new TextEncoder().encode(text);
 /** Binds sender, recipient and time; also the AES-GCM associated data. */
 export function letterHeader(senderKey: string, recipientKey: string, sentAt: string): string {
   return `${LETTER_DOMAIN}\n${senderKey}\n${recipientKey}\n${sentAt}`;
+}
+
+/** v2 header: also commits to the exact handwriting JSON that signed the letter. */
+export function letterHeaderV2(
+  senderKey: string,
+  recipientKey: string,
+  sentAt: string,
+  handwritingHash: string,
+): string {
+  return `${LETTER_DOMAIN_V2}\n${senderKey}\n${recipientKey}\n${sentAt}\n${handwritingHash}`;
+}
+
+/** SHA-256 of the exact handwriting JSON string, base64url. */
+export async function handwritingHash(handwritingJson: string): Promise<string> {
+  return toBase64Url(await sha256(utf8(handwritingJson)));
 }
 
 /** SHA-256 over the header and every envelope field: what the ledger records. */

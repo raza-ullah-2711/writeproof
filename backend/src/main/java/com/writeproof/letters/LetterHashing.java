@@ -9,8 +9,9 @@ import java.nio.charset.StandardCharsets;
  * shared test vector.
  *
  * <ul>
- *   <li>{@link #header}: binds sender, recipient and time. It is also the AES-GCM associated
- *       data, so a ciphertext can't be moved into a different letter.
+ *   <li>{@link #headerV2} (v1: {@link #header}): binds sender, recipient, time and the handwriting
+ *       hash. It is also the AES-GCM associated data, so a ciphertext can't be moved into a
+ *       different letter.
  *   <li>{@link #letterHash}: SHA-256 over the header and every envelope field. This is what goes on
  *       the ledger.
  *   <li>{@link #signedMessage}: what the sender's identity key signs. Domain-separated from
@@ -19,13 +20,26 @@ import java.nio.charset.StandardCharsets;
  */
 public final class LetterHashing {
 
+    /** Letters sent before hand-signing (Task 5); still readable and verifiable. */
     public static final String DOMAIN = "writeproof/letter/v1";
+    /** Hand-signed letters: the header also commits to the handwriting sample's hash. */
+    public static final String DOMAIN_V2 = "writeproof/letter/v2";
     public static final String SIGNATURE_DOMAIN = "writeproof/letter-signature/v1";
 
     private LetterHashing() {}
 
     public static String header(byte[] senderKey, byte[] recipientKey, String sentAt) {
         return DOMAIN + "\n" + Base64Url.encode(senderKey) + "\n" + Base64Url.encode(recipientKey) + "\n" + sentAt;
+    }
+
+    public static String headerV2(byte[] senderKey, byte[] recipientKey, String sentAt, byte[] handwritingHash) {
+        return DOMAIN_V2 + "\n" + Base64Url.encode(senderKey) + "\n" + Base64Url.encode(recipientKey) + "\n" + sentAt
+                + "\n" + Base64Url.encode(handwritingHash);
+    }
+
+    /** SHA-256 of the exact handwriting JSON as sent (and as sealed inside the letter). */
+    public static byte[] handwritingHash(String handwritingJson) {
+        return LedgerHashing.sha256(handwritingJson.getBytes(StandardCharsets.UTF_8));
     }
 
     public static byte[] letterHash(String header, LetterEnvelope e) {

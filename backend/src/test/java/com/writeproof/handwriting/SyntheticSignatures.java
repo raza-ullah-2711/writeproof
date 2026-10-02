@@ -12,7 +12,7 @@ import java.util.function.DoubleUnaryOperator;
  * {@link Writer#genuine} writes it again with natural variation; the forgery generators keep the
  * shape but get the dynamics wrong in the ways real forgers and bots do.
  */
-final class SyntheticSignatures {
+public final class SyntheticSignatures {
 
     private SyntheticSignatures() {}
 
@@ -29,14 +29,14 @@ final class SyntheticSignatures {
         }
     }
 
-    static final class Writer {
+    public static final class Writer {
         final List<Curve> strokes = new ArrayList<>();
         final double[] strokeMs;       // nominal pen-down duration per stroke
         final double[] gapMs;          // nominal pen-up gap after each stroke
         final double rhythmFreq, rhythmPhase, rhythmDepth;
         final double pressureFreq, pressurePhase;
 
-        Writer(long seed) {
+        public Writer(long seed) {
             Random r = new Random(seed);
             int count = 1 + r.nextInt(3);
             strokeMs = new double[count];
@@ -68,7 +68,7 @@ final class SyntheticSignatures {
         }
 
         /** The real writer, signing again. */
-        HandwritingSample genuine(long seed, String device) {
+        public HandwritingSample genuine(long seed, String device) {
             Random r = new Random(seed);
             Variation v = Variation.natural(r);
             return write(this, v, r, device, u -> rhythm(u, 0.15 * r.nextGaussian()), 1.0);
@@ -110,7 +110,7 @@ final class SyntheticSignatures {
      * A skilled forger tracing the right shape: careful, therefore slow, with their own (flatter)
      * rhythm and a little tremor.
      */
-    static HandwritingSample skilledForgery(Writer victim, long seed, String device) {
+    public static HandwritingSample skilledForgery(Writer victim, long seed, String device) {
         Random r = new Random(seed);
         Variation natural = Variation.natural(r);
         Variation v = new Variation(natural.scale(), natural.rotation(), natural.dx(), natural.dy(),

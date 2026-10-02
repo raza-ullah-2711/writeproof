@@ -1,5 +1,6 @@
 import { fromBase64Url, toBase64Url } from '../crypto/base64url';
 import { Ecdh, openLetter, sealLetter } from './letter-crypto';
+import { handwritingHash } from './letter-format';
 
 interface Party {
   identity: string;
@@ -32,9 +33,12 @@ describe('letter crypto', () => {
     bob = await party();
   });
 
+  const handwriting = '{"format":"writeproof.handwriting","strokes":[]}';
+
   const seal = (body: string) =>
     sealLetter({
       body,
+      handwriting,
       senderKey: alice.identity,
       recipientKey: bob.identity,
       senderEncryptionKey: alice.encryptionKey,
@@ -47,10 +51,11 @@ describe('letter crypto', () => {
 
     await expect(
       openLetter(envelope, header, 'recipient', bob.encryptionKey, bob.ecdh),
-    ).resolves.toEqual({ body: 'Dear Bob, ✉️ sealed by hand.' });
+    ).resolves.toEqual({ body: 'Dear Bob, ✉️ sealed by hand.', handwriting });
     await expect(
       openLetter(envelope, header, 'sender', alice.encryptionKey, alice.ecdh),
-    ).resolves.toEqual({ body: 'Dear Bob, ✉️ sealed by hand.' });
+    ).resolves.toEqual({ body: 'Dear Bob, ✉️ sealed by hand.', handwriting });
+    expect(header.startsWith('writeproof/letter/v2\n')).toBe(true);
   });
 
   it('does not contain the plaintext anywhere in the envelope', async () => {
@@ -93,6 +98,32 @@ describe('letter crypto', () => {
     await expect(
       openLetter(envelope, forgedHeader, 'recipient', bob.encryptionKey, bob.ecdh),
     ).rejects.toThrow();
+  });
+
+  it('fails if presented with a different handwriting hash than it was sealed under', async () => {
+    const { envelope, header } = await seal('original');
+    const otherHash = await handwritingHash('{"format":"writeproof.handwriting","strokes":[[]]}');
+    const swapped = header.replace(/[^\n]+$/, otherHash);
+
+    await expect(
+      openLetter(envelope, swapped, 'recipient', bob.encryptionKey, bob.ecdh),
+    ).rejects.toThrow();
+  });
+
+  it('can still produce and open v1 letters (sent before hand-signing)', async () => {
+    const { envelope, header } = await sealLetter({
+      body: 'old',
+      senderKey: alice.identity,
+      recipientKey: bob.identity,
+      senderEncryptionKey: alice.encryptionKey,
+      recipientEncryptionKey: bob.encryptionKey,
+      sentAt,
+    });
+
+    expect(header.startsWith('writeproof/letter/v1\n')).toBe(true);
+    await expect(
+      openLetter(envelope, header, 'recipient', bob.encryptionKey, bob.ecdh),
+    ).resolves.toEqual({ body: 'old' });
   });
 
   it('uses fresh keys and nonces for every letter', async () => {

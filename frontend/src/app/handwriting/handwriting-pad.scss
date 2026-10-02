@@ -13,4 +13,8 @@
   // Pointer events must reach us instead of scrolling or zooming the page.
   touch-action: none;
   user-select: none;
+
+  &.readonly {
+    cursor: default;
+  }
 }

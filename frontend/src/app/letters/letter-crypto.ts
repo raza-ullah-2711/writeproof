@@ -1,5 +1,12 @@
 import { fromBase64Url, toBase64Url } from '../crypto/base64url';
-import { LetterEnvelope, WrappedKey, letterHash, letterHeader } from './letter-format';
+import {
+  LetterEnvelope,
+  WrappedKey,
+  handwritingHash,
+  letterHash,
+  letterHeader,
+  letterHeaderV2,
+} from './letter-format';
 
 /**
  * Sealed delivery. The body is AES-256-GCM under a random content key; that key is wrapped
@@ -12,6 +19,8 @@ const utf8 = (text: string) => new TextEncoder().encode(text);
 
 export interface LetterPlaintext {
   body: string;
+  /** The handwriting sample JSON that signed the letter (v2 letters). */
+  handwriting?: string;
 }
 
 export interface SealInput {
@@ -21,6 +30,11 @@ export interface SealInput {
   senderEncryptionKey: string;
   recipientEncryptionKey: string;
   sentAt: string;
+  /**
+   * Exact handwriting JSON; sealed inside the letter and committed to by the v2 header. The app
+   * always provides it (the server rejects letters without it); omitting it produces a v1 letter.
+   */
+  handwriting?: string;
 }
 
 export interface Sealed {
@@ -33,12 +47,22 @@ export interface Sealed {
 export type Ecdh = (ephemeralPublicKey: Uint8Array<ArrayBuffer>) => Promise<ArrayBuffer>;
 
 export async function sealLetter(input: SealInput): Promise<Sealed> {
-  const header = letterHeader(input.senderKey, input.recipientKey, input.sentAt);
+  const header =
+    input.handwriting === undefined
+      ? letterHeader(input.senderKey, input.recipientKey, input.sentAt)
+      : letterHeaderV2(
+          input.senderKey,
+          input.recipientKey,
+          input.sentAt,
+          await handwritingHash(input.handwriting),
+        );
   const aad = utf8(header);
   const contentKey = crypto.getRandomValues(new Uint8Array(32));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const bodyKey = await crypto.subtle.importKey('raw', contentKey, 'AES-GCM', false, ['encrypt']);
-  const plaintext = utf8(JSON.stringify({ body: input.body } satisfies LetterPlaintext));
+  const plaintext = utf8(
+    JSON.stringify({ body: input.body, handwriting: input.handwriting } satisfies LetterPlaintext),
+  );
   const ciphertext = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv, additionalData: aad },
     bodyKey,
@@ -82,7 +106,11 @@ export async function openLetter(
     fromBase64Url(envelope.ciphertext),
   );
   const parsed: unknown = JSON.parse(new TextDecoder().decode(plaintext));
-  if (typeof (parsed as LetterPlaintext)?.body !== 'string') {
+  const letter = parsed as LetterPlaintext;
+  if (
+    typeof letter?.body !== 'string' ||
+    (letter.handwriting !== undefined && typeof letter.handwriting !== 'string')
+  ) {
     throw new Error('Malformed letter body');
   }
   return parsed as LetterPlaintext;

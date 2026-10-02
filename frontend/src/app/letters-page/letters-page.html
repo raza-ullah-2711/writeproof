@@ -31,14 +31,29 @@
           required
         ></textarea>
       </label>
+      @if (enrolled() === false) {
+        <p class="error">
+          Letters are signed by hand. <a routerLink="/handwriting">Enrol your handwriting</a> first.
+        </p>
+      } @else {
+        <div class="sign">
+          <span>Sign by hand</span>
+          <app-handwriting-pad [height]="200" />
+          <button type="button" (click)="pad()?.clear()" [disabled]="busy() || pad()?.empty()">
+            Clear signature
+          </button>
+        </div>
+      }
       <p class="seal-note">
-        Sealed for the recipient, signed by your wallet and recorded on the ledger.
+        Sealed for the recipient, signed by your wallet and your hand, and recorded on the ledger.
         <strong>Once sent, a letter can't be edited or unsent.</strong>
       </p>
       <button
         type="submit"
         class="primary"
-        [disabled]="busy() || !recipient.trim() || !body.trim()"
+        [disabled]="
+          busy() || !recipient.trim() || !body.trim() || enrolled() !== true || pad()?.empty()
+        "
       >
         Seal and send
       </button>
@@ -97,7 +112,21 @@
               @if (o.body !== null) {
                 <blockquote class="body">{{ o.body }}</blockquote>
               }
+              @if (o.handwriting; as signature) {
+                <app-signature-view [sample]="signature" />
+              }
               <ul class="checks">
+                @if (o.handSigned !== null) {
+                  <li [class.ok]="o.handSigned">
+                    {{ o.handSigned ? '✓' : '✗' }} Signed by hand
+                    @if (o.handSigned && letter.handwritingScore !== null) {
+                      (similarity {{ letter.handwritingScore.toFixed(2) }}, verified by Writeproof
+                      at sending)
+                    }
+                  </li>
+                } @else {
+                  <li class="legacy">&ndash; Sent before hand-signing (wallet signature only)</li>
+                }
                 <li [class.ok]="o.signatureValid">
                   {{ o.signatureValid ? '✓' : '✗' }} Signed by the sender's wallet
                 </li>

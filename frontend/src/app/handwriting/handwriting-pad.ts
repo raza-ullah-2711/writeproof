@@ -30,6 +30,8 @@ const INK = '#1b1f3a';
 export class HandwritingPad implements OnDestroy {
   readonly width = input(600);
   readonly height = input(240);
+  /** Display only (e.g. replaying a received signature): pointer input is ignored. */
+  readonly readonly = input(false);
   /** Emits the full sample each time a stroke is finished. */
   readonly sampleChange = output<HandwritingSample>();
 
@@ -109,7 +111,7 @@ export class HandwritingPad implements OnDestroy {
   }
 
   protected onPointerDown(event: PointerEvent): void {
-    if (event.pointerType === 'mouse' && event.button !== 0) {
+    if (this.readonly() || (event.pointerType === 'mouse' && event.button !== 0)) {
       return;
     }
     this.stopReplay();

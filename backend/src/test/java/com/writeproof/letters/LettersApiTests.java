@@ -1,17 +1,25 @@
 package com.writeproof.letters;
 
 import static org.assertj.core.api.Assertions.assertThat;
+import static org.assertj.core.api.Assertions.assertThatThrownBy;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.writeproof.TestWallet;
 import com.writeproof.TestcontainersConfiguration;
 import com.writeproof.common.Base64Url;
+import com.writeproof.handwriting.HandwritingSample;
+import com.writeproof.handwriting.SyntheticSignatures;
+import com.writeproof.identity.EncryptionKeyBinding;
 import com.writeproof.ledger.LedgerHashing;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.atomic.AtomicLong;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -37,7 +45,12 @@ class LettersApiTests {
     @Autowired
     private JdbcClient jdbc;
 
+    @Autowired
+    private ObjectMapper json;
+
     private final SecureRandom random = new SecureRandom();
+    private final AtomicLong seeds = new AtomicLong(1000);
+    private final SyntheticSignatures.Writer aliceHand = new SyntheticSignatures.Writer(1001);
     private TestWallet alice;
     private TestWallet bob;
 
@@ -47,6 +60,28 @@ class LettersApiTests {
         bob = TestWallet.create(rest);
         alice.registerEncryptionKey(rest);
         bob.registerEncryptionKey(rest);
+        enrol(alice, aliceHand);
+    }
+
+    private void enrol(TestWallet wallet, SyntheticSignatures.Writer hand) {
+        ResponseEntity<Map> enrolled = rest.exchange("/api/handwriting/enrolment", HttpMethod.POST, new HttpEntity<>(
+                Map.of("samples", List.of(hand.genuine(1, "pen"), hand.genuine(2, "pen"), hand.genuine(3, "pen"))),
+                wallet.headers()), Map.class);
+        assertThat(enrolled.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+    }
+
+    /** A fresh genuine signature by Alice, captured now, as the exact JSON string that gets hashed. */
+    private String aliceSignsNow() throws Exception {
+        return toJson(capturedAt(aliceHand.genuine(seeds.incrementAndGet(), "pen"), Instant.now()));
+    }
+
+    private String toJson(HandwritingSample sample) throws Exception {
+        return json.writeValueAsString(sample);
+    }
+
+    private static HandwritingSample capturedAt(HandwritingSample s, Instant at) {
+        return new HandwritingSample(s.format(), s.version(), at.toString(), s.device(), s.width(), s.height(),
+                s.strokes());
     }
 
     /** The server can't decrypt, so random bytes of the right sizes stand in for real ciphertext. */
@@ -62,20 +97,38 @@ class LettersApiTests {
         return Base64Url.encode(b);
     }
 
-    private static String now() {
-        return Instant.now().truncatedTo(ChronoUnit.MILLIS).toString();
+    /**
+     * Exactly what the browser's {@code toISOString()} produces: always three fraction digits.
+     * ({@code Instant.toString()} drops the fraction on whole seconds, which the server rejects.)
+     */
+    private static final DateTimeFormatter SENT_AT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
+
+    private static String iso(Instant instant) {
+        return SENT_AT.format(instant);
     }
 
-    private Map<String, Object> signedLetter(TestWallet from, TestWallet to, String sentAt, LetterEnvelope envelope)
-            throws Exception {
-        byte[] hash = LetterHashing.letterHash(LetterHashing.header(from.publicKey, to.publicKey, sentAt), envelope);
-        byte[] signature = TestWallet.sign(from.identity.getPrivate(), LetterHashing.signedMessage(hash));
+    private static String now() {
+        return iso(Instant.now());
+    }
+
+    private Map<String, Object> signedLetter(TestWallet from, TestWallet to, String sentAt, LetterEnvelope envelope,
+                                             String handwriting) throws Exception {
+        String header = LetterHashing.headerV2(from.publicKey, to.publicKey, sentAt,
+                LetterHashing.handwritingHash(handwriting));
+        byte[] signature = TestWallet.sign(from.identity.getPrivate(),
+                LetterHashing.signedMessage(LetterHashing.letterHash(header, envelope)));
         Map<String, Object> body = new HashMap<>();
         body.put("recipientPublicKey", Base64Url.encode(to.publicKey));
         body.put("sentAt", sentAt);
         body.put("envelope", envelope);
         body.put("signature", Base64Url.encode(signature));
+        body.put("handwriting", handwriting);
         return body;
+    }
+
+    private Map<String, Object> aliceToBob() throws Exception {
+        return signedLetter(alice, bob, now(), envelope(), aliceSignsNow());
     }
 
     private ResponseEntity<Map> send(TestWallet as, Map<String, Object> letter) {
@@ -87,15 +140,20 @@ class LettersApiTests {
     }
 
     @Test
-    void aSignedLetterIsAppendedToTheLedgerAndDeliveredAsCiphertext() throws Exception {
+    void aHandSignedLetterIsAppendedToTheLedgerAndDeliveredAsCiphertext() throws Exception {
         LetterEnvelope envelope = envelope();
         String sentAt = now();
-        ResponseEntity<Map> sent = send(alice, signedLetter(alice, bob, sentAt, envelope));
+        String handwriting = aliceSignsNow();
+        ResponseEntity<Map> sent = send(alice, signedLetter(alice, bob, sentAt, envelope, handwriting));
 
         assertThat(sent.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         Map<String, Object> letter = sent.getBody();
-        byte[] expectedHash = LetterHashing.letterHash(LetterHashing.header(alice.publicKey, bob.publicKey, sentAt), envelope);
+        byte[] handwritingHash = LetterHashing.handwritingHash(handwriting);
+        byte[] expectedHash = LetterHashing.letterHash(
+                LetterHashing.headerV2(alice.publicKey, bob.publicKey, sentAt, handwritingHash), envelope);
         assertThat(letter.get("letterHash")).isEqualTo(Base64Url.encode(expectedHash));
+        assertThat(letter.get("handwritingHash")).isEqualTo(Base64Url.encode(handwritingHash));
+        assertThat((Double) letter.get("handwritingScore")).isGreaterThanOrEqualTo(0.5);
         Map<String, Object> ledger = (Map<String, Object>) letter.get("ledger");
         assertThat(ledger.get("payloadHash")).isEqualTo(Base64Url.encode(expectedHash));
         byte[] entryHash = LedgerHashing.entryHash(((Number) ledger.get("seq")).longValue(),
@@ -108,15 +166,96 @@ class LettersApiTests {
         assertThat(list(alice, "sent").getBody()).extracting(l -> ((Map) l).get("letterId")).contains(letter.get("letterId"));
         assertThat(list(alice, "inbox").getBody()).isEmpty();
 
-        // What's stored is exactly the ciphertext envelope that was signed.
-        String stored = jdbc.sql("SELECT envelope::text FROM letters WHERE id = CAST(:id AS uuid)")
+        // The letter row holds ciphertext and the handwriting hash, never the strokes.
+        String row = jdbc.sql("SELECT row_to_json(l)::text FROM letters l WHERE id = CAST(:id AS uuid)")
                 .param("id", letter.get("letterId")).query(String.class).single();
-        assertThat(stored).contains(envelope.ciphertext());
+        assertThat(row).contains(envelope.ciphertext()).doesNotContain("strokes");
+    }
+
+    @Test
+    void sendingRequiresEnrolledHandwriting() throws Exception {
+        Map<String, Object> letter = signedLetter(bob, alice, now(), envelope(), aliceSignsNow());
+
+        ResponseEntity<Map> response = send(bob, letter);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat((String) response.getBody().get("detail")).contains("Enrol your handwriting");
+    }
+
+    @Test
+    void aSignatureInSomeoneElsesHandIsRejectedWithItsScore() throws Exception {
+        String forged = toJson(capturedAt(
+                SyntheticSignatures.skilledForgery(aliceHand, seeds.incrementAndGet(), "pen"), Instant.now()));
+
+        ResponseEntity<Map> response = send(alice, signedLetter(alice, bob, now(), envelope(), forged));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(response.getBody()).containsEntry("match", false);
+        assertThat((Double) response.getBody().get("score")).isLessThan(0.5);
+        assertThat(list(bob, "inbox").getBody()).isEmpty();
+    }
+
+    @Test
+    void oneSignatureCannotSealTwoLetters() throws Exception {
+        String handwriting = aliceSignsNow();
+
+        assertThat(send(alice, signedLetter(alice, bob, now(), envelope(), handwriting)).getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
+        assertThat(send(alice, signedLetter(alice, bob, now(), envelope(), handwriting)).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+    }
+
+    @Test
+    void aSignatureLiftedFromAnEarlierLetterIsAReplay() throws Exception {
+        HandwritingSample original = capturedAt(aliceHand.genuine(seeds.incrementAndGet(), "pen"), Instant.now());
+        assertThat(send(alice, signedLetter(alice, bob, now(), envelope(), toJson(original))).getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
+
+        // Whoever holds the device can decrypt sent letters; re-submitting those strokes, slightly
+        // moved and scaled so the hash differs, must still fail.
+        HandwritingSample lifted = new HandwritingSample(original.format(), 1, Instant.now().toString(),
+                original.device(), original.width(), original.height(), original.strokes().stream()
+                        .map(stroke -> stroke.stream().map(p -> new HandwritingSample.StrokePoint(
+                                p.x() * 1.05 + 3, p.y() * 1.05 + 2, p.t(), p.pressure(), p.penDown())).toList())
+                        .toList());
+        ResponseEntity<Map> response = send(alice, signedLetter(alice, bob, now(), envelope(), toJson(lifted)));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat((List<Object>) response.getBody().get("livenessFlags")).contains("REPLAY");
+    }
+
+    @Test
+    void aSignatureWrittenLongAgoIsStale() throws Exception {
+        String old = toJson(capturedAt(aliceHand.genuine(seeds.incrementAndGet(), "pen"),
+                Instant.now().minus(1, ChronoUnit.HOURS)));
+
+        ResponseEntity<Map> response = send(alice, signedLetter(alice, bob, now(), envelope(), old));
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat((List<Object>) response.getBody().get("livenessFlags")).contains("STALE");
+    }
+
+    @Test
+    void theWalletSignatureCommitsToTheExactHandwriting() throws Exception {
+        Map<String, Object> letter = signedLetter(alice, bob, now(), envelope(), aliceSignsNow());
+        letter.put("handwriting", aliceSignsNow()); // a different (genuine) signature than the one signed over
+
+        assertThat(send(alice, letter).getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    @Test
+    void handwritingIsRequiredAndMustBeASample() throws Exception {
+        Map<String, Object> missing = aliceToBob();
+        missing.remove("handwriting");
+        assertThat(send(alice, missing).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+
+        assertThat(send(alice, signedLetter(alice, bob, now(), envelope(), "{\"not\":\"a sample\"}")).getStatusCode())
+                .isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test
     void onlyTheSenderAndRecipientCanReadALetter() throws Exception {
-        String id = (String) send(alice, signedLetter(alice, bob, now(), envelope())).getBody().get("letterId");
+        String id = (String) send(alice, aliceToBob()).getBody().get("letterId");
         TestWallet eve = TestWallet.create(rest);
 
         assertThat(get(alice, id).getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -126,7 +265,7 @@ class LettersApiTests {
 
     @Test
     void lettersCannotBeEditedOrUnsent() throws Exception {
-        String id = (String) send(alice, signedLetter(alice, bob, now(), envelope())).getBody().get("letterId");
+        String id = (String) send(alice, aliceToBob()).getBody().get("letterId");
 
         for (HttpMethod method : List.of(HttpMethod.PUT, HttpMethod.PATCH, HttpMethod.DELETE)) {
             ResponseEntity<Map> response = rest.exchange("/api/letters/" + id, method,
@@ -134,24 +273,25 @@ class LettersApiTests {
             assertThat(response.getStatusCode()).as(method.name()).isEqualTo(HttpStatus.METHOD_NOT_ALLOWED);
         }
         // Not even with direct database access.
-        org.assertj.core.api.Assertions.assertThatThrownBy(() ->
+        assertThatThrownBy(() ->
                 jdbc.sql("DELETE FROM letters WHERE id = CAST(:id AS uuid)").param("id", id).update())
                 .hasMessageContaining("append-only");
     }
 
     @Test
-    void aLetterSignedByAnotherKeyIsRejected() throws Exception {
-        Map<String, Object> forged = signedLetter(bob, bob, now(), envelope());
-        forged.put("signature", signedLetter(alice, bob, (String) forged.get("sentAt"),
-                (LetterEnvelope) forged.get("envelope")).get("signature"));
+    void aLetterSignedByAnotherWalletIsRejected() throws Exception {
+        String sentAt = now();
+        LetterEnvelope envelope = envelope();
+        String handwriting = aliceSignsNow();
+        Map<String, Object> letter = signedLetter(alice, bob, sentAt, envelope, handwriting);
+        letter.put("signature", signedLetter(bob, bob, sentAt, envelope, handwriting).get("signature"));
 
-        // Bob's session claims to send, but the signature is Alice's: it can't verify under Bob's key.
-        assertThat(send(bob, forged).getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        assertThat(send(alice, letter).getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
     @Test
     void changingTheCiphertextAfterSigningBreaksTheSignature() throws Exception {
-        Map<String, Object> letter = signedLetter(alice, bob, now(), envelope());
+        Map<String, Object> letter = aliceToBob();
         LetterEnvelope e = (LetterEnvelope) letter.get("envelope");
         letter.put("envelope", new LetterEnvelope(1, e.iv(), b64(200), e.recipientKey(), e.senderKey()));
 
@@ -160,16 +300,26 @@ class LettersApiTests {
 
     @Test
     void aStaleOrMalformedTimestampIsRejected() throws Exception {
-        String old = Instant.now().minus(1, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS).toString();
-        assertThat(send(alice, signedLetter(alice, bob, old, envelope())).getStatusCode())
+        String old = iso(Instant.now().minus(1, ChronoUnit.HOURS));
+        assertThat(send(alice, signedLetter(alice, bob, old, envelope(), aliceSignsNow())).getStatusCode())
                 .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
-        assertThat(send(alice, signedLetter(alice, bob, "2026-10-02 12:00", envelope())).getStatusCode())
+        assertThat(send(alice, signedLetter(alice, bob, "2026-10-02 12:00", envelope(), aliceSignsNow())).getStatusCode())
                 .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
     }
 
     @Test
+    void aTimestampOnAWholeSecondIsAccepted() throws Exception {
+        // Regression: "…:14.000Z" must be accepted (and written with its fraction by clients).
+        String wholeSecond = iso(Instant.now().truncatedTo(ChronoUnit.SECONDS));
+        assertThat(wholeSecond).endsWith(".000Z");
+
+        assertThat(send(alice, signedLetter(alice, bob, wholeSecond, envelope(), aliceSignsNow())).getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
+    }
+
+    @Test
     void theSameLetterCannotBeSentTwice() throws Exception {
-        Map<String, Object> letter = signedLetter(alice, bob, now(), envelope());
+        Map<String, Object> letter = aliceToBob();
 
         assertThat(send(alice, letter).getStatusCode()).isEqualTo(HttpStatus.CREATED);
         assertThat(send(alice, letter).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
@@ -178,14 +328,15 @@ class LettersApiTests {
     @Test
     void malformedEnvelopesAndUnknownRecipientsAreRejected() throws Exception {
         Map<String, Object> badIv = signedLetter(alice, bob, now(),
-                new LetterEnvelope(1, b64(8), b64(200), envelope().recipientKey(), envelope().senderKey()));
+                new LetterEnvelope(1, b64(8), b64(200), envelope().recipientKey(), envelope().senderKey()),
+                aliceSignsNow());
         assertThat(send(alice, badIv).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 
         TestWallet stranger = TestWallet.create(rest); // registered but never set an encryption key
-        assertThat(send(alice, signedLetter(alice, stranger, now(), envelope())).getStatusCode())
+        assertThat(send(alice, signedLetter(alice, stranger, now(), envelope(), aliceSignsNow())).getStatusCode())
                 .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
 
-        Map<String, Object> nobody = signedLetter(alice, bob, now(), envelope());
+        Map<String, Object> nobody = aliceToBob();
         nobody.put("recipientPublicKey", b64(32));
         assertThat(send(alice, nobody).getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
@@ -195,8 +346,7 @@ class LettersApiTests {
         TestWallet carol = TestWallet.create(rest);
         byte[] key = new byte[32];
         random.nextBytes(key);
-        byte[] wrongSigner = TestWallet.sign(alice.identity.getPrivate(),
-                com.writeproof.identity.EncryptionKeyBinding.of(carol.publicKey, key));
+        byte[] wrongSigner = TestWallet.sign(alice.identity.getPrivate(), EncryptionKeyBinding.of(carol.publicKey, key));
 
         ResponseEntity<Map> rejected = rest.exchange("/api/me/encryption-key", HttpMethod.PUT, new HttpEntity<>(
                 Map.of("encryptionKey", Base64Url.encode(key), "signature", Base64Url.encode(wrongSigner)),
@@ -210,8 +360,7 @@ class LettersApiTests {
 
         byte[] replacement = new byte[32];
         random.nextBytes(replacement);
-        byte[] signed = TestWallet.sign(carol.identity.getPrivate(),
-                com.writeproof.identity.EncryptionKeyBinding.of(carol.publicKey, replacement));
+        byte[] signed = TestWallet.sign(carol.identity.getPrivate(), EncryptionKeyBinding.of(carol.publicKey, replacement));
         ResponseEntity<Map> conflict = rest.exchange("/api/me/encryption-key", HttpMethod.PUT, new HttpEntity<>(
                 Map.of("encryptionKey", Base64Url.encode(replacement), "signature", Base64Url.encode(signed)),
                 carol.headers()), Map.class);
@@ -220,7 +369,7 @@ class LettersApiTests {
 
     @Test
     void theLedgerCanBeReadAndVerified() throws Exception {
-        send(alice, signedLetter(alice, bob, now(), envelope()));
+        send(alice, aliceToBob());
 
         List<Map<String, Object>> entries = rest.exchange("/api/ledger/entries?from=1&limit=1000", HttpMethod.GET,
                 new HttpEntity<>(alice.headers()), List.class).getBody();

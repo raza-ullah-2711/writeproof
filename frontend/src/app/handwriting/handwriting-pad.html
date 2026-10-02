@@ -1,6 +1,7 @@
 <canvas
   #canvas
   class="pad"
+  [class.readonly]="readonly()"
   [style.aspect-ratio]="width() + ' / ' + height()"
   aria-label="Handwriting pad. Write or sign here."
   role="img"

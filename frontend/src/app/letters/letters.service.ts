@@ -6,12 +6,15 @@ import { toBase64Url } from '../crypto/base64url';
 import { verifyEd25519 } from '../crypto/ed25519';
 import { WalletService } from '../wallet/wallet.service';
 import { LedgerEntry, verifyChain } from './ledger-verify';
-import { openLetter, sealLetter } from './letter-crypto';
+import { HandwritingSample, parseSample, toJson } from '../handwriting/handwriting-sample';
+import { LetterPlaintext, openLetter, sealLetter } from './letter-crypto';
 import {
   LetterEnvelope,
   encryptionKeyBinding,
+  handwritingHash,
   letterHash,
   letterHeader,
+  letterHeaderV2,
   letterSignedMessage,
 } from './letter-format';
 
@@ -29,11 +32,21 @@ export interface Letter {
   signature: string;
   letterHash: string;
   ledger: LedgerEntry;
+  /** Null for letters sent before hand-signing (v1). */
+  handwritingHash: string | null;
+  /** Similarity the server measured when the letter was sent (v2 only). */
+  handwritingScore: number | null;
 }
 
 /** What the reader's own browser established about a letter. Nothing here is taken on trust. */
 export interface OpenedLetter {
   body: string | null;
+  /**
+   * The sealed signature hashes to what the sender's wallet signed, so these are exactly the
+   * strokes the server verified when the letter was sent. Null for v1 letters (no hand signature).
+   */
+  handSigned: boolean | null;
+  handwriting: HandwritingSample | null;
   /** Hash recomputed from the envelope matches, and the sender's key signed it. */
   signatureValid: boolean;
   /** Decrypted with this wallet's key (so it was sealed for us and not altered). */
@@ -52,10 +65,15 @@ export class LettersService {
   private readonly wallet = inject(WalletService);
 
   /**
-   * Seals, signs and sends a letter. The recipient's encryption key is only used if their
-   * identity key signed it, so the server can't slip in a key of its own.
+   * Seals, signs (by wallet and by hand) and sends a letter. The handwritten signature travels
+   * sealed inside the letter; its hash is in the signed header. The recipient's encryption key
+   * is only used if their identity key signed it, so the server can't slip in a key of its own.
    */
-  async send(recipientAddress: string, body: string): Promise<Letter> {
+  async send(
+    recipientAddress: string,
+    body: string,
+    signature: HandwritingSample,
+  ): Promise<Letter> {
     const me = this.wallet.publicKey();
     const myEncryptionKey = this.wallet.encryptionPublicKey();
     if (!me || !myEncryptionKey) {
@@ -78,8 +96,10 @@ export class LettersService {
       throw new Error("The recipient's encryption key is not signed by their identity key");
     }
 
+    const handwriting = toJson(signature);
     const sentAt = new Date().toISOString();
     const sealed = await sealLetter({
+      handwriting,
       body,
       senderKey: me,
       recipientKey: recipient.publicKey,
@@ -87,13 +107,14 @@ export class LettersService {
       recipientEncryptionKey: recipient.encryptionKey,
       sentAt,
     });
-    const signature = await this.wallet.sign(letterSignedMessage(sealed.hash));
+    const walletSignature = await this.wallet.sign(letterSignedMessage(sealed.hash));
     const letter = await firstValueFrom(
       this.http.post<Letter>('/api/letters', {
         recipientPublicKey: recipient.publicKey,
         sentAt,
         envelope: sealed.envelope,
-        signature: toBase64Url(signature),
+        signature: toBase64Url(walletSignature),
+        handwriting,
       }),
     );
     if (letter.letterHash !== toBase64Url(sealed.hash)) {
@@ -117,28 +138,52 @@ export class LettersService {
     if (!me || !myEncryptionKey) {
       throw new Error('No wallet is loaded');
     }
-    const header = letterHeader(letter.sender.publicKey, letter.recipient.publicKey, letter.sentAt);
+    const header = letter.handwritingHash
+      ? letterHeaderV2(
+          letter.sender.publicKey,
+          letter.recipient.publicKey,
+          letter.sentAt,
+          letter.handwritingHash,
+        )
+      : letterHeader(letter.sender.publicKey, letter.recipient.publicKey, letter.sentAt);
     const hash = await letterHash(header, letter.envelope);
     const hashMatches = toBase64Url(hash) === letter.letterHash;
     const signatureValid =
       hashMatches &&
       (await verifyEd25519(letter.sender.publicKey, letterSignedMessage(hash), letter.signature));
 
-    let body: string | null = null;
+    let plaintext: LetterPlaintext | null = null;
     try {
       const role = letter.recipient.publicKey === me ? 'recipient' : 'sender';
-      body = (
-        await openLetter(letter.envelope, header, role, myEncryptionKey, (k) => this.wallet.ecdh(k))
-      ).body;
+      plaintext = await openLetter(letter.envelope, header, role, myEncryptionKey, (k) =>
+        this.wallet.ecdh(k),
+      );
     } catch {
-      body = null;
+      plaintext = null;
+    }
+
+    let handSigned: boolean | null = null;
+    let handwriting: HandwritingSample | null = null;
+    if (letter.handwritingHash) {
+      const sealed = plaintext?.handwriting;
+      handSigned =
+        signatureValid &&
+        sealed !== undefined &&
+        (await handwritingHash(sealed)) === letter.handwritingHash;
+      try {
+        handwriting = handSigned && sealed ? parseSample(sealed) : null;
+      } catch {
+        handSigned = false;
+      }
     }
 
     const ledgerProblem = await this.checkLedger(letter, toBase64Url(hash));
     return {
-      body,
+      body: plaintext?.body ?? null,
+      handSigned,
+      handwriting,
       signatureValid,
-      decrypted: body !== null,
+      decrypted: plaintext !== null,
       ledgerValid: ledgerProblem === null,
       ledgerProblem,
     };

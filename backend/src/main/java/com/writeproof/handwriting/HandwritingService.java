@@ -1,6 +1,7 @@
 package com.writeproof.handwriting;
 
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
 import java.time.temporal.ChronoUnit;
 import java.util.ArrayList;
@@ -39,12 +40,18 @@ public class HandwritingService {
         }
     }
 
+    static final Duration MAX_SAMPLE_AGE = Duration.ofMinutes(10);
+    static final int HISTORY_SIZE = 20;
+
     private final EnrolmentRepository enrolments;
+    private final SignatureHistoryRepository history;
     private final HandwritingProperties properties;
     private final Clock clock;
 
-    HandwritingService(EnrolmentRepository enrolments, HandwritingProperties properties, Clock clock) {
+    HandwritingService(EnrolmentRepository enrolments, SignatureHistoryRepository history,
+                       HandwritingProperties properties, Clock clock) {
         this.enrolments = enrolments;
+        this.history = history;
         this.properties = properties;
         this.clock = clock;
     }
@@ -76,6 +83,52 @@ public class HandwritingService {
     }
 
     public Verification verify(UUID accountId, HandwritingSample sample) {
+        Evaluation e = evaluate(accountId, sample);
+        return e.verification(properties.threshold());
+    }
+
+    /**
+     * Verifies a signature written to seal a letter. On top of {@link #verify}, the sample must
+     * have been captured within {@link #MAX_SAMPLE_AGE} and must not be a copy of one of the
+     * account's recent letter signatures.
+     */
+    public Verification verifyForLetter(UUID accountId, HandwritingSample sample) {
+        Evaluation e = evaluate(accountId, sample);
+        Instant capturedAt;
+        try {
+            capturedAt = Instant.parse(sample.capturedAt());
+        } catch (java.time.format.DateTimeParseException ex) {
+            throw new IllegalArgumentException("capturedAt must be an ISO-8601 instant");
+        }
+        if (Duration.between(capturedAt, clock.instant()).abs().compareTo(MAX_SAMPLE_AGE) > 0) {
+            e.flags().add(LivenessFlag.STALE);
+        }
+        for (HandwritingSample previous : history.recent(accountId, HISTORY_SIZE)) {
+            double distance = Dtw.distance(FeatureExtractor.extract(previous).frames(), e.query().frames());
+            if (distance / e.template().spread() < SignatureMatcher.REPLAY_RATIO) {
+                e.flags().add(LivenessFlag.REPLAY);
+                break;
+            }
+        }
+        return e.verification(properties.threshold());
+    }
+
+    /** Remembers a signature that sealed a letter, keeping only the newest {@link #HISTORY_SIZE}. */
+    public void recordLetterSignature(UUID accountId, HandwritingSample sample) {
+        history.add(accountId, sample, clock.instant(), HISTORY_SIZE);
+    }
+
+    private record Evaluation(
+            SignatureMatcher.Template template, Features query, SignatureMatcher.Match match, Set<LivenessFlag> flags) {
+
+        Verification verification(double threshold) {
+            boolean matches = match.score() >= threshold;
+            boolean live = flags.isEmpty();
+            return new Verification(match.score(), threshold, matches, live, Set.copyOf(flags), matches && live, match);
+        }
+    }
+
+    private Evaluation evaluate(UUID accountId, HandwritingSample sample) {
         Features query = FeatureExtractor.extract(sample.validate());
         EnrolmentRepository.Enrolment enrolment = enrolments.find(accountId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "Handwriting is not enrolled"));
@@ -88,8 +141,6 @@ public class HandwritingService {
         if (SignatureMatcher.isReplay(match)) {
             flags.add(LivenessFlag.REPLAY);
         }
-        boolean matches = match.score() >= properties.threshold();
-        boolean live = flags.isEmpty();
-        return new Verification(match.score(), properties.threshold(), matches, live, flags, matches && live, match);
+        return new Evaluation(template, query, match, flags);
     }
 }

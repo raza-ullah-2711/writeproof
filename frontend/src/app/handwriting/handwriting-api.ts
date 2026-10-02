@@ -8,7 +8,8 @@ export type LivenessFlag =
   | 'CONSTANT_VELOCITY'
   | 'NO_TIMING_VARIANCE'
   | 'CONSTANT_PRESSURE'
-  | 'REPLAY';
+  | 'REPLAY'
+  | 'STALE';
 
 export interface Enrolment {
   enrolled: boolean;
@@ -42,7 +43,8 @@ export const LIVENESS_LABELS: Record<LivenessFlag, string> = {
   CONSTANT_VELOCITY: 'Speed was unnaturally constant.',
   NO_TIMING_VARIANCE: 'Timing was perfectly regular, like a machine.',
   CONSTANT_PRESSURE: 'Pen pressure never changed.',
-  REPLAY: 'Identical to an enrolled sample. Write it fresh.',
+  REPLAY: 'Identical to a signature you already used. Write it fresh.',
+  STALE: 'Written too long ago. Sign again.',
 };
 
 @Injectable({ providedIn: 'root' })

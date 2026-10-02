@@ -14,4 +14,12 @@ public record Letter(
         LetterEnvelope envelope,
         byte[] signature,
         byte[] letterHash,
-        LedgerEntry ledgerEntry) {}
+        LedgerEntry ledgerEntry,
+        byte[] handwritingHash,
+        Double handwritingScore) {
+
+    /** v1 letters (sent before hand-signing) have no handwriting. */
+    public boolean handSigned() {
+        return handwritingHash != null;
+    }
+}

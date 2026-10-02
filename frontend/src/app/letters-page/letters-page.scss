@@ -42,6 +42,21 @@
   }
 }
 
+.sign {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  font-size: 0.875rem;
+
+  app-handwriting-pad {
+    max-width: 30rem;
+  }
+
+  button {
+    align-self: flex-start;
+  }
+}
+
 .seal-note,
 .empty {
   font-size: 0.8125rem;
@@ -99,6 +114,10 @@
 
   .ok {
     color: #1a7f37;
+  }
+
+  .legacy {
+    color: #555;
   }
 }
 
