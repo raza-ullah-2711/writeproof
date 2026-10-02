@@ -1,5 +1,6 @@
 package com.writeproof.security;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,11 +25,17 @@ public class RateLimitFilter extends OncePerRequestFilter {
     private final TokenBucketRateLimiter limiter;
     private final RateLimitProperties properties;
     private final List<RateLimitRule> rules;
+    private final MeterRegistry meters;
 
-    public RateLimitFilter(TokenBucketRateLimiter limiter, RateLimitProperties properties, List<RateLimitRule> rules) {
+    /** Counted for the admin dashboard: rejected requests per rule, since server start. */
+    public static final String REJECTIONS_METRIC = "writeproof.ratelimit.rejections";
+
+    public RateLimitFilter(TokenBucketRateLimiter limiter, RateLimitProperties properties, List<RateLimitRule> rules,
+                           MeterRegistry meters) {
         this.limiter = limiter;
         this.properties = properties;
         this.rules = rules;
+        this.meters = meters;
     }
 
     @Override
@@ -46,6 +53,7 @@ public class RateLimitFilter extends OncePerRequestFilter {
                 TokenBucketRateLimiter.Decision decision = limiter.tryConsume(
                         rule.name() + ":" + subject, rule.capacity() * properties.scale(), rule.window());
                 if (!decision.allowed()) {
+                    meters.counter(REJECTIONS_METRIC, "rule", rule.name()).increment();
                     reject(response, decision);
                     return;
                 }

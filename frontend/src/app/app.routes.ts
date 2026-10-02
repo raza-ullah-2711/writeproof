@@ -1,4 +1,8 @@
 import { Routes } from '@angular/router';
+import { AdminAudit } from './admin/admin-audit';
+import { AdminDashboard } from './admin/admin-dashboard';
+import { adminGuard } from './admin/admin.guard';
+import { AdminShell } from './admin/admin-shell';
 import { Calibration } from './calibration/calibration';
 import { Capture } from './capture/capture';
 import { ContactsPage } from './contacts-page/contacts-page';
@@ -16,5 +20,14 @@ export const routes: Routes = [
   { path: 'open/:hash', component: OpenLetterView, title: 'Open letter · Writeproof' },
   { path: 'handwriting', component: Verify, title: 'Handwriting · Writeproof' },
   { path: 'capture', component: Capture, title: 'Capture playground · Writeproof' },
+  {
+    path: 'admin',
+    component: AdminShell,
+    canMatch: [adminGuard],
+    children: [
+      { path: '', component: AdminDashboard, title: 'Dashboard · Admin · Writeproof' },
+      { path: 'audit', component: AdminAudit, title: 'Audit log · Admin · Writeproof' },
+    ],
+  },
   { path: 'calibration', component: Calibration, title: 'Help improve verification · Writeproof' },
 ];

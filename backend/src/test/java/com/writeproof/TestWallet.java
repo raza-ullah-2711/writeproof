@@ -34,7 +34,25 @@ public final class TestWallet {
     }
 
     public static TestWallet create(TestRestTemplate rest) throws Exception {
-        KeyPair wallet = KeyPairGenerator.getInstance("Ed25519").generateKeyPair();
+        return create(rest, KeyPairGenerator.getInstance("Ed25519").generateKeyPair());
+    }
+
+    /** The bootstrap admin of the test profile (seed 0x42 x 32; see application-test.yml). */
+    public static TestWallet bootstrapAdmin(TestRestTemplate rest) throws Exception {
+        byte[] seed = new byte[32];
+        java.util.Arrays.fill(seed, (byte) 0x42);
+        KeyPairGenerator generator = KeyPairGenerator.getInstance("Ed25519");
+        generator.initialize(java.security.spec.NamedParameterSpec.ED25519, new java.security.SecureRandom() {
+            @Override
+            public void nextBytes(byte[] bytes) {
+                System.arraycopy(seed, 0, bytes, 0, Math.min(seed.length, bytes.length));
+            }
+        });
+        return create(rest, generator.generateKeyPair());
+    }
+
+    /** Registers (if new) and logs in the given wallet. */
+    public static TestWallet create(TestRestTemplate rest, KeyPair wallet) throws Exception {
         byte[] raw = raw(wallet);
         String publicKey = Base64Url.encode(raw);
         rest.postForEntity("/api/accounts", Map.of("publicKey", publicKey), Map.class);

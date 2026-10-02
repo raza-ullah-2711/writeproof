@@ -1,0 +1,193 @@
+<div class="dashboard">
+  <div class="toolbar">
+    @if (data(); as d) {
+      <span class="as-of">As of {{ d.generatedAt | date: 'yyyy-MM-dd HH:mm:ss' : 'UTC' }} UTC</span>
+    }
+    <button type="button" (click)="load()" [disabled]="loading()">
+      {{ loading() ? 'Refreshing…' : 'Refresh' }}
+    </button>
+  </div>
+
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+
+  @if (data(); as d) {
+    <section aria-labelledby="h-accounts">
+      <h3 id="h-accounts">Accounts</h3>
+      <div class="tiles">
+        <div class="tile">
+          <span class="label">Accounts</span
+          ><span class="value">{{ d.accounts.total | number }}</span>
+          <span class="sub"
+            >+{{ d.accounts.new7d | number }} this week · +{{ d.accounts.new30d | number }} in 30
+            days</span
+          >
+        </div>
+        <div class="tile">
+          <span class="label">Handwriting enrolled</span
+          ><span class="value">{{ d.accounts.enrolled | number }}</span>
+          <span class="sub"
+            >{{ percent(d.accounts.enrolled, d.accounts.total) ?? '–' }}% of accounts</span
+          >
+        </div>
+        <div class="tile">
+          <span class="label">Can receive letters</span
+          ><span class="value">{{ d.accounts.canReceiveLetters | number }}</span>
+          <span class="sub">registered an encryption key</span>
+        </div>
+        <div class="tile">
+          <span class="label">Wallet backed up</span
+          ><span class="value">{{ d.accounts.backedUp | number }}</span>
+          <span class="sub"
+            >{{ percent(d.accounts.backedUp, d.accounts.total) ?? '–' }}% of accounts</span
+          >
+        </div>
+        <div class="tile">
+          <span class="label">Using contacts</span
+          ><span class="value">{{ d.accounts.withContacts | number }}</span>
+          <span class="sub">encrypted contact books</span>
+        </div>
+        <div class="tile">
+          <span class="label">Calibration contributors</span
+          ><span class="value">{{ d.accounts.calibrationContributors | number }}</span>
+          <span class="sub">opted in</span>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="h-letters">
+      <h3 id="h-letters">Letters</h3>
+      <div class="tiles">
+        <div class="tile">
+          <span class="label">Sealed letters</span
+          ><span class="value">{{ d.letters.sealed | number }}</span>
+          <span class="sub"
+            >{{ d.letters.sealed24h | number }} today · {{ d.letters.sealed7d | number }} this
+            week</span
+          >
+        </div>
+        <div class="tile">
+          <span class="label">Replies</span
+          ><span class="value">{{ d.letters.replies | number }}</span>
+          <span class="sub"
+            >{{ percent(d.letters.replies, d.letters.sealed) ?? '–' }}% of sealed letters</span
+          >
+        </div>
+        <div class="tile">
+          <span class="label">Open letters</span
+          ><span class="value">{{ d.letters.open | number }}</span>
+          <span class="sub">{{ d.letters.open7d | number }} this week</span>
+        </div>
+      </div>
+      <app-letters-chart [days]="d.letters.last30Days" />
+    </section>
+
+    <section aria-labelledby="h-ledger">
+      <h3 id="h-ledger">Ledger</h3>
+      <div class="tiles">
+        <div class="tile">
+          <span class="label">Entries</span><span class="value">{{ d.ledger.size | number }}</span>
+          <span class="sub">every letter, sealed or open</span>
+        </div>
+        <div class="tile">
+          <span class="label">Last published checkpoint</span>
+          <span class="value">{{
+            d.ledger.lastCheckpointSize === null ? 'none' : (d.ledger.lastCheckpointSize | number)
+          }}</span>
+          <span class="sub">{{
+            d.ledger.lastCheckpointAt
+              ? (d.ledger.lastCheckpointAt | date: 'yyyy-MM-dd HH:mm:ss' : 'UTC') + ' UTC'
+              : 'never published'
+          }}</span>
+        </div>
+        <div class="tile" [class.attention]="d.ledger.unpublished > 0">
+          <span class="label">Not yet in a published checkpoint</span
+          ><span class="value">{{ d.ledger.unpublished | number }}</span>
+          <span class="sub">published every checkpoint interval</span>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="h-handwriting">
+      <h3 id="h-handwriting">Handwriting verification <small>since server start</small></h3>
+      <div class="tiles">
+        <div class="tile">
+          <span class="label">Signatures on letters</span>
+          <span class="value">{{
+            d.handwriting.lettersAccepted + d.handwriting.lettersRejected | number
+          }}</span>
+          <span class="sub"
+            >{{
+              rejectRate(d.handwriting.lettersAccepted, d.handwriting.lettersRejected)
+            }}
+            rejected</span
+          >
+        </div>
+        <div class="tile">
+          <span class="label">Practice checks</span>
+          <span class="value">{{
+            d.handwriting.checksAccepted + d.handwriting.checksRejected | number
+          }}</span>
+          <span class="sub"
+            >{{
+              rejectRate(d.handwriting.checksAccepted, d.handwriting.checksRejected)
+            }}
+            rejected</span
+          >
+        </div>
+        <div class="tile">
+          <span class="label">Match threshold</span
+          ><span class="value">{{ d.handwriting.threshold }}</span>
+          <span class="sub">similarity needed to accept</span>
+        </div>
+      </div>
+    </section>
+
+    <section aria-labelledby="h-limits">
+      <h3 id="h-limits">Rate limits <small>rejected requests since server start</small></h3>
+      @if (rejections().length === 0) {
+        <p class="empty">No requests have been rate-limited.</p>
+      } @else {
+        <table class="limits">
+          <thead>
+            <tr>
+              <th>Rule</th>
+              <th>Rejected</th>
+            </tr>
+          </thead>
+          <tbody>
+            @for (r of rejections(); track r[0]) {
+              <tr>
+                <td>{{ r[0] }}</td>
+                <td>{{ r[1] | number }}</td>
+              </tr>
+            }
+          </tbody>
+        </table>
+      }
+    </section>
+
+    <section aria-labelledby="h-system">
+      <h3 id="h-system">System</h3>
+      <div class="tiles">
+        <div class="tile">
+          <span class="label">Version</span><span class="value small">{{ d.system.version }}</span>
+        </div>
+        <div class="tile">
+          <span class="label">Up for</span
+          ><span class="value small">{{ duration(d.system.uptimeSeconds) }}</span>
+          <span class="sub"
+            >since {{ d.system.startedAt | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} UTC</span
+          >
+        </div>
+        <div class="tile">
+          <span class="label">Database size</span
+          ><span class="value small">{{ bytes(d.system.databaseBytes) }}</span>
+        </div>
+      </div>
+    </section>
+  } @else if (!error()) {
+    <p>Loading&hellip;</p>
+  }
+</div>

@@ -1,14 +1,15 @@
 package com.writeproof.auth;
 
-import static org.springframework.security.config.Customizer.withDefaults;
 
 import com.nimbusds.jose.jwk.source.ImmutableSecret;
+import io.micrometer.core.instrument.MeterRegistry;
 import java.util.Base64;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
+import com.writeproof.admin.AdminAuthenticationConverter;
 import com.writeproof.security.RateLimitFilter;
 import com.writeproof.security.RateLimitProperties;
 import com.writeproof.security.RateLimitRule;
@@ -40,7 +41,8 @@ class SecurityConfig {
     @Bean
     @ConditionalOnWebApplication
     SecurityFilterChain securityFilterChain(HttpSecurity http, TokenBucketRateLimiter rateLimiter,
-                                            RateLimitProperties rateLimits) throws Exception {
+                                            RateLimitProperties rateLimits, MeterRegistry meters,
+                                            AdminAuthenticationConverter adminRoles) throws Exception {
         return http
                 // Stateless bearer-token API: no cookies, so no CSRF surface.
                 .csrf(csrf -> csrf.disable())
@@ -56,8 +58,13 @@ class SecurityConfig {
                                 "/api/ledger/checkpoints", "/api/ledger/proof/**").permitAll()
                         // Open letters are public to anyone with the link.
                         .requestMatchers(HttpMethod.GET, "/api/open-letters/*").permitAll()
+                        // Admin area: any signed-in account may ask whether it is an admin;
+                        // moderation is open to moderators; everything else needs ADMIN.
+                        .requestMatchers(HttpMethod.GET, "/api/admin/me").authenticated()
+                        .requestMatchers("/api/admin/moderation/**").hasAnyRole("ADMIN", "MODERATOR")
+                        .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
-                .oauth2ResourceServer(oauth -> oauth.jwt(withDefaults()))
+                .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(adminRoles)))
                 // A JSON API: nothing it returns should ever render, frame, or leak a referrer.
                 .headers(headers -> headers
                         .contentSecurityPolicy(csp -> csp.policyDirectives(
@@ -67,7 +74,7 @@ class SecurityConfig {
                                 CrossOriginResourcePolicyHeaderWriter.CrossOriginResourcePolicy.SAME_ORIGIN))
                         .httpStrictTransportSecurity(hsts -> hsts.includeSubDomains(true).maxAgeInSeconds(31_536_000)))
                 .addFilterBefore(new RequestSizeLimitFilter(), BearerTokenAuthenticationFilter.class)
-                .addFilterAfter(new RateLimitFilter(rateLimiter, rateLimits, RateLimitRule.DEFAULTS),
+                .addFilterAfter(new RateLimitFilter(rateLimiter, rateLimits, RateLimitRule.DEFAULTS, meters),
                         BearerTokenAuthenticationFilter.class)
                 .build();
     }
