@@ -10,7 +10,9 @@ import org.springframework.boot.test.web.client.TestRestTemplate;
 import org.springframework.context.annotation.Import;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
+import org.springframework.test.context.ActiveProfiles;
 
+@ActiveProfiles("test")
 @Import(TestcontainersConfiguration.class)
 @SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 class WriteproofApplicationTests {
@@ -30,8 +32,8 @@ class WriteproofApplicationTests {
     }
 
     @Test
-    void flywayAppliesBaselineMigration() {
-        assertThat(flyway.info().current()).isNotNull();
-        assertThat(flyway.info().current().getVersion().getVersion()).isEqualTo("1");
+    void flywayAppliesAllMigrations() {
+        assertThat(flyway.info().applied()).isNotEmpty();
+        assertThat(flyway.info().pending()).isEmpty();
     }
 }

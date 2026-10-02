@@ -6,9 +6,19 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/writeproof}
     username: ${DB_USERNAME:writeproof}
     password: ${DB_PASSWORD}
+  mvc:
+    problemdetails:
+      enabled: true
   flyway:
     enabled: true
     locations: classpath:db/migration
+
+writeproof:
+  auth:
+    # Base64 HMAC key, >= 32 bytes decoded. Generate with: openssl rand -base64 32
+    jwt-secret: ${JWT_SECRET}
+    token-ttl: ${JWT_TTL:PT15M}
+    challenge-ttl: PT2M
 
 server:
   port: ${PORT:8080}
