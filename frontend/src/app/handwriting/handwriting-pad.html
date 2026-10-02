@@ -1,0 +1,11 @@
+<canvas
+  #canvas
+  class="pad"
+  [style.aspect-ratio]="width() + ' / ' + height()"
+  aria-label="Handwriting pad. Write or sign here."
+  role="img"
+  (pointerdown)="onPointerDown($event)"
+  (pointermove)="onPointerMove($event)"
+  (pointerup)="onPointerUp($event)"
+  (pointercancel)="onPointerCancel($event)"
+></canvas>

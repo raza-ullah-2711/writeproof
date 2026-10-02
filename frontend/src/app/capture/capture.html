@@ -1,0 +1,36 @@
+<section class="capture">
+  <h2>Handwriting capture</h2>
+  <p class="hint">
+    Write or sign below with a pen, finger or mouse. Writeproof records how you write (position,
+    timing, pressure), not just what it looks like.
+  </p>
+
+  <app-handwriting-pad />
+
+  <div class="toolbar">
+    <button type="button" (click)="pad().clear()" [disabled]="pad().empty()">Clear</button>
+    <button type="button" (click)="pad().replay()" [disabled]="pad().empty() || pad().replaying()">
+      Replay
+    </button>
+    <button type="button" (click)="exportJson()" [disabled]="pad().empty()">Export JSON</button>
+    <label class="import">
+      Import JSON
+      <input
+        type="file"
+        accept="application/json,.json"
+        (change)="importJson(fileInput)"
+        #fileInput
+      />
+    </label>
+  </div>
+
+  @if (stats(); as s) {
+    <p class="stats">
+      {{ s.strokes }} strokes &middot; {{ s.points }} points &middot; {{ s.seconds }} s &middot;
+      {{ s.device }}
+    </p>
+  }
+  @if (importError(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+</section>

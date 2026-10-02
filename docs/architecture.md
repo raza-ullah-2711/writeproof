@@ -49,7 +49,7 @@ sent it can't be edited or unsent — like a sealed letter.
    (encrypted in IndexedDB). ✅ — see [identity.md](identity.md).
 3. **Handwriting capture** — Angular canvas component using Pointer Events that
    records strokes as `{x, y, t, pressure, penDown}` arrays, with replay preview
-   and JSON export.
+   and JSON export. ✅ — see [handwriting-capture.md](handwriting-capture.md).
 4. **Handwriting verification v1** — enrolment (3–5 samples) and verification
    using feature extraction + Dynamic Time Warping, returning a similarity
    score. Basic liveness heuristics (timing variance, unnatural constant

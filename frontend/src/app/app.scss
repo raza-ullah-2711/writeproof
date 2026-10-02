@@ -22,3 +22,20 @@
     color: #cf222e;
   }
 }
+
+nav {
+  display: flex;
+  gap: 1rem;
+  font-family: system-ui, sans-serif;
+  font-size: 0.875rem;
+
+  a {
+    color: #555;
+  }
+
+  a.active {
+    color: inherit;
+    font-weight: 600;
+    text-decoration: none;
+  }
+}
