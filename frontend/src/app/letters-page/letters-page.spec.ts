@@ -52,6 +52,7 @@ function opened(overrides: Partial<OpenedLetter> = {}): OpenedLetter {
     decrypted: true,
     ledgerValid: true,
     ledgerProblem: null,
+    ledgerCheckpointSize: 12,
     ...overrides,
   };
 }
@@ -239,7 +240,8 @@ describe('LettersPage', () => {
     service.open.mockResolvedValue(
       opened({
         ledgerValid: false,
-        ledgerProblem: 'Chain broken at entry 2: does not link to the previous entry',
+        ledgerProblem: 'The ledger was rewritten since this browser last checked',
+        ledgerCheckpointSize: null,
       }),
     );
     const fixture = await render();
@@ -256,7 +258,8 @@ describe('LettersPage', () => {
     expect(checks[1]).toContain("✓ Signed by the sender's wallet");
     expect(checks[2]).toContain('✓ Sealed for you');
     expect(checks[3]).toContain('✗ In the ledger');
-    expect(checks[3]).toContain('Chain broken at entry 2');
+    expect(checks[3]).toContain('The ledger was rewritten');
+    expect(checks[3]).not.toContain('checkpoint of');
   });
 
   it('marks letters sent before hand-signing as wallet-signed only', async () => {
@@ -270,5 +273,8 @@ describe('LettersPage', () => {
 
     expect(el.querySelector('.checks .legacy')?.textContent).toContain('Sent before hand-signing');
     expect(el.querySelector('app-signature-view')).toBeNull();
+    expect(el.querySelector('.checks li.ok:last-child')?.textContent).toMatch(
+      /✓ In the ledger as entry #4\s+\(proven against a signed checkpoint of 12 entries\)/,
+    );
   });
 });

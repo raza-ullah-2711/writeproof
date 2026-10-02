@@ -22,6 +22,18 @@ public interface LedgerService {
     /** Re-walks the whole chain. */
     ChainCheck verify();
 
+    /** Number of entries, i.e. the size of the Merkle tree over them. */
+    long size();
+
+    /** Merkle root over the first {@code size} entries' hashes (see {@link MerkleTree}). */
+    byte[] root(long size);
+
+    /** Proof that entry {@code seq} is in the tree of the first {@code treeSize} entries. */
+    List<byte[]> inclusionProof(long seq, long treeSize);
+
+    /** Proof that the tree of {@code oldSize} entries is a prefix of the tree of {@code newSize}. */
+    List<byte[]> consistencyProof(long oldSize, long newSize);
+
     /** @param brokenAt first sequence number whose hash or link doesn't check out, or null */
     record ChainCheck(boolean intact, long length, Long brokenAt) {}
 }

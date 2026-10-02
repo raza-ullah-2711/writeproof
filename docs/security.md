@@ -35,18 +35,19 @@ require-trusted-types-for 'script'; trusted-types angular angular#bundler
 In-memory token buckets (`security/`), refilled continuously. A limited request gets `429` with
 `Retry-After` and a problem-details body.
 
-| Endpoint                                   | Limit       | Per     |
-| ------------------------------------------ | ----------- | ------- |
-| `POST /api/accounts`                       | 10 / hour   | IP      |
-| `POST /api/auth/challenge`, `/verify`      | 30 / 10 min | IP      |
-| `POST /api/handwriting/verify`             | 20 / hour   | account |
-| `POST /api/handwriting/enrolment`          | 10 / hour   | account |
-| `POST /api/handwriting/enrolment/deletion` | 5 / hour    | account |
-| `POST /api/letters`                        | 30 / hour   | account |
-| `GET /api/backups/{id}`                    | 20 / hour   | IP      |
-| `PUT /api/me/backup`                       | 10 / hour   | account |
-| `POST /api/calibration/samples`            | 60 / hour   | account |
-| `GET /api/calibration/forgery-target`      | 60 / hour   | account |
+| Endpoint                                   | Limit        | Per     |
+| ------------------------------------------ | ------------ | ------- |
+| `POST /api/accounts`                       | 10 / hour    | IP      |
+| `POST /api/auth/challenge`, `/verify`      | 30 / 10 min  | IP      |
+| `POST /api/handwriting/verify`             | 20 / hour    | account |
+| `POST /api/handwriting/enrolment`          | 10 / hour    | account |
+| `POST /api/handwriting/enrolment/deletion` | 5 / hour     | account |
+| `POST /api/letters`                        | 30 / hour    | account |
+| `GET /api/backups/{id}`                    | 20 / hour    | IP      |
+| `PUT /api/me/backup`                       | 10 / hour    | account |
+| `POST /api/calibration/samples`            | 60 / hour    | account |
+| `GET /api/calibration/forgery-target`      | 60 / hour    | account |
+| `GET /api/ledger/**` (key, proofs)         | 600 / 10 min | IP      |
 
 `RATE_LIMITS_ENABLED` (default `true`). The limits are per process. Behind a reverse proxy, set
 `server.forward-headers-strategy` so per-IP limits see the real client. With more than one
@@ -85,11 +86,12 @@ still see the score a letter was accepted with.
 
 ## Configuration
 
-| Variable                    | Required | Purpose                                      |
-| --------------------------- | -------- | -------------------------------------------- |
-| `HANDWRITING_DATA_KEY`      | yes      | base64 AES-256 key for handwriting at rest   |
-| `HANDWRITING_EXPOSE_SCORES` | no       | `true` to return scores (development only)   |
-| `RATE_LIMITS_ENABLED`       | no       | `false` to disable limits (development only) |
+| Variable                    | Required | Purpose                                        |
+| --------------------------- | -------- | ---------------------------------------------- |
+| `HANDWRITING_DATA_KEY`      | yes      | base64 AES-256 key for handwriting at rest     |
+| `LEDGER_SIGNING_KEY`        | yes      | base64 Ed25519 seed signing ledger checkpoints |
+| `HANDWRITING_EXPOSE_SCORES` | no       | `true` to return scores (development only)     |
+| `RATE_LIMITS_ENABLED`       | no       | `false` to disable limits (development only)   |
 
 ## Still open
 

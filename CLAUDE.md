@@ -10,8 +10,8 @@ the ledger is always accessed through `LedgerService`.
 - Backend (`/backend`): `./mvnw verify` — needs Docker for Testcontainers.
 - Frontend (`/frontend`): `npm ci && npm test && npm run build && npm run format:check`
   — needs Node `^22.22.3` or `>=24.15`.
-- Local DB: `cp .env.example .env`, set `DB_PASSWORD` (and `JWT_SECRET`, `HANDWRITING_DATA_KEY`
-  for the backend), `docker compose up -d`.
+- Local DB: `cp .env.example .env`, set `DB_PASSWORD` (and `JWT_SECRET`, `HANDWRITING_DATA_KEY`,
+  `LEDGER_SIGNING_KEY` for the backend), `docker compose up -d`.
 - Security posture (headers, CSP, rate limits, encryption at rest): `docs/security.md`.
 
 ## Conventions

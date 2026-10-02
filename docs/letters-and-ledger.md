@@ -67,12 +67,14 @@ hash) are still readable and verifiable. New letters must be v2.
   signature over it.
 - **Sealed for you, unaltered**: decrypt with this wallet's X25519 key. AES-GCM fails if the
   ciphertext, wrapped key or header was changed.
-- **Ledger**: fetch entries `1..seq`, re-walk the chain from genesis (sequence, links,
-  hashes), and check that the letter's entry commits to the recomputed `letterHash`.
+- **Ledger**: the entry commits to the recomputed `letterHash`. An inclusion proof shows it is
+  in a checkpoint signed by the pinned ledger key, and a consistency proof shows that checkpoint
+  extends the last one this browser saw. See [ledger.md](ledger.md).
 
 ## Ledger (`LedgerService`)
 
-The interface is `append`, `entry`, `entries`, `head` and `verify`. `MockLedgerService` is a
+The interface is `append`, `entry`, `entries`, `head` and `verify`, plus `size`, `root` and the
+Merkle proofs described in [ledger.md](ledger.md). `MockLedgerService` is a
 Postgres table:
 
 ```
@@ -84,7 +86,8 @@ prevHash(1) = 32 zero bytes
   at all.
 - Appends are serialized with `pg_advisory_xact_lock`, so concurrent writers can't fork the
   chain. The test with 40 concurrent appends fails with duplicate `seq` without the lock.
-- `GET /api/ledger/entries?from&limit` (max 1000), `GET /api/ledger/verify`.
+- `GET /api/ledger/entries?from&limit` (max 1000), `GET /api/ledger/verify` (login required).
+  The public key, checkpoint and proof endpoints are listed in [ledger.md](ledger.md).
 
 ## Immutability
 
@@ -97,16 +100,14 @@ prevHash(1) = 32 zero bytes
 
 Header, letter hash, signed message, encryption-key binding and ledger entry hash are pinned by
 the same vectors in `backend/.../letters/FormatVectorsTest.java` and
-`frontend/src/app/letters/letter-format.spec.ts` / `ledger-verify.spec.ts`.
+`frontend/src/app/letters/letter-format.spec.ts` / `ledger-verify.spec.ts`. The Merkle tree and
+checkpoint formats have their own vectors (see [ledger.md](ledger.md)).
 
 ## Known limitations / follow-ups
 
-- **The mock ledger is run by the same server.** Clients verify the chain's internal
-  consistency, but the server could rewrite the whole chain consistently. A real chain (or
-  publishing signed heads somewhere independent) is what makes history tamper-evident against
-  the operator.
-- **Verification cost grows with the ledger.** The client re-walks from genesis. Swap in
-  Merkle proofs / checkpoints before the ledger is large.
+- **The ledger is still run by the same server**, but since Task 10 its history is
+  tamper-evident to every browser and outside witness that saw an earlier checkpoint. Split
+  views and trust on first use remain (see [ledger.md](ledger.md)).
 - **"Signed by hand" rests on the server's verification.** The recipient can check which
   strokes signed the letter, but whether they matched the sender's enrolment is the server's
   measurement (it holds the template). A compromised server could accept a forgery.

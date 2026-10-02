@@ -106,6 +106,37 @@ public class MockLedgerService implements LedgerService {
         }
     }
 
+    @Override
+    public long size() {
+        return jdbc.sql("SELECT count(*) FROM ledger_entries").query(Long.class).single();
+    }
+
+    @Override
+    public byte[] root(long size) {
+        return MerkleTree.root(leaves(size));
+    }
+
+    @Override
+    public List<byte[]> inclusionProof(long seq, long treeSize) {
+        return MerkleTree.inclusionProof(leaves(treeSize), Math.toIntExact(seq - 1), Math.toIntExact(treeSize));
+    }
+
+    @Override
+    public List<byte[]> consistencyProof(long oldSize, long newSize) {
+        return MerkleTree.consistencyProof(leaves(newSize), Math.toIntExact(oldSize), Math.toIntExact(newSize));
+    }
+
+    /**
+     * Leaf hashes of the first {@code size} entries. Recomputed from the table on every call: O(n),
+     * fine for the mock. A real deployment caches the tree, or delegates to the chain.
+     */
+    private List<byte[]> leaves(long size) {
+        return jdbc.sql("SELECT entry_hash FROM ledger_entries WHERE seq <= :size ORDER BY seq")
+                .param("size", size)
+                .query((rs, row) -> MerkleTree.leafHash(rs.getBytes(1)))
+                .list();
+    }
+
     private static LedgerEntry map(ResultSet rs, int row) throws SQLException {
         return new LedgerEntry(
                 rs.getLong("seq"),

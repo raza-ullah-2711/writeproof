@@ -134,9 +134,10 @@
                   {{ o.decrypted ? '✓' : '✗' }} Sealed for you, unaltered
                 </li>
                 <li [class.ok]="o.ledgerValid">
-                  {{ o.ledgerValid ? '✓' : '✗' }} In the ledger (chain intact up to #{{
-                    letter.ledger.seq
-                  }})
+                  {{ o.ledgerValid ? '✓' : '✗' }} In the ledger as entry #{{ letter.ledger.seq }}
+                  @if (o.ledgerCheckpointSize !== null) {
+                    (proven against a signed checkpoint of {{ o.ledgerCheckpointSize }} entries)
+                  }
                   @if (o.ledgerProblem) {
                     <span class="problem">{{ o.ledgerProblem }}</span>
                   }
