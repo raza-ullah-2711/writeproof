@@ -40,6 +40,16 @@ npm ci
 npm start
 ```
 
+## Deploying
+
+`deploy/compose.yml` runs the production stack (Postgres, the API, and Caddy with automatic
+HTTPS). See [`docs/deployment.md`](docs/deployment.md):
+
+```bash
+./deploy/generate-env.sh writeproof.example.com
+docker compose -f deploy/compose.yml up -d --build --wait
+```
+
 ## Tests
 
 ```bash
@@ -47,4 +57,5 @@ cd backend && ./mvnw verify     # requires Docker (Testcontainers PostgreSQL)
 cd frontend && npm test
 ```
 
-CI (`.github/workflows/ci.yml`) runs both on every push to `main` and every PR.
+CI (`.github/workflows/ci.yml`) runs both on every push to `main` and every PR, and builds
+the production images and smoke-tests the full stack over HTTPS.

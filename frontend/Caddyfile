@@ -1,0 +1,37 @@
+# Production host for Writeproof. {$DOMAIN} gets a certificate automatically (Let's Encrypt for
+# a public name; Caddy's own local CA for "localhost"). HTTP redirects to HTTPS.
+{$DOMAIN} {
+	encode zstd gzip
+
+	# The headers docs/security.md asks the host for. frame-ancestors can't be set in the
+	# page's meta CSP, so it is sent here; the meta policy (with Trusted Types) still applies.
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		Content-Security-Policy "frame-ancestors 'none'"
+		X-Content-Type-Options nosniff
+		Referrer-Policy no-referrer
+		Permissions-Policy "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+		Cross-Origin-Opener-Policy same-origin
+		-Server
+	}
+
+	# Same origin for the API: no CORS needed or allowed.
+	handle /api/* {
+		reverse_proxy backend:8080
+	}
+	# Only health is public; other actuator endpoints are never exposed.
+	handle /actuator/health {
+		reverse_proxy backend:8080
+	}
+
+	handle {
+		root * /srv
+		# Hashed bundles never change; everything else (index.html, the SPA fallback) is revalidated.
+		@hashed path_regexp \-[A-Z0-9]{8}\.(js|css)$
+		header @hashed Cache-Control "public, max-age=31536000, immutable"
+		@other not path_regexp \-[A-Z0-9]{8}\.(js|css)$
+		header @other Cache-Control "no-cache"
+		try_files {path} /index.html
+		file_server
+	}
+}
