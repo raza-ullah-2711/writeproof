@@ -72,10 +72,7 @@ public class LetterService {
         HandwritingSample handwriting = parseHandwriting(handwritingJson);
         byte[] handwritingHash = LetterHashing.handwritingHash(handwritingJson);
         Instant now = clock.instant();
-        if (!SENT_AT.matcher(sentAt).matches()
-                || Duration.between(Instant.parse(sentAt), now).abs().compareTo(MAX_CLOCK_SKEW) > 0) {
-            throw unprocessable("sentAt must be the current time as ISO-8601 UTC with milliseconds");
-        }
+        requireCurrent(sentAt, now);
         Account sender = accounts.findById(senderId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account no longer exists"));
         Account recipient = accounts.findByPublicKey(recipientKey)
@@ -123,6 +120,14 @@ public class LetterService {
         return new Letter(id, sender.id(), sender.publicKey(), recipient.id(), recipient.publicKey(), sentAt,
                 envelope, signature, hash, entry, handwritingHash, verification.score(), inReplyTo,
                 threadId == null ? hash : threadId);
+    }
+
+    /** Signed timestamps must be exactly {@code toISOString()} format and within the clock skew of now. */
+    public static void requireCurrent(String sentAt, Instant now) {
+        if (!SENT_AT.matcher(sentAt).matches()
+                || Duration.between(Instant.parse(sentAt), now).abs().compareTo(MAX_CLOCK_SKEW) > 0) {
+            throw unprocessable("sentAt must be the current time as ISO-8601 UTC with milliseconds");
+        }
     }
 
     private static boolean sameParties(Letter l, UUID a, UUID b) {

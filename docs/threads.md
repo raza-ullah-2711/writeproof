@@ -55,4 +55,4 @@ Every letter response now carries `inReplyTo` (null unless it's a reply) and `th
 
 ## Next
 
-Open letters: signed by hand and wallet but not sealed, and readable by anyone with the link.
+Open letters: see [open-letters.md](open-letters.md).

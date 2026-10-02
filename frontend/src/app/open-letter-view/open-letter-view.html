@@ -1,0 +1,52 @@
+<article class="open-letter">
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  } @else if (letter(); as l) {
+    <p class="kicker">Open letter</p>
+    <p class="byline">
+      By
+      @if (petname(l.author); as name) {
+        <strong>{{ name }}</strong>
+      } @else {
+        <code [title]="l.author">{{ short(l.author) }}</code>
+        @if (auth.authenticated()) {
+          <a class="add-contact" routerLink="/contacts" [queryParams]="{ add: l.author }"
+            >Add to contacts</a
+          >
+        }
+      }
+      · {{ l.sentAt }}
+    </p>
+    <div class="body">{{ l.body }}</div>
+
+    @if (checks(); as c) {
+      <ul class="checks">
+        <li [class.ok]="c.signatureValid">
+          {{ c.signatureValid ? '✓' : '✗' }} Signed by the author's wallet: exactly this text, at
+          this time
+        </li>
+        <li [class.ok]="c.signatureValid">
+          {{ c.signatureValid ? '✓' : '✗' }} Signed by hand (similarity
+          {{ l.handwritingScore.toFixed(2) }}, verified by Writeproof at publishing; the strokes are
+          not published)
+        </li>
+        <li [class.ok]="c.ledgerValid">
+          {{ c.ledgerValid ? '✓' : '✗' }} In the ledger as entry #{{ l.ledger.seq }}
+          @if (c.ledgerCheckpointSize !== null) {
+            (proven against a signed checkpoint of {{ c.ledgerCheckpointSize }} entries)
+          }
+          @if (c.ledgerProblem) {
+            <span class="problem">{{ c.ledgerProblem }}</span>
+          }
+        </li>
+      </ul>
+      <p class="address">
+        Author's address: <code>{{ l.author }}</code>
+      </p>
+    } @else {
+      <p>Verifying&hellip;</p>
+    }
+  } @else {
+    <p>Loading&hellip;</p>
+  }
+</article>

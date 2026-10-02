@@ -17,7 +17,9 @@ sent it can't be edited or unsent — like a sealed letter.
 4. **Matching is fuzzy** (similarity score + threshold), never exact equality.
 5. **Letters are immutable.** No update or delete endpoints for sent letters.
 6. **Sealed delivery.** Letter bodies are encrypted to the recipient's public key;
-   the server stores ciphertext only.
+   the server stores ciphertext only. (Open letters, Task 11c, are a separate kind that
+   the author explicitly publishes in the clear. They never weaken a sealed letter: an
+   addressed letter is always sealed, and nothing converts one kind into the other.)
 7. **The chain is behind an interface (`LedgerService`).** A local mock ledger
    (hash-chained table) comes first; no specific blockchain is chosen yet.
 
@@ -82,7 +84,8 @@ sent it can't be edited or unsent — like a sealed letter.
     signed) letters. Decided: address exchange only (no directory), contact book encrypted with
     the wallet and stored as ciphertext, open letters readable by anyone with the link.
     11a **Contacts** ✅ — see [contacts.md](contacts.md). 11b **Threads** ✅ — signed replies
-    and conversations, see [threads.md](threads.md). Open letters to follow.
+    and conversations, see [threads.md](threads.md). 11c **Open letters** ✅ — public,
+    signed and on the ledger, readable by link; see [open-letters.md](open-letters.md).
 12. **Deployment packaging** — production images (non-root, layered), Caddy with automatic HTTPS
     and the required headers, health-ordered Compose stack, secrets generator, backup/restore,
     smoke test run in CI. ✅ — see [deployment.md](deployment.md).

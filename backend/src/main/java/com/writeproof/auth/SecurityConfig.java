@@ -54,6 +54,8 @@ class SecurityConfig {
                         // Anyone may verify the ledger: key, checkpoints and proofs are public.
                         .requestMatchers(HttpMethod.GET, "/api/ledger/key", "/api/ledger/checkpoint",
                                 "/api/ledger/checkpoints", "/api/ledger/proof/**").permitAll()
+                        // Open letters are public to anyone with the link.
+                        .requestMatchers(HttpMethod.GET, "/api/open-letters/*").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth.jwt(withDefaults()))
                 // A JSON API: nothing it returns should ever render, frame, or leak a referrer.

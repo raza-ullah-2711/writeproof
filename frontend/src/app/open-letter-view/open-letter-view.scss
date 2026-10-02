@@ -1,0 +1,58 @@
+.open-letter {
+  font-family: system-ui, sans-serif;
+  max-width: 40rem;
+}
+
+.kicker {
+  margin: 1rem 0 0;
+  font-size: 0.75rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #555;
+}
+
+.byline,
+.address {
+  font-size: 0.875rem;
+  color: #555;
+
+  code {
+    overflow-wrap: anywhere;
+  }
+}
+
+.add-contact {
+  margin-left: 0.5rem;
+}
+
+.body {
+  margin: 1rem 0;
+  padding: 1rem;
+  background: #fffdf7;
+  border-left: 3px solid #ddd;
+  font-family: Georgia, 'Times New Roman', serif;
+  font-size: 1.0625rem;
+  line-height: 1.5;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+}
+
+.checks {
+  list-style: none;
+  padding: 0;
+  font-size: 0.875rem;
+  color: #b00020;
+
+  .ok {
+    color: #1b5e20;
+  }
+
+  .problem {
+    display: block;
+    margin-left: 1.25rem;
+  }
+}
+
+.error {
+  color: #b00020;
+}

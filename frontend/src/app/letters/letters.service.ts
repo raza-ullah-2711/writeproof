@@ -2,13 +2,11 @@ import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { Account } from '../auth/auth.service';
-import { fromBase64Url, toBase64Url } from '../crypto/base64url';
+import { toBase64Url } from '../crypto/base64url';
 import { verifyEd25519 } from '../crypto/ed25519';
 import { WalletService } from '../wallet/wallet.service';
-import { Checkpoint, verifyCheckpoint } from './checkpoint';
-import { LedgerTrustStore } from './ledger-trust';
-import { LedgerEntry, entryHash } from './ledger-verify';
-import { leafHash, verifyConsistency, verifyInclusion } from './merkle';
+import { LedgerVerifier } from './ledger-verifier';
+import { LedgerEntry } from './ledger-verify';
 import { HandwritingSample, parseSample, toJson } from '../handwriting/handwriting-sample';
 import { LetterPlaintext, openLetter, sealLetter } from './letter-crypto';
 import {
@@ -101,19 +99,13 @@ export interface OpenedLetter {
   ledgerCheckpointSize: number | null;
 }
 
-interface InclusionProof {
-  checkpoint: Checkpoint;
-  entry: LedgerEntry;
-  proof: string[];
-}
-
 export const MAX_BODY_LENGTH = 10_000;
 
 @Injectable({ providedIn: 'root' })
 export class LettersService {
   private readonly http = inject(HttpClient);
   private readonly wallet = inject(WalletService);
-  private readonly ledgerTrust = inject(LedgerTrustStore);
+  private readonly ledger = inject(LedgerVerifier);
 
   /**
    * Seals, signs (by wallet and by hand) and sends a letter. The handwritten signature travels
@@ -243,7 +235,7 @@ export class LettersService {
       }
     }
 
-    const ledger = await this.checkLedger(letter, toBase64Url(hash));
+    const ledger = await this.ledger.verifyEntry(letter.ledger, toBase64Url(hash));
     return {
       body: plaintext?.body ?? null,
       handSigned,
@@ -254,102 +246,6 @@ export class LettersService {
       ledgerProblem: ledger.problem,
       ledgerCheckpointSize: ledger.problem === null ? ledger.size : null,
     };
-  }
-
-  /**
-   * Proves the letter is in the ledger without trusting the server or reading the whole ledger:
-   * an O(log n) inclusion proof against a checkpoint signed by the pinned ledger key, plus an
-   * O(log n) consistency proof that this checkpoint extends the last one this browser verified,
-   * so history can't have been rewritten in between.
-   */
-  private async checkLedger(
-    letter: Letter,
-    hash: string,
-  ): Promise<{ problem: string | null; size: number }> {
-    const fail = (problem: string) => ({ problem, size: 0 });
-    try {
-      const { publicKey } = await firstValueFrom(
-        this.http.get<{ publicKey: string }>('/api/ledger/key'),
-      );
-      const trusted = this.ledgerTrust.load();
-      if (trusted && trusted.publicKey !== publicKey) {
-        return fail(
-          'The ledger key changed since this browser last checked, so nothing it signs can be trusted',
-        );
-      }
-      const seq = letter.ledger.seq;
-      const { checkpoint, entry, proof } = await firstValueFrom(
-        this.http.get<InclusionProof>('/api/ledger/proof/inclusion', { params: { seq } }),
-      );
-      if (!(await verifyCheckpoint(publicKey, checkpoint))) {
-        return fail('The ledger checkpoint is not signed by the ledger key');
-      }
-      const recomputed = await entryHash(
-        entry.seq,
-        entry.prevHash,
-        entry.payloadHash,
-        entry.recordedAtMillis,
-      );
-      if (entry.seq !== seq || recomputed !== entry.entryHash) {
-        return fail('The ledger returned a malformed entry for this letter');
-      }
-      if (entry.payloadHash !== hash || entry.entryHash !== letter.ledger.entryHash) {
-        return fail("The ledger entry doesn't commit to this letter");
-      }
-      const included = await verifyInclusion(
-        seq - 1,
-        checkpoint.size,
-        await leafHash(fromBase64Url(entry.entryHash)),
-        proof.map(fromBase64Url),
-        fromBase64Url(checkpoint.root),
-      );
-      if (!included) {
-        return fail(`Entry #${seq} is not in the signed checkpoint`);
-      }
-      if (trusted) {
-        const problem = await this.checkExtends(trusted.size, trusted.root, checkpoint);
-        if (problem) {
-          return fail(problem);
-        }
-      }
-      this.ledgerTrust.remember({ publicKey, size: checkpoint.size, root: checkpoint.root });
-      return { problem: null, size: checkpoint.size };
-    } catch {
-      return fail("The ledger's proofs could not be fetched or read");
-    }
-  }
-
-  /** Null if `checkpoint` provably extends the ledger at `size` entries with `root`. */
-  private async checkExtends(
-    size: number,
-    root: string,
-    checkpoint: Checkpoint,
-  ): Promise<string | null> {
-    if (checkpoint.size < size) {
-      return `The ledger shrank from ${size} to ${checkpoint.size} entries since this browser last checked`;
-    }
-    let proof: string[] = [];
-    if (checkpoint.size > size && size > 0) {
-      proof = (
-        await firstValueFrom(
-          this.http.get<{ proof: string[] }>('/api/ledger/proof/consistency', {
-            params: { from: size, to: checkpoint.size },
-          }),
-        )
-      ).proof;
-    }
-    const consistent =
-      size === 0 ||
-      (await verifyConsistency(
-        size,
-        checkpoint.size,
-        fromBase64Url(root),
-        fromBase64Url(checkpoint.root),
-        proof.map(fromBase64Url),
-      ));
-    return consistent
-      ? null
-      : 'The ledger was rewritten since this browser last checked: it does not extend the checkpoint seen before';
   }
 }
 
