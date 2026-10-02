@@ -10,7 +10,8 @@ if [[ $# -ne 1 ]]; then
 fi
 if [[ -e .env ]]; then
   echo "deploy/.env already exists; refusing to overwrite its secrets." >&2
-  echo "Losing HANDWRITING_DATA_KEY makes every stored enrolment unreadable." >&2
+  echo "Losing HANDWRITING_DATA_KEY makes every stored enrolment unreadable;" >&2
+  echo "changing LEDGER_SIGNING_KEY makes every client and witness distrust the ledger." >&2
   exit 1
 fi
 
@@ -20,5 +21,6 @@ DOMAIN=$1
 DB_PASSWORD=$(openssl rand -hex 24)
 JWT_SECRET=$(openssl rand -base64 32)
 HANDWRITING_DATA_KEY=$(openssl rand -base64 32)
+LEDGER_SIGNING_KEY=$(openssl rand -base64 32)
 ENV
 echo "Wrote deploy/.env (mode 600). Back it up somewhere safe and separate from the database backups."

@@ -35,6 +35,10 @@ status=$(curl "${curl_opts[@]}" -o /dev/null -w '%{http_code}' -H 'Content-Type:
 [[ "$status" == "201" ]] || fail "register returned $status"
 ok "API reachable: account registered"
 
+checkpoint=$(curl "${curl_opts[@]}" "$base/api/ledger/checkpoint")
+grep -q '"signature"' <<<"$checkpoint" || fail "no signed ledger checkpoint: $checkpoint"
+ok "signed ledger checkpoint is public"
+
 # Only /actuator/health is proxied; anything else under /actuator falls through to the web app.
 body=$(curl "${curl_opts[@]}" "$base/actuator/env")
 ! grep -q 'propertySources\|activeProfiles' <<<"$body" || fail "/actuator/env is exposed"

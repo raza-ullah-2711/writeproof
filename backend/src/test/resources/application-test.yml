@@ -5,6 +5,9 @@ writeproof:
   handwriting:
     expose-scores: true
     data-key: dGVzdC1vbmx5LWhhbmR3cml0aW5nLWtleS0zMi1ieXQ=
+  ledger:
+    signing-key: dGVzdC1vbmx5LWxlZGdlci1zaWduaW5nLWtleS0zMmI=
+    checkpoint-interval: PT24H
   # Integration tests make many requests from one address; RateLimitTests checks real limits.
   rate-limits:
     scale: 1000

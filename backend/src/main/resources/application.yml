@@ -28,6 +28,13 @@ writeproof:
     expose-scores: ${HANDWRITING_EXPOSE_SCORES:false}
     # Base64 AES-256 key encrypting stored handwriting at rest. Generate: openssl rand -base64 32
     data-key: ${HANDWRITING_DATA_KEY}
+  ledger:
+    # Base64 32-byte Ed25519 seed for the key that signs ledger checkpoints. Generate:
+    # openssl rand -base64 32. Clients pin its public half: keep it, and back it up.
+    signing-key: ${LEDGER_SIGNING_KEY}
+    checkpoint-interval: ${LEDGER_CHECKPOINT_INTERVAL:PT10M}
+    # Optional file each published checkpoint is appended to (JSON lines), for outside witnesses.
+    checkpoint-log: ${LEDGER_CHECKPOINT_LOG:}
   rate-limits:
     enabled: ${RATE_LIMITS_ENABLED:true}
     scale: 1

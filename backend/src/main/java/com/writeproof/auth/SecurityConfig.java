@@ -51,6 +51,9 @@ class SecurityConfig {
                         .permitAll()
                         // Restoring a wallet on a new device happens before any login.
                         .requestMatchers(HttpMethod.GET, "/api/backups/*").permitAll()
+                        // Anyone may verify the ledger: key, checkpoints and proofs are public.
+                        .requestMatchers(HttpMethod.GET, "/api/ledger/key", "/api/ledger/checkpoint",
+                                "/api/ledger/checkpoints", "/api/ledger/proof/**").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth.jwt(withDefaults()))
                 // A JSON API: nothing it returns should ever render, frame, or leak a referrer.

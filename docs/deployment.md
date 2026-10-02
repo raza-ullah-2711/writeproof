@@ -32,6 +32,7 @@ Caddy obtains a Let's Encrypt certificate on first request. To try it locally, u
 | Secret                 | If lost                                                                                                                           |
 | ---------------------- | --------------------------------------------------------------------------------------------------------------------------------- |
 | `HANDWRITING_DATA_KEY` | Every stored enrolment, signature history and calibration sample becomes unreadable (users must re-enrol; letters are unaffected) |
+| `LEDGER_SIGNING_KEY`   | Every browser and witness that pinned the ledger key refuses the ledger (see [ledger.md](ledger.md))                              |
 | `JWT_SECRET`           | Everyone is logged out (harmless: logging in is a signature)                                                                      |
 | `DB_PASSWORD`          | Reset it in Postgres and `.env`                                                                                                   |
 
@@ -47,8 +48,18 @@ docker compose -f deploy/compose.yml up -d --build --wait
 ./deploy/smoke-test.sh https://writeproof.example.com
 ```
 
+Upgrading a stack created before the independent ledger (Task 10): add a ledger key once, and
+never change it afterwards: `echo "LEDGER_SIGNING_KEY=$(openssl rand -base64 32)" >> deploy/.env`.
+
 Flyway migrations run on API start and are forward-only. To roll back code, restore the backup
 taken before the upgrade (below), then start the old version.
+
+## Ledger witnesses
+
+Each published checkpoint is logged, and appended to `checkpoints.jsonl` in the
+`ledger_checkpoints` volume. To keep the operator honest, run `AuditLedger` on a schedule from
+machines you don't run this stack on (see [ledger.md](ledger.md#outside-witnesses-auditledger)),
+and keep their `witness.json` files.
 
 ## Backups and restore
 

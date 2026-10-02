@@ -11,7 +11,8 @@ RUN --mount=type=cache,target=/root/.m2 mvn -B -q -DskipTests package \
  && java -Djarmode=tools -jar target/writeproof-backend-*.jar extract --layers --launcher --destination /app
 
 FROM eclipse-temurin:21-jre AS runtime
-RUN groupadd --system writeproof && useradd --system --gid writeproof --no-create-home writeproof
+RUN groupadd --system writeproof && useradd --system --gid writeproof --no-create-home writeproof \
+ && install -d -o writeproof -g writeproof /var/lib/writeproof
 WORKDIR /app
 # Layers from least to most often changed, so upgrades re-pull only the application layer.
 COPY --from=build /app/dependencies/ ./

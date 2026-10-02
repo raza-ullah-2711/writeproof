@@ -74,8 +74,10 @@ sent it can't be edited or unsent — like a sealed letter.
    signatures), encrypted and withdrawable; operator export; offline evaluator with
    confidence-bounded threshold recommendations. Tooling ✅; real data and retuning pending —
    see [calibration.md](calibration.md).
-10. **Independent ledger** — anchor signed checkpoints externally or pick a chain; Merkle
-    inclusion proofs instead of re-walking from genesis.
+10. **Independent ledger** — RFC 9162 Merkle tree over the ledger, checkpoints signed by a
+    dedicated ledger key and published, O(log n) inclusion and consistency proofs checked in the
+    browser against a pinned key, and an `AuditLedger` command for outside witnesses. ✅ — see
+    [ledger.md](ledger.md). Anchoring on a public chain and witness gossip are follow-ups.
 11. **Social layer** — contacts (petnames, QR address exchange), threads, open (unsealed but
     signed) letters. Needs product decisions.
 12. **Deployment packaging** — production images (non-root, layered), Caddy with automatic HTTPS

@@ -1,12 +1,18 @@
 import { provideHttpClient } from '@angular/common/http';
-import { HttpTestingController, provideHttpClientTesting } from '@angular/common/http/testing';
+import {
+  HttpTestingController,
+  TestRequest,
+  provideHttpClientTesting,
+} from '@angular/common/http/testing';
 import { TestBed } from '@angular/core/testing';
 import { IDBFactory } from 'fake-indexeddb';
 import { nextRequest } from '../../testing/http';
+import { TestMerkleTree } from '../../testing/merkle-tree';
 import { fromBase64Url, toBase64Url } from '../crypto/base64url';
 import { verifyEd25519 } from '../crypto/ed25519';
 import { HandwritingSample } from '../handwriting/handwriting-sample';
 import { WalletService } from '../wallet/wallet.service';
+import { Checkpoint, checkpointMessage } from './checkpoint';
 import { GENESIS_PREV_HASH, LedgerEntry, entryHash } from './ledger-verify';
 import { sealLetter } from './letter-crypto';
 import {
@@ -49,6 +55,99 @@ async function correspondent() {
   };
 }
 
+async function ledgerKey() {
+  const pair = (await crypto.subtle.generateKey({ name: 'Ed25519' }, true, [
+    'sign',
+    'verify',
+  ])) as CryptoKeyPair;
+  return {
+    publicKey: toBase64Url(new Uint8Array(await crypto.subtle.exportKey('raw', pair.publicKey))),
+    sign: async (message: Uint8Array<ArrayBuffer>) =>
+      toBase64Url(new Uint8Array(await crypto.subtle.sign('Ed25519', pair.privateKey, message))),
+  };
+}
+
+/** Plays the server's ledger: a hash chain, signed checkpoints and Merkle proofs over it. */
+class FakeLedger {
+  readonly entries: LedgerEntry[] = [];
+  readonly requests: string[] = [];
+  /** Lets a test make the server misbehave in one response. */
+  tamper: {
+    checkpoint?: (c: Checkpoint) => Promise<Checkpoint>;
+    entry?: (e: LedgerEntry) => Promise<LedgerEntry>;
+  } = {};
+
+  private constructor(public key: Awaited<ReturnType<typeof ledgerKey>>) {}
+
+  static async create(): Promise<FakeLedger> {
+    return new FakeLedger(await ledgerKey());
+  }
+
+  async append(payloadHash: string): Promise<LedgerEntry> {
+    const seq = this.entries.length + 1;
+    const prevHash = this.entries.at(-1)?.entryHash ?? GENESIS_PREV_HASH;
+    const recordedAtMillis = 1_790_000_000_000 + seq;
+    const entry = {
+      seq,
+      prevHash,
+      payloadHash,
+      recordedAtMillis,
+      entryHash: await entryHash(seq, prevHash, payloadHash, recordedAtMillis),
+    };
+    this.entries.push(entry);
+    return entry;
+  }
+
+  async appendFiller(n: number): Promise<void> {
+    for (let i = 0; i < n; i++) {
+      await this.append(toBase64Url(crypto.getRandomValues(new Uint8Array(32))));
+    }
+  }
+
+  /** Replaces entry #seq with a different, self-consistent one: history rewritten. */
+  async rewrite(seq: number): Promise<void> {
+    const old = this.entries[seq - 1];
+    const payloadHash = toBase64Url(new Uint8Array(32).fill(seq));
+    this.entries[seq - 1] = {
+      ...old,
+      payloadHash,
+      entryHash: await entryHash(seq, old.prevHash, payloadHash, old.recordedAtMillis),
+    };
+  }
+
+  async handle(req: TestRequest): Promise<void> {
+    this.requests.push(req.request.urlWithParams);
+    const tree = await TestMerkleTree.of(this.entries.map((e) => fromBase64Url(e.entryHash)));
+    const size = this.entries.length;
+    const param = (name: string) => Number(req.request.params.get(name));
+    switch (req.request.url) {
+      case '/api/ledger/key':
+        return req.flush({ publicKey: this.key.publicKey });
+      case '/api/ledger/proof/inclusion': {
+        const seq = param('seq');
+        const unsigned = { size, root: toBase64Url(await tree.root()), timestampMillis: 1 };
+        let checkpoint = {
+          ...unsigned,
+          signature: await this.key.sign(checkpointMessage(unsigned)),
+        };
+        checkpoint = (await this.tamper.checkpoint?.(checkpoint)) ?? checkpoint;
+        const entry = this.entries[seq - 1];
+        return req.flush({
+          checkpoint,
+          entry: (await this.tamper.entry?.(entry)) ?? entry,
+          proof: (await tree.inclusionProof(seq - 1, size)).map(toBase64Url),
+        });
+      }
+      case '/api/ledger/proof/consistency': {
+        const proof = await tree.consistencyProof(param('from'), param('to'));
+        return req.flush({ from: param('from'), to: param('to'), proof: proof.map(toBase64Url) });
+      }
+      default:
+        throw new Error(`Unexpected ledger request ${req.request.url}`);
+    }
+  }
+}
+
 const SIGNATURE: HandwritingSample = {
   format: 'writeproof.handwriting',
   version: 1,
@@ -70,9 +169,11 @@ describe('LettersService', () => {
   let wallet: WalletService;
   let http: HttpTestingController;
   let bob: Awaited<ReturnType<typeof correspondent>>;
+  let ledger: FakeLedger;
 
   beforeEach(async () => {
     globalThis.indexedDB = new IDBFactory();
+    localStorage.clear();
     TestBed.configureTestingModule({
       providers: [provideHttpClient(), provideHttpClientTesting()],
     });
@@ -81,18 +182,17 @@ describe('LettersService', () => {
     http = TestBed.inject(HttpTestingController);
     await wallet.create();
     bob = await correspondent();
+    ledger = await FakeLedger.create();
   });
 
   afterEach(() => http.verify());
 
-  function ledgerFor(hash: string): Promise<LedgerEntry> {
-    return entryHash(1, GENESIS_PREV_HASH, hash, 1_790_000_000_000).then((entry) => ({
-      seq: 1,
-      prevHash: GENESIS_PREV_HASH,
-      payloadHash: hash,
-      recordedAtMillis: 1_790_000_000_000,
-      entryHash: entry,
-    }));
+  /** Records the letter as entry #3 of 5, as the server would. */
+  async function ledgerFor(hash: string): Promise<LedgerEntry> {
+    await ledger.appendFiller(2);
+    const entry = await ledger.append(hash);
+    await ledger.appendFiller(2);
+    return entry;
   }
 
   /** Sends a hand-signed letter to Bob, playing the server; returns what the server stored. */
@@ -125,9 +225,16 @@ describe('LettersService', () => {
     return stored;
   }
 
-  async function openWithLedger(letter: Letter, entries: LedgerEntry[]) {
-    const opening = letters.open(letter);
-    (await nextRequest(http, '/api/ledger/entries?from=1&limit=1000')).flush(entries);
+  /** Opens a letter while the fake ledger answers every ledger request it makes. */
+  async function openWithLedger(letter: Letter) {
+    let done = false;
+    const opening = letters.open(letter).finally(() => (done = true));
+    while (!done) {
+      for (const req of http.match((r) => r.url.startsWith('/api/ledger/'))) {
+        await ledger.handle(req);
+      }
+      await new Promise((resolve) => setTimeout(resolve));
+    }
     return opening;
   }
 
@@ -178,7 +285,7 @@ describe('LettersService', () => {
   it('opens a hand-signed letter and verifies every part, including the strokes', async () => {
     const letter = await sendToBob('Dear Bob, sealed by hand.');
 
-    await expect(openWithLedger(letter, [letter.ledger])).resolves.toEqual({
+    await expect(openWithLedger(letter)).resolves.toEqual({
       body: 'Dear Bob, sealed by hand.',
       handSigned: true,
       handwriting: SIGNATURE,
@@ -186,14 +293,16 @@ describe('LettersService', () => {
       decrypted: true,
       ledgerValid: true,
       ledgerProblem: null,
+      ledgerCheckpointSize: 5,
     });
+    expect(ledger.requests).toEqual(['/api/ledger/key', '/api/ledger/proof/inclusion?seq=3']);
   });
 
   it('does not count a letter as hand-signed if the server swaps the handwriting hash', async () => {
     const letter = await sendToBob('hi');
     const otherHash = await handwritingHash('{"format":"writeproof.handwriting"}');
 
-    const opened = await openWithLedger({ ...letter, handwritingHash: otherHash }, [letter.ledger]);
+    const opened = await openWithLedger({ ...letter, handwritingHash: otherHash });
 
     expect(opened).toMatchObject({ handSigned: false, handwriting: null, signatureValid: false });
   });
@@ -222,7 +331,7 @@ describe('LettersService', () => {
       handwritingScore: null,
     };
 
-    await expect(openWithLedger(letter, [letter.ledger])).resolves.toMatchObject({
+    await expect(openWithLedger(letter)).resolves.toMatchObject({
       body: 'from before',
       handSigned: null,
       handwriting: null,
@@ -234,38 +343,104 @@ describe('LettersService', () => {
 
   it('flags a ledger entry that does not commit to the letter', async () => {
     const letter = await sendToBob('hi');
-    const otherPayload = toBase64Url(new Uint8Array(32).fill(7));
-    const forged: LedgerEntry = {
-      ...letter.ledger,
-      payloadHash: otherPayload,
-      entryHash: await entryHash(
-        1,
-        GENESIS_PREV_HASH,
-        otherPayload,
-        letter.ledger.recordedAtMillis,
-      ),
-    };
+    await ledger.rewrite(letter.ledger.seq);
 
-    const opened = await openWithLedger({ ...letter, ledger: forged }, [forged]);
+    const opened = await openWithLedger(letter);
 
     expect(opened.ledgerValid).toBe(false);
     expect(opened.ledgerProblem).toMatch(/doesn't commit/);
+    expect(opened.ledgerCheckpointSize).toBeNull();
   });
 
-  it('flags a broken chain', async () => {
+  it('flags an entry whose hash does not match its contents', async () => {
     const letter = await sendToBob('hi');
-    const tampered = { ...letter.ledger, recordedAtMillis: letter.ledger.recordedAtMillis + 1 };
+    ledger.tamper.entry = async (e) => ({ ...e, recordedAtMillis: e.recordedAtMillis + 1 });
 
-    const opened = await openWithLedger(letter, [tampered]);
+    expect((await openWithLedger(letter)).ledgerProblem).toMatch(/malformed entry/);
+  });
 
-    expect(opened.ledgerProblem).toMatch(/Chain broken at entry 1/);
+  it('flags a checkpoint not signed by the ledger key', async () => {
+    const letter = await sendToBob('hi');
+    const impostor = await ledgerKey();
+    ledger.tamper.checkpoint = async (c) => ({
+      ...c,
+      signature: await impostor.sign(checkpointMessage(c)),
+    });
+
+    expect((await openWithLedger(letter)).ledgerProblem).toMatch(/not signed by the ledger key/);
+  });
+
+  it('flags an entry the signed checkpoint does not contain', async () => {
+    const letter = await sendToBob('hi');
+    // A validly signed checkpoint, but over some other tree than the one the proof is for.
+    const other = await TestMerkleTree.of(ledger.entries.map((_, i) => Uint8Array.of(i)));
+    const root = toBase64Url(await other.root());
+    ledger.tamper.checkpoint = async (c) => {
+      const unsigned = { size: c.size, root, timestampMillis: c.timestampMillis };
+      return { ...unsigned, signature: await ledger.key.sign(checkpointMessage(unsigned)) };
+    };
+
+    expect((await openWithLedger(letter)).ledgerProblem).toMatch(/not in the signed checkpoint/);
+  });
+
+  it('pins the ledger key on first use and refuses a different one later', async () => {
+    const letter = await sendToBob('hi');
+    expect((await openWithLedger(letter)).ledgerValid).toBe(true);
+
+    ledger.key = await ledgerKey();
+    const opened = await openWithLedger(letter);
+
+    expect(opened.ledgerValid).toBe(false);
+    expect(opened.ledgerProblem).toMatch(/key changed/);
+  });
+
+  it('checks that the ledger only grew since the last checkpoint it saw', async () => {
+    const letter = await sendToBob('hi');
+    await openWithLedger(letter);
+    await ledger.appendFiller(4);
+
+    const opened = await openWithLedger(letter);
+
+    expect(opened).toMatchObject({ ledgerValid: true, ledgerCheckpointSize: 9 });
+    expect(ledger.requests).toContain('/api/ledger/proof/consistency?from=5&to=9');
+  });
+
+  it('catches history rewritten between two checks', async () => {
+    const letter = await sendToBob('hi');
+    await openWithLedger(letter);
+    await ledger.rewrite(1);
+    await ledger.appendFiller(1);
+
+    const opened = await openWithLedger(letter);
+
+    expect(opened.ledgerValid).toBe(false);
+    expect(opened.ledgerProblem).toMatch(/rewritten/);
+  });
+
+  it('catches a ledger that shrank', async () => {
+    const letter = await sendToBob('hi');
+    await openWithLedger(letter);
+    ledger.entries.pop();
+
+    expect((await openWithLedger(letter)).ledgerProblem).toMatch(/shrank from 5 to 4/);
+  });
+
+  it('reports a ledger that cannot be reached', async () => {
+    const letter = await sendToBob('hi');
+    const opening = letters.open(letter);
+    (await nextRequest(http, '/api/ledger/key')).flush('down', {
+      status: 503,
+      statusText: 'Unavailable',
+    });
+
+    expect((await opening).ledgerProblem).toMatch(/could not be fetched/);
   });
 
   it('flags a wallet signature that is not the sender’s', async () => {
     const letter = await sendToBob('hi');
     const forgedSignature = await bob.sign(letterSignedMessage(fromBase64Url(letter.letterHash)));
 
-    const opened = await openWithLedger({ ...letter, signature: forgedSignature }, [letter.ledger]);
+    const opened = await openWithLedger({ ...letter, signature: forgedSignature });
 
     expect(opened.signatureValid).toBe(false);
     expect(opened.handSigned).toBe(false);
@@ -278,7 +453,7 @@ describe('LettersService', () => {
     bytes[3] ^= 0x40;
     const altered = { ...letter, envelope: { ...letter.envelope, ciphertext: toBase64Url(bytes) } };
 
-    const opened = await openWithLedger(altered, [letter.ledger]);
+    const opened = await openWithLedger(altered);
 
     expect(opened).toMatchObject({
       body: null,
