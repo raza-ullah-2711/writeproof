@@ -212,6 +212,29 @@ describe('LettersPage', () => {
     expect(button(el, 'Clear signature').disabled).toBe(true);
   });
 
+  it('explains a rejection without a score when the server hides it', async () => {
+    service.send.mockRejectedValue(
+      new HttpErrorResponse({
+        status: 422,
+        error: {
+          detail: "Your signature didn't match your enrolled handwriting",
+          match: false,
+          livenessFlags: [],
+        },
+      }),
+    );
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+    await compose(fixture);
+
+    button(el, 'Seal and send').click();
+    await settle(fixture, (e) => !!e.querySelector('[role=alert]'));
+
+    expect(el.querySelector('[role=alert]')?.textContent).toBe(
+      "Your signature didn't match your enrolled handwriting.",
+    );
+  });
+
   it('opens a hand-signed letter: body, replayable signature and every check', async () => {
     service.open.mockResolvedValue(
       opened({

@@ -116,6 +116,76 @@ describe('Verify', () => {
     expect(button(fixture, 'Enrol').disabled).toBe(true);
   });
 
+  it('shows no score line when the server hides scores', async () => {
+    const fixture = await render(true);
+    scribble(canvas(fixture));
+    await fixture.whenStable();
+    button(fixture, 'Verify').click();
+
+    (await nextRequest(http, '/api/handwriting/verify')).flush({
+      verified: true,
+      score: null,
+      threshold: null,
+      match: true,
+      live: true,
+      livenessFlags: [],
+      shapeScore: null,
+      durationScore: null,
+    });
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(el(fixture).querySelector('.result')?.textContent).toContain('Verified');
+    });
+    expect(el(fixture).querySelector('.result .score')).toBeNull();
+  });
+
+  it('deletes the enrolment after a fresh signature, then offers to enrol again', async () => {
+    const fixture = await render(true);
+    expect(button(fixture, 'Delete my enrolment').disabled).toBe(true); // must sign first
+    scribble(canvas(fixture));
+    await fixture.whenStable();
+    button(fixture, 'Delete my enrolment').click();
+
+    const deletion = await nextRequest(http, '/api/handwriting/enrolment/deletion');
+    expect(deletion.request.body.sample.format).toBe('writeproof.handwriting');
+    deletion.flush(null, { status: 204, statusText: 'No Content' });
+    (await nextRequest(http, '/api/handwriting/enrolment')).flush({
+      enrolled: false,
+      sampleCount: null,
+      enrolledAt: null,
+    });
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(el(fixture).textContent).toContain('Sign 3 to 5 times');
+    });
+  });
+
+  it('explains why a deletion signature was refused', async () => {
+    const fixture = await render(true);
+    scribble(canvas(fixture));
+    await fixture.whenStable();
+    button(fixture, 'Delete my enrolment').click();
+
+    (await nextRequest(http, '/api/handwriting/enrolment/deletion')).flush(
+      {
+        detail: "Your signature didn't match your enrolled handwriting",
+        match: false,
+        livenessFlags: [],
+      },
+      { status: 422, statusText: 'Unprocessable Entity' },
+    );
+
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(el(fixture).querySelector('[role=alert]')?.textContent).toBe(
+        "Your signature didn't match your enrolled handwriting.",
+      );
+    });
+    expect(el(fixture).textContent).toContain('Enrolled with 3 samples');
+  });
+
   it('verifies a new sample and shows the score and liveness result', async () => {
     const fixture = await render(true);
     scribble(canvas(fixture));

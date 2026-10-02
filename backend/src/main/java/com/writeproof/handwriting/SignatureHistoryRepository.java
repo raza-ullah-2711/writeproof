@@ -16,33 +16,36 @@ class SignatureHistoryRepository {
 
     private final JdbcClient jdbc;
     private final ObjectMapper json;
+    private final BiometricCipher cipher;
 
-    SignatureHistoryRepository(JdbcClient jdbc, ObjectMapper json) {
+    SignatureHistoryRepository(JdbcClient jdbc, ObjectMapper json, BiometricCipher cipher) {
         this.jdbc = jdbc;
         this.json = json;
+        this.cipher = cipher;
+    }
+
+    void deleteAll(UUID accountId) {
+        jdbc.sql("DELETE FROM handwriting_history WHERE account_id = :id").param("id", accountId).update();
     }
 
     List<HandwritingSample> recent(UUID accountId, int limit) {
         return jdbc.sql("""
-                SELECT sample::text FROM handwriting_history
+                SELECT sample_encrypted FROM handwriting_history
                  WHERE account_id = :id ORDER BY id DESC LIMIT :limit
                 """)
                 .param("id", accountId)
                 .param("limit", limit)
-                .query(String.class)
-                .list()
-                .stream()
-                .map(this::read)
-                .toList();
+                .query((rs, row) -> read(cipher.decrypt(rs.getBytes(1), BiometricCipher.historyContext(accountId))))
+                .list();
     }
 
     void add(UUID accountId, HandwritingSample sample, Instant at, int keep) {
         jdbc.sql("""
-                INSERT INTO handwriting_history (account_id, sample, created_at)
-                VALUES (:id, CAST(:sample AS jsonb), :at)
+                INSERT INTO handwriting_history (account_id, sample_encrypted, created_at)
+                VALUES (:id, :sample, :at)
                 """)
                 .param("id", accountId)
-                .param("sample", write(sample))
+                .param("sample", cipher.encrypt(write(sample), BiometricCipher.historyContext(accountId)))
                 .param("at", OffsetDateTime.ofInstant(at, ZoneOffset.UTC))
                 .update();
         jdbc.sql("""

@@ -1,0 +1,24 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      Production Content Security Policy. Trusted Types make the DOM's script sinks refuse raw
+      strings, so an XSS bug can't easily turn into code running next to the wallet's keys.
+      frame-ancestors can't be set in a meta tag: the host must also send
+      "Content-Security-Policy: frame-ancestors 'none'" (see docs/security.md).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'self'; form-action 'self'; require-trusted-types-for 'script'; trusted-types angular angular#bundler"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <title>Writeproof</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <link rel="icon" type="image/x-icon" href="favicon.ico" />
+  </head>
+  <body>
+    <app-root></app-root>
+  </body>
+</html>

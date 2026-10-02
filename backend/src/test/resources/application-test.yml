@@ -2,3 +2,9 @@
 writeproof:
   auth:
     jwt-secret: dGVzdC1vbmx5LWp3dC1zZWNyZXQtMzItYnl0ZXMtbG9uZyE=
+  handwriting:
+    expose-scores: true
+    data-key: dGVzdC1vbmx5LWhhbmR3cml0aW5nLWtleS0zMi1ieXQ=
+  # Integration tests make many requests from one address; RateLimitTests checks real limits.
+  rate-limits:
+    scale: 1000

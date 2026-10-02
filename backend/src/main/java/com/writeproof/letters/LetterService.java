@@ -2,6 +2,7 @@ package com.writeproof.letters;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.databind.ObjectMapper;
+import com.writeproof.handwriting.HandwritingRejectedException;
 import com.writeproof.handwriting.HandwritingSample;
 import com.writeproof.handwriting.HandwritingService;
 import com.writeproof.identity.Account;

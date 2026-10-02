@@ -22,6 +22,13 @@ writeproof:
   handwriting:
     # Minimum similarity score (0..1) to count as a match. Calibrated on synthetic strokes only.
     threshold: ${HANDWRITING_THRESHOLD:0.5}
+    # Similarity scores help forgers refine attempts; keep them out of responses in production.
+    expose-scores: ${HANDWRITING_EXPOSE_SCORES:false}
+    # Base64 AES-256 key encrypting stored handwriting at rest. Generate: openssl rand -base64 32
+    data-key: ${HANDWRITING_DATA_KEY}
+  rate-limits:
+    enabled: ${RATE_LIMITS_ENABLED:true}
+    scale: 1
 
 server:
   port: ${PORT:8080}

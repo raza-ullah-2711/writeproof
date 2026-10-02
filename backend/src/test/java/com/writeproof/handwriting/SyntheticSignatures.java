@@ -121,7 +121,7 @@ public final class SyntheticSignatures {
     }
 
     /** A script replaying the shape at perfectly constant speed, constant pressure, exact timing. */
-    static HandwritingSample bot(Writer victim, String device) {
+    public static HandwritingSample bot(Writer victim, String device) {
         Variation v = new Variation(1, 0, 0, 0, 1, 0, 1, 0, 0, 1000.0 / 240, 0);
         return write(victim, v, new Random(0), device, null, 0);
     }

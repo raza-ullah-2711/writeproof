@@ -21,31 +21,39 @@ class EnrolmentRepository {
 
     private final JdbcClient jdbc;
     private final ObjectMapper json;
+    private final BiometricCipher cipher;
 
-    EnrolmentRepository(JdbcClient jdbc, ObjectMapper json) {
+    EnrolmentRepository(JdbcClient jdbc, ObjectMapper json, BiometricCipher cipher) {
         this.jdbc = jdbc;
         this.json = json;
+        this.cipher = cipher;
+    }
+
+    /** Removes the account's enrolment; returns whether there was one. */
+    boolean delete(UUID accountId) {
+        return jdbc.sql("DELETE FROM handwriting_enrolments WHERE account_id = :id").param("id", accountId).update() == 1;
     }
 
     /** Returns {@code false} if the account is already enrolled. */
     boolean insertIfAbsent(Enrolment enrolment) {
         return jdbc.sql("""
-                INSERT INTO handwriting_enrolments (account_id, samples, created_at)
-                VALUES (:accountId, CAST(:samples AS jsonb), :createdAt)
+                INSERT INTO handwriting_enrolments (account_id, samples_encrypted, created_at)
+                VALUES (:accountId, :samples, :createdAt)
                 ON CONFLICT (account_id) DO NOTHING
                 """)
                 .param("accountId", enrolment.accountId())
-                .param("samples", write(enrolment.samples()))
+                .param("samples", cipher.encrypt(write(enrolment.samples()),
+                        BiometricCipher.enrolmentContext(enrolment.accountId())))
                 .param("createdAt", OffsetDateTime.ofInstant(enrolment.createdAt(), ZoneOffset.UTC))
                 .update() == 1;
     }
 
     Optional<Enrolment> find(UUID accountId) {
-        return jdbc.sql("SELECT account_id, samples::text AS samples, created_at FROM handwriting_enrolments WHERE account_id = :id")
+        return jdbc.sql("SELECT account_id, samples_encrypted, created_at FROM handwriting_enrolments WHERE account_id = :id")
                 .param("id", accountId)
                 .query((rs, row) -> new Enrolment(
                         rs.getObject("account_id", UUID.class),
-                        read(rs.getString("samples")),
+                        read(cipher.decrypt(rs.getBytes("samples_encrypted"), BiometricCipher.enrolmentContext(accountId))),
                         rs.getObject("created_at", OffsetDateTime.class).toInstant()))
                 .optional();
     }

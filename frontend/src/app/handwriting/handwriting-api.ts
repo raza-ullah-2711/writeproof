@@ -17,15 +17,24 @@ export interface Enrolment {
   enrolledAt: string | null;
 }
 
+/** Scores are null unless the server is configured to expose them (off in production). */
 export interface Verification {
   verified: boolean;
-  score: number;
-  threshold: number;
+  score: number | null;
+  threshold: number | null;
   match: boolean;
   live: boolean;
   livenessFlags: LivenessFlag[];
-  shapeScore: number;
-  durationScore: number;
+  shapeScore: number | null;
+  durationScore: number | null;
+}
+
+/** Body of a 422 when a signature that had to verify (sending, deleting) didn't. */
+export interface HandwritingRejection {
+  detail: string;
+  match: boolean;
+  livenessFlags: LivenessFlag[];
+  score?: number;
 }
 
 /** Body of a 422 when an enrolment sample fails liveness checks. */
@@ -33,6 +42,13 @@ export interface NotLiveProblem {
   detail: string;
   sampleIndex: number;
   livenessFlags: LivenessFlag[];
+}
+
+/** Turns a 422 rejection into one readable sentence (with the score only if the server sent it). */
+export function describeRejection(problem: HandwritingRejection): string {
+  const score = problem.score === undefined ? '' : ` (similarity ${problem.score.toFixed(2)})`;
+  const reasons = (problem.livenessFlags ?? []).map((f) => LIVENESS_LABELS[f]);
+  return [`${problem.detail}${score}.`, ...reasons].join(' ');
 }
 
 export const MIN_ENROLMENT_SAMPLES = 3;
@@ -61,5 +77,10 @@ export class HandwritingApi {
 
   verify(sample: HandwritingSample): Promise<Verification> {
     return firstValueFrom(this.http.post<Verification>('/api/handwriting/verify', { sample }));
+  }
+
+  /** Deletes the enrolment; the server requires a fresh signature that verifies. */
+  deleteEnrolment(sample: HandwritingSample): Promise<void> {
+    return firstValueFrom(this.http.post<void>('/api/handwriting/enrolment/deletion', { sample }));
   }
 }

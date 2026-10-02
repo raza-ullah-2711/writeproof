@@ -11,7 +11,8 @@ See [`docs/architecture.md`](docs/architecture.md) for the design rules and back
 and the per-feature docs: [identity](docs/identity.md),
 [handwriting capture](docs/handwriting-capture.md),
 [handwriting verification](docs/handwriting-verification.md),
-[letters and ledger](docs/letters-and-ledger.md).
+[letters and ledger](docs/letters-and-ledger.md),
+[backup and recovery](docs/backup-and-recovery.md), [security](docs/security.md).
 
 ## Layout
 
@@ -24,10 +25,10 @@ and the per-feature docs: [identity](docs/identity.md),
 ## Running locally
 
 ```bash
-cp .env.example .env            # then set DB_PASSWORD and JWT_SECRET
+cp .env.example .env            # then set DB_PASSWORD, JWT_SECRET, HANDWRITING_DATA_KEY
 docker compose up -d            # PostgreSQL on :5432
 
-# Backend on :8080 (reads DB_* and JWT_SECRET from the environment)
+# Backend on :8080 (reads DB_*, JWT_SECRET and HANDWRITING_DATA_KEY from the environment)
 cd backend
 set -a; . ../.env; set +a
 ./mvnw spring-boot:run          # health: http://localhost:8080/actuator/health
