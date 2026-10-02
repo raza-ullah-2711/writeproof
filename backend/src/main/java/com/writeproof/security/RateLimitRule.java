@@ -23,6 +23,7 @@ public record RateLimitRule(String name, HttpMethod method, String pathPattern, 
             new RateLimitRule("send-letter", HttpMethod.POST, "/api/letters", 30, Duration.ofHours(1), true),
             new RateLimitRule("backup-fetch", HttpMethod.GET, "/api/backups/*", 20, Duration.ofHours(1), false),
             new RateLimitRule("backup-upload", HttpMethod.PUT, "/api/me/backup", 10, Duration.ofHours(1), true),
+            new RateLimitRule("contacts-write", HttpMethod.PUT, "/api/me/contacts", 120, Duration.ofHours(1), true),
             new RateLimitRule("calibration-sample", HttpMethod.POST, "/api/calibration/samples", 60, Duration.ofHours(1), true),
             new RateLimitRule("calibration-target", HttpMethod.GET, "/api/calibration/forgery-target", 60, Duration.ofHours(1), true),
             // Proofs recompute the tree (O(n) in the mock); generous for readers, bounded for floods.

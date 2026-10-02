@@ -79,7 +79,9 @@ sent it can't be edited or unsent — like a sealed letter.
     browser against a pinned key, and an `AuditLedger` command for outside witnesses. ✅ — see
     [ledger.md](ledger.md). Anchoring on a public chain and witness gossip are follow-ups.
 11. **Social layer** — contacts (petnames, QR address exchange), threads, open (unsealed but
-    signed) letters. Needs product decisions.
+    signed) letters. Decided: address exchange only (no directory), contact book encrypted with
+    the wallet and stored as ciphertext, open letters readable by anyone with the link.
+    11a **Contacts** ✅ — see [contacts.md](contacts.md). Threads and open letters to follow.
 12. **Deployment packaging** — production images (non-root, layered), Caddy with automatic HTTPS
     and the required headers, health-ordered Compose stack, secrets generator, backup/restore,
     smoke test run in CI. ✅ — see [deployment.md](deployment.md).
