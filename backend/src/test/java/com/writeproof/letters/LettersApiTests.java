@@ -13,6 +13,8 @@ import com.writeproof.identity.EncryptionKeyBinding;
 import com.writeproof.ledger.LedgerHashing;
 import java.security.SecureRandom;
 import java.time.Instant;
+import java.time.ZoneOffset;
+import java.time.format.DateTimeFormatter;
 import java.time.temporal.ChronoUnit;
 import java.util.HashMap;
 import java.util.List;
@@ -95,8 +97,19 @@ class LettersApiTests {
         return Base64Url.encode(b);
     }
 
+    /**
+     * Exactly what the browser's {@code toISOString()} produces: always three fraction digits.
+     * ({@code Instant.toString()} drops the fraction on whole seconds, which the server rejects.)
+     */
+    private static final DateTimeFormatter SENT_AT =
+            DateTimeFormatter.ofPattern("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'").withZone(ZoneOffset.UTC);
+
+    private static String iso(Instant instant) {
+        return SENT_AT.format(instant);
+    }
+
     private static String now() {
-        return Instant.now().truncatedTo(ChronoUnit.MILLIS).toString();
+        return iso(Instant.now());
     }
 
     private Map<String, Object> signedLetter(TestWallet from, TestWallet to, String sentAt, LetterEnvelope envelope,
@@ -287,11 +300,21 @@ class LettersApiTests {
 
     @Test
     void aStaleOrMalformedTimestampIsRejected() throws Exception {
-        String old = Instant.now().minus(1, ChronoUnit.HOURS).truncatedTo(ChronoUnit.MILLIS).toString();
+        String old = iso(Instant.now().minus(1, ChronoUnit.HOURS));
         assertThat(send(alice, signedLetter(alice, bob, old, envelope(), aliceSignsNow())).getStatusCode())
                 .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
         assertThat(send(alice, signedLetter(alice, bob, "2026-10-02 12:00", envelope(), aliceSignsNow())).getStatusCode())
                 .isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+    }
+
+    @Test
+    void aTimestampOnAWholeSecondIsAccepted() throws Exception {
+        // Regression: "…:14.000Z" must be accepted (and written with its fraction by clients).
+        String wholeSecond = iso(Instant.now().truncatedTo(ChronoUnit.SECONDS));
+        assertThat(wholeSecond).endsWith(".000Z");
+
+        assertThat(send(alice, signedLetter(alice, bob, wholeSecond, envelope(), aliceSignsNow())).getStatusCode())
+                .isEqualTo(HttpStatus.CREATED);
     }
 
     @Test
