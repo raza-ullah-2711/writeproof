@@ -12,6 +12,14 @@ export interface StoredWallet {
   iv: Uint8Array<ArrayBuffer>;
   wrappingKey: CryptoKey;
   createdAt: string;
+  /** X25519 key for sealed letters, wrapped like the identity key. Absent on wallets made before letters. */
+  encryption?: StoredKey;
+}
+
+export interface StoredKey {
+  publicKey: Uint8Array<ArrayBuffer>;
+  wrappedPrivateKey: ArrayBuffer;
+  iv: Uint8Array<ArrayBuffer>;
 }
 
 const DB_NAME = 'writeproof';
@@ -36,6 +44,24 @@ export class KeyStore {
     const db = await this.open();
     try {
       await request(db.transaction(STORE, 'readwrite').objectStore(STORE).add(wallet, RECORD_KEY));
+    } finally {
+      db.close();
+    }
+  }
+
+  /** Adds the encryption key to an existing wallet; never replaces one that is already there. */
+  async addEncryptionKey(key: StoredKey): Promise<void> {
+    const db = await this.open();
+    try {
+      const store = db.transaction(STORE, 'readwrite').objectStore(STORE);
+      const wallet = await request<StoredWallet | undefined>(store.get(RECORD_KEY));
+      if (!wallet) {
+        throw new Error('No wallet to add an encryption key to');
+      }
+      if (wallet.encryption) {
+        throw new Error('This wallet already has an encryption key');
+      }
+      await request(store.put({ ...wallet, encryption: key }, RECORD_KEY));
     } finally {
       db.close();
     }

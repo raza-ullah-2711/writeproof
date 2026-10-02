@@ -52,7 +52,14 @@ describe('Home', () => {
       expiresAt: '',
     });
     (await nextRequest(http, '/api/auth/verify')).flush({ token: 't', expiresAt: '' });
-    (await nextRequest(http, '/api/me')).flush({ accountId: 'acct-1', publicKey, createdAt: '' });
+    (await nextRequest(http, '/api/me')).flush({
+      accountId: 'acct-1',
+      publicKey,
+      createdAt: '',
+      encryptionKey: null,
+    });
+    const keyReq = await nextRequest(http, '/api/me/encryption-key');
+    keyReq.flush({ accountId: 'acct-1', publicKey, createdAt: '', ...keyReq.request.body });
 
     await vi.waitFor(async () => {
       await fixture.whenStable();

@@ -1,0 +1,116 @@
+.letters {
+  font-family: system-ui, sans-serif;
+}
+
+.address {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.8125rem;
+
+  code {
+    overflow-wrap: anywhere;
+  }
+}
+
+.compose {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  margin: 1rem 0;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+  }
+
+  input,
+  textarea {
+    font: inherit;
+    padding: 0.4rem;
+  }
+
+  textarea {
+    font-family: Georgia, 'Times New Roman', serif;
+  }
+
+  button {
+    align-self: flex-start;
+  }
+}
+
+.seal-note,
+.empty {
+  font-size: 0.8125rem;
+  color: #555;
+}
+
+.primary {
+  font-weight: 600;
+}
+
+.tabs {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 1rem;
+
+  [aria-selected='true'] {
+    font-weight: 600;
+  }
+}
+
+.list {
+  list-style: none;
+  padding: 0;
+}
+
+.letter {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid #e5e0d6;
+}
+
+.meta {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  font-size: 0.8125rem;
+  color: #555;
+  margin-bottom: 0.5rem;
+}
+
+.body {
+  margin: 0.5rem 0;
+  padding: 0.75rem;
+  background: #fffdf7;
+  border-left: 3px solid #d6d0c4;
+  font-family: Georgia, 'Times New Roman', serif;
+  white-space: pre-wrap;
+}
+
+.checks {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  font-size: 0.8125rem;
+  color: #cf222e;
+
+  .ok {
+    color: #1a7f37;
+  }
+}
+
+.problem {
+  display: block;
+  margin-left: 1rem;
+}
+
+.notice {
+  color: #1a7f37;
+}
+
+.error {
+  color: #cf222e;
+}

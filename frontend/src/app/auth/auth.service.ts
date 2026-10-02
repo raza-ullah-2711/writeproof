@@ -3,12 +3,15 @@ import { Injectable, computed, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { fromBase64Url, toBase64Url } from '../crypto/base64url';
 import { WalletService } from '../wallet/wallet.service';
+import { encryptionKeyBinding } from '../letters/letter-format';
 import { loginMessage } from './login-message';
 
 export interface Account {
   accountId: string;
   publicKey: string;
   createdAt: string;
+  encryptionKey: string | null;
+  encryptionKeySignature: string | null;
 }
 
 interface ChallengeResponse {
@@ -57,9 +60,34 @@ export class AuthService {
     );
     this._token.set(token);
 
-    const account = await firstValueFrom(this.http.get<Account>('/api/me'));
+    const account = await this.ensureEncryptionKey(
+      await firstValueFrom(this.http.get<Account>('/api/me')),
+    );
     this._account.set(account);
     return account;
+  }
+
+  /** Registers this wallet's encryption key, signed by its identity key, if not done yet. */
+  private async ensureEncryptionKey(account: Account): Promise<Account> {
+    const encryptionKey = this.wallet.encryptionPublicKey();
+    if (!encryptionKey) {
+      throw new Error('No wallet is loaded');
+    }
+    if (account.encryptionKey === encryptionKey) {
+      return account;
+    }
+    if (account.encryptionKey) {
+      throw new Error('This account has a different encryption key registered');
+    }
+    const signature = await this.wallet.sign(
+      encryptionKeyBinding(account.publicKey, encryptionKey),
+    );
+    return firstValueFrom(
+      this.http.put<Account>('/api/me/encryption-key', {
+        encryptionKey,
+        signature: toBase64Url(signature),
+      }),
+    );
   }
 
   logout(): void {

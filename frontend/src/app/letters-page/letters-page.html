@@ -1,0 +1,124 @@
+<section class="letters">
+  <h2>Letters</h2>
+
+  @if (!auth.authenticated()) {
+    <p>Sign in with your <a routerLink="/">wallet</a> first.</p>
+  } @else {
+    <div class="address">
+      <span>Your address</span>
+      <code>{{ wallet.publicKey() }}</code>
+      <button type="button" (click)="copyAddress()">{{ copied() ? 'Copied' : 'Copy' }}</button>
+    </div>
+
+    <form class="compose" (ngSubmit)="send()">
+      <label>
+        To (their address)
+        <input
+          name="recipient"
+          [(ngModel)]="recipient"
+          required
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </label>
+      <label>
+        Letter
+        <textarea
+          name="body"
+          [(ngModel)]="body"
+          rows="5"
+          [maxlength]="maxLength"
+          required
+        ></textarea>
+      </label>
+      <p class="seal-note">
+        Sealed for the recipient, signed by your wallet and recorded on the ledger.
+        <strong>Once sent, a letter can't be edited or unsent.</strong>
+      </p>
+      <button
+        type="submit"
+        class="primary"
+        [disabled]="busy() || !recipient.trim() || !body.trim()"
+      >
+        Seal and send
+      </button>
+    </form>
+
+    @if (notice(); as message) {
+      <p class="notice" role="status">{{ message }}</p>
+    }
+    @if (error(); as message) {
+      <p class="error" role="alert">{{ message }}</p>
+    }
+
+    <div class="tabs" role="tablist">
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="box() === 'inbox'"
+        (click)="selectBox('inbox')"
+      >
+        Inbox
+      </button>
+      <button
+        type="button"
+        role="tab"
+        [attr.aria-selected]="box() === 'sent'"
+        (click)="selectBox('sent')"
+      >
+        Sent
+      </button>
+    </div>
+
+    @if (list(); as letters) {
+      @if (letters.length === 0) {
+        <p class="empty">No letters yet.</p>
+      }
+      <ul class="list">
+        @for (letter of letters; track letter.letterId) {
+          <li class="letter">
+            <div class="meta">
+              <span>
+                @if (box() === 'inbox') {
+                  From <code>{{ short(letter.sender.publicKey) }}</code>
+                } @else {
+                  To <code>{{ short(letter.recipient.publicKey) }}</code>
+                }
+              </span>
+              <span>{{ letter.sentAt }}</span>
+              <span>ledger #{{ letter.ledger.seq }}</span>
+            </div>
+            @let state = result(letter);
+            @if (state === undefined) {
+              <button type="button" (click)="open(letter)">Open and verify</button>
+            } @else if (state === 'opening') {
+              <p>Verifying&hellip;</p>
+            } @else if (asOpened(state); as o) {
+              @if (o.body !== null) {
+                <blockquote class="body">{{ o.body }}</blockquote>
+              }
+              <ul class="checks">
+                <li [class.ok]="o.signatureValid">
+                  {{ o.signatureValid ? '✓' : '✗' }} Signed by the sender's wallet
+                </li>
+                <li [class.ok]="o.decrypted">
+                  {{ o.decrypted ? '✓' : '✗' }} Sealed for you, unaltered
+                </li>
+                <li [class.ok]="o.ledgerValid">
+                  {{ o.ledgerValid ? '✓' : '✗' }} In the ledger (chain intact up to #{{
+                    letter.ledger.seq
+                  }})
+                  @if (o.ledgerProblem) {
+                    <span class="problem">{{ o.ledgerProblem }}</span>
+                  }
+                </li>
+              </ul>
+            }
+          </li>
+        }
+      </ul>
+    } @else {
+      <p>Loading&hellip;</p>
+    }
+  }
+</section>

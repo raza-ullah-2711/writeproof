@@ -58,4 +58,4 @@ sent it can't be edited or unsent — like a sealed letter.
 5. **Letters + mock ledger** — compose a letter, sign its hash with the wallet
    key, encrypt the body to the recipient's public key, append to
    `LedgerService` (mock: hash-chained table). Recipient can decrypt and verify
-   signature and chain integrity.
+   signature and chain integrity. ✅ — see [letters-and-ledger.md](letters-and-ledger.md).
