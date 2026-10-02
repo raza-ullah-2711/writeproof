@@ -1,0 +1,37 @@
+.capture {
+  font-family: system-ui, sans-serif;
+}
+
+.hint,
+.stats {
+  font-size: 0.875rem;
+  color: #555;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.import {
+  position: relative;
+  padding: 1px 6px;
+  border: 1px solid #767676;
+  border-radius: 3px;
+  background: #efefef;
+  font-size: 0.8125rem;
+  cursor: pointer;
+
+  input {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+}
+
+.error {
+  color: #cf222e;
+}
