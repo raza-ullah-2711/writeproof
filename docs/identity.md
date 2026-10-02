@@ -54,9 +54,8 @@ client                                         server
 
 ## Known limitations / follow-ups
 
-- **No recovery.** Clearing site data or losing the device loses the identity.
-  A backup/export flow (e.g. recovery phrase that re-wraps the key) is needed
-  before real users.
+- **Recovery** is by recovery code (Task 7, [backup-and-recovery.md](backup-and-recovery.md)).
+  Without one, clearing site data still loses the identity.
 - **At-rest encryption scope.** The wrapping key is non-extractable, so no script
   can read the private key bytes. Same-origin script (e.g. XSS) can still _use_
   the key while the page is open, and someone with full access to the browser

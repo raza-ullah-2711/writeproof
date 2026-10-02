@@ -6,6 +6,20 @@
     @case ('none') {
       <p>Your identity is a key that lives only in this browser. No username, password or email.</p>
       <button type="button" (click)="createWallet()" [disabled]="busy()">Create wallet</button>
+
+      <form class="restore" (ngSubmit)="restore()">
+        <label>
+          Already have an account? Enter your recovery code
+          <input
+            name="recoveryCode"
+            [(ngModel)]="recoveryCode"
+            placeholder="XXXX-XXXX-XXXX-XXXX-XXXX-XXXX-XXXX"
+            autocomplete="off"
+            spellcheck="false"
+          />
+        </label>
+        <button type="submit" [disabled]="busy() || !recoveryCode.trim()">Restore wallet</button>
+      </form>
     }
     @case ('ready') {
       @if (auth.account(); as account) {
@@ -17,6 +31,43 @@
           <dd class="public-key">{{ account.publicKey }}</dd>
         </dl>
         <button type="button" (click)="auth.logout()">Sign out</button>
+
+        <section class="backup">
+          <h3>Backup</h3>
+          @if (newCode(); as code) {
+            <p>
+              <strong>Write this recovery code down and keep it somewhere safe.</strong> It's the
+              only way to get your account back if this browser's data is lost, and it won't be
+              shown again. Anyone with it can open your wallet and read your letters (sending still
+              needs your handwriting).
+            </p>
+            <code class="recovery-code">{{ code }}</code>
+            <div class="actions">
+              <button type="button" (click)="copyCode(code)">
+                {{ copied() ? 'Copied' : 'Copy' }}
+              </button>
+              <button type="button" class="primary" (click)="newCode.set(null)">
+                I've saved it
+              </button>
+            </div>
+          } @else if (backup(); as status) {
+            @if (status.backedUp) {
+              <p class="ok">Backed up {{ status.backedUpAt | date: 'medium' }}.</p>
+              <button type="button" (click)="createBackup()" [disabled]="busy()">
+                Replace recovery code
+              </button>
+              <p class="hint">A new code replaces the old one, which stops working.</p>
+            } @else {
+              <p class="warn">
+                Not backed up. If this browser's data is cleared, your account and letters are lost
+                for good.
+              </p>
+              <button type="button" class="primary" (click)="createBackup()" [disabled]="busy()">
+                Create recovery code
+              </button>
+            }
+          }
+        </section>
       } @else {
         <p>A wallet is saved in this browser.</p>
         <button type="button" (click)="signIn()" [disabled]="busy()">Sign in</button>

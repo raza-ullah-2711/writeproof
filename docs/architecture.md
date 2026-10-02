@@ -63,8 +63,9 @@ sent it can't be edited or unsent — like a sealed letter.
    your enrolment (match, liveness, freshness, not a replay of a recent signature), its hash is
    committed to by the wallet-signed letter header, and the strokes travel sealed inside the
    letter so the recipient can replay them. ✅ — see [letters-and-ledger.md](letters-and-ledger.md).
-7. **Wallet backup & recovery** — encrypted export / recovery phrase, restore on a new device,
-   add a second device.
+7. **Wallet backup & recovery** — recovery code (128-bit, checksummed), encrypted backup stored
+   server-side as ciphertext, restore on a new device with proof the keys match the address,
+   second device via the same code. ✅ — see [backup-and-recovery.md](backup-and-recovery.md).
 8. **Security hardening** — CSP and security headers, rate limits (registration, challenges,
    handwriting verification, sending), encrypt enrolment data at rest plus a deletion path,
    return only `verified` from `/verify` in production.

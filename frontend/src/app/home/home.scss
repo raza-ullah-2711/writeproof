@@ -12,3 +12,70 @@ dd {
 .error {
   color: #cf222e;
 }
+
+.restore {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.5rem;
+  margin-top: 1.5rem;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    width: 100%;
+    font-size: 0.875rem;
+  }
+
+  input {
+    font: inherit;
+    font-family: ui-monospace, monospace;
+    padding: 0.4rem;
+  }
+}
+
+.backup {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid #e5e0d6;
+  font-size: 0.875rem;
+
+  h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+  }
+}
+
+.recovery-code {
+  display: block;
+  margin: 0.5rem 0;
+  padding: 0.75rem;
+  background: #fffdf7;
+  border: 1px dashed #b8ae9c;
+  font-family: ui-monospace, monospace;
+  font-size: 1.05rem;
+  letter-spacing: 0.05em;
+  overflow-wrap: anywhere;
+}
+
+.actions {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.primary {
+  font-weight: 600;
+}
+
+.ok {
+  color: #1a7f37;
+}
+
+.warn {
+  color: #9a6700;
+}
+
+.hint {
+  color: #555;
+}

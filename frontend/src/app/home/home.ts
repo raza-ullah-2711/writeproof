@@ -1,10 +1,14 @@
+import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, OnInit, inject, signal } from '@angular/core';
+import { Component, OnInit, effect, inject, signal } from '@angular/core';
+import { FormsModule } from '@angular/forms';
 import { AuthService } from '../auth/auth.service';
+import { BackupService, BackupStatus } from '../wallet/backup.service';
 import { WalletService } from '../wallet/wallet.service';
 
 @Component({
   selector: 'app-home',
+  imports: [FormsModule, DatePipe],
   templateUrl: './home.html',
   styleUrl: './home.scss',
 })
@@ -12,8 +16,28 @@ export class Home implements OnInit {
   protected readonly wallet = inject(WalletService);
   protected readonly auth = inject(AuthService);
 
+  private readonly backups = inject(BackupService);
+
   protected readonly busy = signal(false);
   protected readonly error = signal<string | null>(null);
+  protected readonly backup = signal<BackupStatus | null>(null);
+  /** A freshly created recovery code, shown once until dismissed. */
+  protected readonly newCode = signal<string | null>(null);
+  protected readonly copied = signal(false);
+  protected recoveryCode = '';
+
+  constructor() {
+    effect(() => {
+      if (this.auth.account()) {
+        this.backups.status().then(
+          (status) => this.backup.set(status),
+          () => this.backup.set(null),
+        );
+      } else {
+        this.backup.set(null);
+      }
+    });
+  }
 
   async ngOnInit(): Promise<void> {
     await this.run(() => this.wallet.load());
@@ -25,6 +49,27 @@ export class Home implements OnInit {
       await this.auth.register();
       await this.auth.login();
     });
+  }
+
+  protected restore(): Promise<void> {
+    return this.run(async () => {
+      await this.backups.restore(this.recoveryCode);
+      this.recoveryCode = '';
+      await this.auth.login();
+    });
+  }
+
+  protected createBackup(): Promise<void> {
+    return this.run(async () => {
+      this.copied.set(false);
+      this.newCode.set(await this.backups.create());
+      this.backup.set(await this.backups.status());
+    });
+  }
+
+  protected async copyCode(code: string): Promise<void> {
+    await navigator.clipboard?.writeText(code);
+    this.copied.set(true);
   }
 
   protected signIn(): Promise<void> {

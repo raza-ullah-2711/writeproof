@@ -1,5 +1,7 @@
 import { Injectable, computed, inject, signal } from '@angular/core';
-import { toBase64Url } from '../crypto/base64url';
+import { fromBase64Url, toBase64Url } from '../crypto/base64url';
+import { verifyEd25519 } from '../crypto/ed25519';
+import { WalletKeys } from './wallet-backup';
 import { KeyStore, StoredKey, StoredWallet } from './key-store';
 
 export type WalletState = 'unknown' | 'none' | 'ready';
@@ -70,6 +72,88 @@ export class WalletService {
     await this.unlock(stored, encryption);
   }
 
+  /**
+   * Exports both private keys for an encrypted backup. They are unwrapped as extractable only
+   * here, in memory, and the caller must encrypt them immediately.
+   */
+  async exportKeys(): Promise<WalletKeys> {
+    const stored = await this.store.load();
+    if (!stored?.encryption) {
+      throw new Error('Wallet is not unlocked');
+    }
+    const identity = await unwrap(stored, stored, { name: 'Ed25519' }, ['sign'], true);
+    const encryption = await unwrap(
+      stored,
+      stored.encryption,
+      { name: 'X25519' },
+      ['deriveBits'],
+      true,
+    );
+    return {
+      publicKey: toBase64Url(stored.publicKey),
+      encryptionPublicKey: toBase64Url(stored.encryption.publicKey),
+      identityPkcs8: toBase64Url(new Uint8Array(await crypto.subtle.exportKey('pkcs8', identity))),
+      encryptionPkcs8: toBase64Url(
+        new Uint8Array(await crypto.subtle.exportKey('pkcs8', encryption)),
+      ),
+    };
+  }
+
+  /**
+   * Installs keys from a backup into this browser. Before saving, proves the private keys belong
+   * to the public keys the backup names: the identity key signs a challenge that must verify,
+   * and the encryption key must agree on a shared secret with a fresh ephemeral key.
+   */
+  async restore(keys: WalletKeys): Promise<void> {
+    if (await this.store.load()) {
+      throw new Error('A wallet already exists in this browser');
+    }
+    const identity = await crypto.subtle.importKey(
+      'pkcs8',
+      fromBase64Url(keys.identityPkcs8),
+      { name: 'Ed25519' },
+      true,
+      ['sign'],
+    );
+    const encryption = await crypto.subtle.importKey(
+      'pkcs8',
+      fromBase64Url(keys.encryptionPkcs8),
+      { name: 'X25519' },
+      true,
+      ['deriveBits'],
+    );
+    await assertKeysMatch(identity, encryption, keys);
+
+    const wrappingKey = await crypto.subtle.generateKey(
+      { name: WRAP_ALGORITHM, length: 256 },
+      false,
+      ['wrapKey', 'unwrapKey'],
+    );
+    const identityIv = crypto.getRandomValues(new Uint8Array(12));
+    const encryptionIv = crypto.getRandomValues(new Uint8Array(12));
+    const stored: StoredWallet = {
+      version: 1,
+      publicKey: fromBase64Url(keys.publicKey),
+      wrappedPrivateKey: await crypto.subtle.wrapKey('pkcs8', identity, wrappingKey, {
+        name: WRAP_ALGORITHM,
+        iv: identityIv,
+      }),
+      iv: identityIv,
+      wrappingKey,
+      createdAt: new Date().toISOString(),
+      encryption: {
+        publicKey: fromBase64Url(keys.encryptionPublicKey),
+        wrappedPrivateKey: await crypto.subtle.wrapKey('pkcs8', encryption, wrappingKey, {
+          name: WRAP_ALGORITHM,
+          iv: encryptionIv,
+        }),
+        iv: encryptionIv,
+      },
+    };
+    await this.store.saveNew(stored);
+    await this.unlock(stored, stored.encryption!);
+  }
+
   async sign(message: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
     if (!this.signingKey) {
       throw new Error('Wallet is not unlocked');
@@ -118,6 +202,7 @@ function unwrap(
   key: StoredKey,
   algorithm: { name: 'Ed25519' | 'X25519' },
   usages: KeyUsage[],
+  extractable = false,
 ): Promise<CryptoKey> {
   return crypto.subtle.unwrapKey(
     'pkcs8',
@@ -125,7 +210,44 @@ function unwrap(
     stored.wrappingKey,
     { name: WRAP_ALGORITHM, iv: key.iv },
     algorithm,
-    false,
+    extractable,
     usages,
   );
+}
+
+async function assertKeysMatch(
+  identity: CryptoKey,
+  encryption: CryptoKey,
+  keys: WalletKeys,
+): Promise<void> {
+  const probe = crypto.getRandomValues(new Uint8Array(32));
+  const signature = toBase64Url(
+    new Uint8Array(await crypto.subtle.sign('Ed25519', identity, probe)),
+  );
+  if (!(await verifyEd25519(keys.publicKey, probe, signature))) {
+    throw new Error("This backup's identity key doesn't match its address");
+  }
+  const ephemeral = (await crypto.subtle.generateKey({ name: 'X25519' }, false, [
+    'deriveBits',
+  ])) as CryptoKeyPair;
+  const claimed = await crypto.subtle.importKey(
+    'raw',
+    fromBase64Url(keys.encryptionPublicKey),
+    { name: 'X25519' },
+    false,
+    [],
+  );
+  const ours = new Uint8Array(
+    await crypto.subtle.deriveBits(
+      { name: 'X25519', public: ephemeral.publicKey },
+      encryption,
+      256,
+    ),
+  );
+  const theirs = new Uint8Array(
+    await crypto.subtle.deriveBits({ name: 'X25519', public: claimed }, ephemeral.privateKey, 256),
+  );
+  if (toBase64Url(ours) !== toBase64Url(theirs)) {
+    throw new Error("This backup's encryption key doesn't match its public key");
+  }
 }
