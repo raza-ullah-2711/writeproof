@@ -6,7 +6,6 @@ import com.nimbusds.jose.jwk.source.ImmutableSecret;
 import java.util.Base64;
 import javax.crypto.SecretKey;
 import javax.crypto.spec.SecretKeySpec;
-import org.springframework.boot.context.properties.EnableConfigurationProperties;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
@@ -24,7 +23,6 @@ import org.springframework.security.web.SecurityFilterChain;
 
 @Configuration(proxyBeanMethods = false)
 @EnableScheduling
-@EnableConfigurationProperties(AuthProperties.class)
 class SecurityConfig {
 
     private static final int MIN_SECRET_BYTES = 32;

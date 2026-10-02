@@ -33,3 +33,10 @@ export function fakeContext(): CanvasRenderingContext2D {
     fill: vi.fn(noop),
   } as unknown as CanvasRenderingContext2D;
 }
+
+/** Writes a short three-point stroke on the canvas, starting at `t0` ms. */
+export function scribble(canvas: HTMLCanvasElement, t0 = 0): void {
+  canvas.dispatchEvent(pointer('pointerdown', { clientX: 10, clientY: 10, timeStamp: t0 }));
+  canvas.dispatchEvent(pointer('pointermove', { clientX: 40, clientY: 30, timeStamp: t0 + 200 }));
+  canvas.dispatchEvent(pointer('pointerup', { clientX: 60, clientY: 20, timeStamp: t0 + 400 }));
+}
