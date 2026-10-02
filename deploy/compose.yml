@@ -1,0 +1,59 @@
+# Production stack: PostgreSQL, the API, and Caddy serving the web app over HTTPS.
+#   ./deploy/generate-env.sh writeproof.example.com     # once: deploy/.env with fresh secrets
+#   docker compose -f deploy/compose.yml up -d --build
+# Only Caddy is reachable from outside (ports 80/443). See docs/deployment.md.
+name: writeproof
+
+services:
+  postgres:
+    image: postgres:17-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: writeproof
+      POSTGRES_USER: writeproof
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?run deploy/generate-env.sh first}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U writeproof -d writeproof"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+
+  backend:
+    build: ../backend
+    image: writeproof-backend:${WRITEPROOF_VERSION:-local}
+    restart: unless-stopped
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://postgres:5432/writeproof
+      DB_USERNAME: writeproof
+      DB_PASSWORD: ${DB_PASSWORD:?run deploy/generate-env.sh first}
+      JWT_SECRET: ${JWT_SECRET:?run deploy/generate-env.sh first}
+      HANDWRITING_DATA_KEY: ${HANDWRITING_DATA_KEY:?run deploy/generate-env.sh first}
+      # Trust X-Forwarded-* from Caddy, so per-IP rate limits see the real client.
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+
+  web:
+    build: ../frontend
+    image: writeproof-web:${WRITEPROOF_VERSION:-local}
+    restart: unless-stopped
+    depends_on:
+      backend:
+        condition: service_healthy
+    environment:
+      DOMAIN: ${DOMAIN:?run deploy/generate-env.sh first}
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - caddy_data:/data
+      - caddy_config:/config
+
+volumes:
+  pgdata:
+  caddy_data:
+  caddy_config:

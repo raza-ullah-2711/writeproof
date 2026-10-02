@@ -9,6 +9,8 @@ spring:
   mvc:
     problemdetails:
       enabled: true
+  lifecycle:
+    timeout-per-shutdown-phase: 20s
   flyway:
     enabled: true
     locations: classpath:db/migration
@@ -32,6 +34,8 @@ writeproof:
 
 server:
   port: ${PORT:8080}
+  # Finish in-flight requests on shutdown (e.g. during an upgrade).
+  shutdown: graceful
 
 management:
   endpoints:

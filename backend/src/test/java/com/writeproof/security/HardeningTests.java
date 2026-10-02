@@ -42,6 +42,9 @@ class HardeningTests {
     @Autowired
     private TokenBucketRateLimiter limiter;
 
+    @org.springframework.boot.test.web.server.LocalServerPort
+    private int port;
+
     @Autowired
     private JdbcClient jdbc;
 
@@ -119,15 +122,66 @@ class HardeningTests {
     }
 
     @Test
-    void oversizedRequestBodiesAreRefused() {
-        HttpHeaders headers = new HttpHeaders();
-        headers.setContentType(MediaType.APPLICATION_JSON);
-        byte[] huge = new byte[(int) RequestSizeLimitFilter.MAX_BYTES + 1];
+    void aDeclaredOversizedBodyIsRefusedBeforeItIsRead() throws Exception {
+        // Raw HTTP, so the test reads the 413 however the server ends the connection. Only headers
+        // are sent: the server must answer from Content-Length alone.
+        String response = rawHttp("POST /api/accounts HTTP/1.1\r\nHost: localhost\r\n"
+                + "Content-Type: application/json\r\nContent-Length: " + (RequestSizeLimitFilter.MAX_BYTES + 1)
+                + "\r\n\r\n", null);
 
-        ResponseEntity<String> response = rest.exchange("/api/accounts", HttpMethod.POST,
-                new HttpEntity<>(huge, headers), String.class);
+        assertThat(response).startsWith("HTTP/1.1 413");
+    }
 
-        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.PAYLOAD_TOO_LARGE);
+    @Test
+    void anUndeclaredChunkedBodyIsCutOffAtTheLimit() throws Exception {
+        byte[] chunk = new byte[64 * 1024];
+        java.util.Arrays.fill(chunk, (byte) ' ');
+        String response = rawHttp("POST /api/accounts HTTP/1.1\r\nHost: localhost\r\n"
+                + "Content-Type: application/json\r\nTransfer-Encoding: chunked\r\n\r\n", out -> {
+            // Twice the limit, written while the response is read; once the server answers and
+            // closes, further writes fail, which is expected.
+            for (long sent = 0; sent < 2 * RequestSizeLimitFilter.MAX_BYTES; sent += chunk.length) {
+                out.write((Integer.toHexString(chunk.length) + "\r\n").getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+                out.write(chunk);
+                out.write("\r\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+            }
+            out.write("0\r\n\r\n".getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+        });
+
+        assertThat(response).startsWith("HTTP/1.1 413");
+    }
+
+    /** Sends {@code head}, streams an optional body from another thread, and returns the status line. */
+    private String rawHttp(String head, BodyWriter body) throws Exception {
+        try (java.net.Socket socket = new java.net.Socket("localhost", port)) {
+            socket.setSoTimeout(30_000);
+            java.io.OutputStream out = socket.getOutputStream();
+            out.write(head.getBytes(java.nio.charset.StandardCharsets.US_ASCII));
+            out.flush();
+            Thread writer = null;
+            if (body != null) {
+                writer = Thread.ofVirtual().start(() -> {
+                    try {
+                        body.write(out);
+                        out.flush();
+                    } catch (java.io.IOException expectedOnceTheServerAnswers) {
+                        // The server may close the connection after refusing the body.
+                    }
+                });
+            }
+            String statusLine = new java.io.BufferedReader(new java.io.InputStreamReader(
+                    socket.getInputStream(), java.nio.charset.StandardCharsets.US_ASCII)).readLine();
+            if (writer != null) {
+                socket.shutdownOutput();
+                writer.join(10_000);
+            }
+            return statusLine;
+        }
+    }
+
+    @FunctionalInterface
+    private interface BodyWriter {
+        void write(java.io.OutputStream out) throws java.io.IOException;
     }
 
     @Test

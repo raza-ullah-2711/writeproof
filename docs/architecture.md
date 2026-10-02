@@ -78,3 +78,6 @@ sent it can't be edited or unsent — like a sealed letter.
     inclusion proofs instead of re-walking from genesis.
 11. **Social layer** — contacts (petnames, QR address exchange), threads, open (unsealed but
     signed) letters. Needs product decisions.
+12. **Deployment packaging** — production images (non-root, layered), Caddy with automatic HTTPS
+    and the required headers, health-ordered Compose stack, secrets generator, backup/restore,
+    smoke test run in CI. ✅ — see [deployment.md](deployment.md).

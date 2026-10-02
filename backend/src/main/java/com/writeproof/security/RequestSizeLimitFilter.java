@@ -21,7 +21,7 @@ public class RequestSizeLimitFilter extends OncePerRequestFilter {
     static final long MAX_BYTES = 4L * 1024 * 1024;
 
     /** Thrown while reading past the limit; mapped to 413. */
-    static class TooLargeException extends IOException {
+    public static class TooLargeException extends IOException {
         TooLargeException() {
             super("Request body exceeds " + MAX_BYTES + " bytes");
         }
