@@ -1,0 +1,49 @@
+.verify {
+  font-family: system-ui, sans-serif;
+}
+
+.hint,
+.progress {
+  font-size: 0.875rem;
+  color: #555;
+}
+
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.75rem;
+}
+
+.primary {
+  font-weight: 600;
+}
+
+.result {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  margin-top: 1rem;
+  padding: 0.75rem;
+  border-left: 4px solid #cf222e;
+  background: #fff5f5;
+
+  &.ok {
+    border-left-color: #1a7f37;
+    background: #f3fbf5;
+  }
+}
+
+.score {
+  font-size: 0.8125rem;
+  color: #555;
+}
+
+.flag {
+  font-size: 0.8125rem;
+  color: #cf222e;
+}
+
+.error {
+  color: #cf222e;
+}

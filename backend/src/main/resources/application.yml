@@ -19,6 +19,9 @@ writeproof:
     jwt-secret: ${JWT_SECRET}
     token-ttl: ${JWT_TTL:PT15M}
     challenge-ttl: PT2M
+  handwriting:
+    # Minimum similarity score (0..1) to count as a match. Calibrated on synthetic strokes only.
+    threshold: ${HANDWRITING_THRESHOLD:0.5}
 
 server:
   port: ${PORT:8080}

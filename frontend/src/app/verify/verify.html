@@ -1,0 +1,74 @@
+<section class="verify">
+  <h2>Handwriting</h2>
+
+  @if (!auth.authenticated()) {
+    <p>Sign in with your <a routerLink="/">wallet</a> first.</p>
+  } @else if (enrolment(); as e) {
+    @if (!e.enrolled) {
+      <p class="hint">
+        Sign {{ min }} to {{ max }} times, the way you normally do. These samples become the
+        reference your handwriting is checked against.
+      </p>
+      <app-handwriting-pad />
+      <div class="toolbar">
+        <button type="button" (click)="pad()?.clear()" [disabled]="busy() || pad()?.empty()">
+          Clear
+        </button>
+        <button
+          type="button"
+          (click)="addSample()"
+          [disabled]="busy() || pad()?.empty() || collected().length >= max"
+        >
+          Use this sample
+        </button>
+        <button
+          type="button"
+          class="primary"
+          (click)="enrol()"
+          [disabled]="busy() || collected().length < min"
+        >
+          Enrol
+        </button>
+        @if (collected().length > 0) {
+          <button type="button" (click)="startOver()" [disabled]="busy()">Start over</button>
+        }
+      </div>
+      <p class="progress">{{ collected().length }} of {{ min }}&ndash;{{ max }} samples</p>
+    } @else {
+      <p class="hint">Enrolled with {{ e.sampleCount }} samples. Sign to verify it's you.</p>
+      <app-handwriting-pad />
+      <div class="toolbar">
+        <button type="button" (click)="pad()?.clear()" [disabled]="busy() || pad()?.empty()">
+          Clear
+        </button>
+        <button
+          type="button"
+          class="primary"
+          (click)="verify()"
+          [disabled]="busy() || pad()?.empty()"
+        >
+          Verify
+        </button>
+      </div>
+
+      @if (result(); as r) {
+        <div class="result" [class.ok]="r.verified" role="status">
+          <strong>{{ r.verified ? 'Verified' : 'Not verified' }}</strong>
+          <span class="score">
+            similarity {{ r.score.toFixed(2) }} (needs {{ r.threshold.toFixed(2) }}) &middot; shape
+            {{ r.shapeScore.toFixed(2) }} &middot; timing {{ r.durationScore.toFixed(2) }}
+          </span>
+          @for (flag of r.livenessFlags; track flag) {
+            <span class="flag">{{ label(flag) }}</span>
+          }
+        </div>
+      }
+    }
+  } @else {
+    <p>Loading&hellip;</p>
+  }
+
+  @if (error(); as message) {
+    <p class="error" role="alert">{{ message }}</p>
+  }
+</section>

@@ -53,7 +53,8 @@ sent it can't be edited or unsent — like a sealed letter.
 4. **Handwriting verification v1** — enrolment (3–5 samples) and verification
    using feature extraction + Dynamic Time Warping, returning a similarity
    score. Basic liveness heuristics (timing variance, unnatural constant
-   velocity). Unit tests with synthetic strokes.
+   velocity). Unit tests with synthetic strokes. ✅ — see
+   [handwriting-verification.md](handwriting-verification.md).
 5. **Letters + mock ledger** — compose a letter, sign its hash with the wallet
    key, encrypt the body to the recipient's public key, append to
    `LedgerService` (mock: hash-chained table). Recipient can decrypt and verify
