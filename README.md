@@ -1,0 +1,44 @@
+# Writeproof
+
+_Every word, provably human._
+
+A social network where your handwriting is your identity. No usernames,
+passwords or email: you unlock your account by signing by hand. Every letter is
+signed and committed to an append-only ledger — once sent, it can't be edited or
+unsent.
+
+See [`docs/architecture.md`](docs/architecture.md) for the design rules and backlog.
+
+## Layout
+
+| Path        | What                                         |
+| ----------- | -------------------------------------------- |
+| `backend/`  | Spring Boot 3 API (Java 21, Maven, Flyway)   |
+| `frontend/` | Angular app (standalone components, signals) |
+| `docs/`     | Architecture and design notes                |
+
+## Running locally
+
+```bash
+cp .env.example .env            # then set DB_PASSWORD
+docker compose up -d            # PostgreSQL on :5432
+
+# Backend on :8080 (reads DB_URL / DB_USERNAME / DB_PASSWORD from the environment)
+cd backend
+set -a; . ../.env; set +a
+./mvnw spring-boot:run          # health: http://localhost:8080/actuator/health
+
+# Frontend on :4200 (proxies /api and /actuator to the backend)
+cd ../frontend
+npm ci
+npm start
+```
+
+## Tests
+
+```bash
+cd backend && ./mvnw verify     # requires Docker (Testcontainers PostgreSQL)
+cd frontend && npm test
+```
+
+CI (`.github/workflows/ci.yml`) runs both on every push to `main` and every PR.

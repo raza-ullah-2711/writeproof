@@ -1,0 +1,24 @@
+.shell {
+  max-width: 40rem;
+  margin: 4rem auto;
+  padding: 0 1rem;
+  font-family: Georgia, 'Times New Roman', serif;
+}
+
+.tagline {
+  font-style: italic;
+  color: #555;
+}
+
+.status {
+  font-family: system-ui, sans-serif;
+  font-size: 0.875rem;
+
+  &[data-status='up'] {
+    color: #1a7f37;
+  }
+
+  &[data-status='down'] {
+    color: #cf222e;
+  }
+}

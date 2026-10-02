@@ -1,0 +1,3 @@
+-- Baseline migration: establishes Flyway history for the Writeproof schema.
+-- Feature tables (accounts, handwriting enrolments, letters, mock ledger)
+-- arrive in later versioned migrations. Never edit an applied migration.
