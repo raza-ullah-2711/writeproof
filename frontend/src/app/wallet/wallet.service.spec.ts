@@ -117,6 +117,63 @@ describe('WalletService', () => {
     expect(again.encryptionPublicKey()).toBe(upgraded.encryptionPublicKey());
   });
 
+  it('exports keys that restore the same wallet in a fresh browser', async () => {
+    const original = freshService();
+    await original.create();
+    const keys = await original.exportKeys();
+
+    globalThis.indexedDB = new IDBFactory(); // a different device
+    const restored = freshService();
+    await restored.restore(keys);
+
+    expect(restored.publicKey()).toBe(original.publicKey());
+    expect(restored.encryptionPublicKey()).toBe(original.encryptionPublicKey());
+    const message = new TextEncoder().encode('same identity');
+    const publicKey = await crypto.subtle.importKey(
+      'raw',
+      fromBase64Url(original.publicKey()!),
+      { name: 'Ed25519' },
+      false,
+      ['verify'],
+    );
+    expect(
+      await crypto.subtle.verify('Ed25519', publicKey, await restored.sign(message), message),
+    ).toBe(true);
+    // And it survives a reload, stored encrypted like any other wallet.
+    const reloaded = freshService();
+    await reloaded.load();
+    expect(reloaded.publicKey()).toBe(original.publicKey());
+    expect((await TestBed.inject(KeyStore).load())!.wrappingKey.extractable).toBe(false);
+  });
+
+  it('refuses to restore keys that do not match the backed-up address', async () => {
+    const a = freshService();
+    await a.create();
+    const keysA = await a.exportKeys();
+    globalThis.indexedDB = new IDBFactory();
+    const b = freshService();
+    await b.create();
+    const keysB = await b.exportKeys();
+
+    globalThis.indexedDB = new IDBFactory();
+    await expect(
+      freshService().restore({ ...keysA, identityPkcs8: keysB.identityPkcs8 }),
+    ).rejects.toThrow(/identity key doesn't match/);
+    await expect(
+      freshService().restore({ ...keysA, encryptionPkcs8: keysB.encryptionPkcs8 }),
+    ).rejects.toThrow(/encryption key doesn't match/);
+    expect(await TestBed.inject(KeyStore).load()).toBeUndefined();
+  });
+
+  it('never restores over an existing wallet', async () => {
+    const wallet = freshService();
+    await wallet.create();
+
+    await expect(freshService().restore(await wallet.exportKeys())).rejects.toThrow(
+      /already exists/,
+    );
+  });
+
   it('never overwrites an existing wallet', async () => {
     const wallet = freshService();
     await wallet.create();

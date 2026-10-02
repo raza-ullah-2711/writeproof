@@ -37,6 +37,8 @@ class SecurityConfig {
                         .requestMatchers("/error", "/actuator/health", "/actuator/health/**").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/accounts", "/api/auth/challenge", "/api/auth/verify")
                         .permitAll()
+                        // Restoring a wallet on a new device happens before any login.
+                        .requestMatchers(HttpMethod.GET, "/api/backups/*").permitAll()
                         .anyRequest().authenticated())
                 .oauth2ResourceServer(oauth -> oauth.jwt(withDefaults()))
                 .build();
