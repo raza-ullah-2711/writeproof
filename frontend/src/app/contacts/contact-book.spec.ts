@@ -83,13 +83,15 @@ describe('contact book', () => {
     bytes[20] ^= 1;
     const stranger = await contactBookKey((await selfAgreement()).secret, address(7));
 
-    for (const attempt of [
-      decryptContactBook(key, blob, address(7), 4),
-      decryptContactBook(key, blob, address(8), 3),
-      decryptContactBook(key, toBase64Url(bytes), address(7), 3),
-      decryptContactBook(stranger, blob, address(7), 3),
-    ]) {
-      await expect(attempt).rejects.toThrow(/could not be decrypted/);
+    // Each attempt starts only when awaited, so none can reject unobserved.
+    const attempts = [
+      () => decryptContactBook(key, blob, address(7), 4),
+      () => decryptContactBook(key, blob, address(8), 3),
+      () => decryptContactBook(key, toBase64Url(bytes), address(7), 3),
+      () => decryptContactBook(stranger, blob, address(7), 3),
+    ];
+    for (const attempt of attempts) {
+      await expect(attempt()).rejects.toThrow(/could not be decrypted/);
     }
   });
 });
