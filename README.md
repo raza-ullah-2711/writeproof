@@ -11,7 +11,7 @@ See [`docs/architecture.md`](docs/architecture.md) for the design rules and back
 and the per-feature docs: [identity](docs/identity.md),
 [handwriting capture](docs/handwriting-capture.md),
 [handwriting verification](docs/handwriting-verification.md),
-[letters and ledger](docs/letters-and-ledger.md), [independent ledger](docs/ledger.md),
+[letters and ledger](docs/letters-and-ledger.md), [independent ledger](docs/ledger.md), [contacts](docs/contacts.md),
 [backup and recovery](docs/backup-and-recovery.md), [security](docs/security.md),
 [calibration](docs/calibration.md).
 

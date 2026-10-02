@@ -31,6 +31,7 @@ export function fakeContext(): CanvasRenderingContext2D {
     stroke: vi.fn(noop),
     arc: vi.fn(noop),
     fill: vi.fn(noop),
+    fillRect: vi.fn(noop),
   } as unknown as CanvasRenderingContext2D;
 }
 

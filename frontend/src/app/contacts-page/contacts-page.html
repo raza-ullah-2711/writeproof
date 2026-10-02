@@ -1,0 +1,133 @@
+<section class="contacts">
+  <h2>Contacts</h2>
+
+  @if (!auth.authenticated()) {
+    @if (wallet.state() === 'ready') {
+      <p>
+        @if (fromLink()) {
+          Sign in to add the address you were sent.
+        } @else {
+          Sign in to see your contacts.
+        }
+      </p>
+      <button type="button" class="primary" (click)="signIn()" [disabled]="busy()">Sign in</button>
+    } @else if (wallet.state() === 'none') {
+      <p>
+        <a routerLink="/">Create or restore a wallet</a> first, then open the link you were sent
+        again.
+      </p>
+    } @else {
+      <p>Sign in with your <a routerLink="/">wallet</a> first.</p>
+    }
+    @if (error(); as message) {
+      <p class="error" role="alert">{{ message }}</p>
+    }
+  } @else {
+    <p class="intro">
+      Give addresses names only you see. Your contacts are encrypted with your wallet before they
+      leave this browser: Writeproof can't read them, and there is no directory to search.
+    </p>
+
+    <div class="share">
+      @if (shareLink(); as link) {
+        <app-qr-code [text]="link" label="QR code with your address" />
+        <div>
+          <p><strong>Share your address</strong></p>
+          <p class="hint">
+            Let someone scan this with their phone camera, or send them the link. It only tells them
+            your address; they choose what to call you.
+          </p>
+          <code class="address">{{ wallet.publicKey() }}</code>
+          <button type="button" (click)="copyLink()">
+            {{ copied() ? 'Copied' : 'Copy link' }}
+          </button>
+        </div>
+      }
+    </div>
+
+    <form class="add" (ngSubmit)="add()">
+      <h3>Add a contact</h3>
+      @if (fromLink()) {
+        <p class="hint">
+          Someone shared this address with you. Only add it if you know whose it is, and give it a
+          name you'll recognise.
+        </p>
+      }
+      <label>
+        Their address
+        <input
+          name="address"
+          [(ngModel)]="address"
+          required
+          autocomplete="off"
+          spellcheck="false"
+        />
+      </label>
+      <label>
+        Your name for them
+        <input
+          name="petname"
+          [(ngModel)]="petname"
+          required
+          [maxlength]="maxLength"
+          autocomplete="off"
+        />
+      </label>
+      <button
+        type="submit"
+        class="primary"
+        [disabled]="busy() || !address.trim() || !petname.trim()"
+      >
+        Add contact
+      </button>
+    </form>
+
+    @if (notice(); as message) {
+      <p class="notice" role="status">{{ message }}</p>
+    }
+    @if (error(); as message) {
+      <p class="error" role="alert">{{ message }}</p>
+    }
+
+    @if (contacts.contacts(); as list) {
+      @if (list.length === 0) {
+        <p class="empty">No contacts yet.</p>
+      }
+      <ul class="list">
+        @for (contact of list; track contact.address) {
+          <li class="contact">
+            @if (editing() === contact.address) {
+              <form class="rename" (ngSubmit)="saveName(contact)">
+                <input
+                  name="newName"
+                  [(ngModel)]="newName"
+                  required
+                  [maxlength]="maxLength"
+                  aria-label="New name"
+                />
+                <button type="submit" [disabled]="busy() || !newName.trim()">Save</button>
+                <button type="button" (click)="editing.set(null)">Cancel</button>
+              </form>
+            } @else {
+              <span class="petname">{{ contact.petname }}</span>
+            }
+            <code [title]="contact.address">{{ short(contact.address) }}</code>
+            <span class="actions">
+              @if (removing() === contact.address) {
+                Remove “{{ contact.petname }}”?
+                <button type="button" (click)="remove(contact)" [disabled]="busy()">Remove</button>
+                <button type="button" (click)="removing.set(null)">Keep</button>
+              } @else if (editing() !== contact.address) {
+                <a routerLink="/letters" [queryParams]="{ to: contact.address }">Write</a>
+                <button type="button" (click)="startEdit(contact)">Rename</button>
+                <button type="button" (click)="removing.set(contact.address)">Remove</button>
+              }
+            </span>
+          </li>
+        }
+      </ul>
+    } @else if (!error()) {
+      <p>Loading&hellip;</p>
+    }
+  }
+</section>

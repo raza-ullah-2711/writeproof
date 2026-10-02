@@ -1,9 +1,10 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
-import { provideRouter } from '@angular/router';
+import { ActivatedRoute, convertToParamMap, provideRouter } from '@angular/router';
 import { fakeContext, scribble } from '../../testing/pointer';
 import { AuthService } from '../auth/auth.service';
+import { ContactsService } from '../contacts/contacts.service';
 import { HandwritingApi } from '../handwriting/handwriting-api';
 import { HandwritingSample } from '../handwriting/handwriting-sample';
 import { Letter, LettersService, OpenedLetter } from '../letters/letters.service';
@@ -66,6 +67,8 @@ describe('LettersPage', () => {
     open: ReturnType<typeof vi.fn>;
   };
   let enrolment: ReturnType<typeof vi.fn>;
+  let petnames: Record<string, string>;
+  let queryParams: Record<string, string>;
 
   beforeEach(async () => {
     authenticated.set(true);
@@ -80,6 +83,8 @@ describe('LettersPage', () => {
       open: vi.fn(),
     };
     enrolment = vi.fn().mockResolvedValue({ enrolled: true, sampleCount: 3, enrolledAt: '' });
+    petnames = {};
+    queryParams = {};
     await TestBed.configureTestingModule({
       imports: [LettersPage],
       providers: [
@@ -88,6 +93,23 @@ describe('LettersPage', () => {
         { provide: WalletService, useValue: { publicKey: () => ALICE } },
         { provide: LettersService, useValue: service },
         { provide: HandwritingApi, useValue: { enrolment } },
+        {
+          provide: ContactsService,
+          useValue: {
+            ensureLoaded: vi.fn().mockResolvedValue(undefined),
+            petname: (address: string) => petnames[address] ?? null,
+            contacts: () =>
+              Object.entries(petnames).map(([address, petname]) => ({ address, petname })),
+          },
+        },
+        {
+          provide: ActivatedRoute,
+          useValue: {
+            get snapshot() {
+              return { queryParamMap: convertToParamMap(queryParams) };
+            },
+          },
+        },
       ],
     }).compileComponents();
   });
@@ -146,6 +168,45 @@ describe('LettersPage', () => {
     expect(el.querySelector('.address code')?.textContent).toBe(ALICE);
     expect(el.querySelector('.letter .meta')?.textContent).toContain('From BBBBBBBB…BBBB');
     expect(el.querySelector('.letter .meta')?.textContent).toContain('ledger #4');
+  });
+
+  it('shows your names for contacts, and offers to add strangers', async () => {
+    service.sent.mockResolvedValue([letter('out-1')]);
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+
+    const stranger = el.querySelector<HTMLAnchorElement>('.letter .meta a.add-contact')!;
+    expect(stranger.textContent).toBe('Add to contacts');
+    expect(stranger.getAttribute('href')).toBe(`/contacts?add=${BOB}`);
+
+    petnames[ALICE] = 'Me, on paper';
+    petnames[BOB] = 'Bob from choir';
+    fixture.componentInstance['selectBox']('sent');
+    await settle(fixture, (e) => !!e.querySelector('.letter .petname'));
+    expect(el.querySelector('.letter .meta .petname')?.textContent).toBe('Me, on paper');
+    expect(el.querySelector('.letter .meta a.add-contact')).toBeNull();
+  });
+
+  it('picks the recipient from contacts and names them', async () => {
+    petnames[BOB] = 'Bob from choir';
+    queryParams = { to: BOB };
+    service.send.mockResolvedValue({
+      ...letter('out-1'),
+      ledger: { ...letter('x').ledger, seq: 9 },
+    });
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+
+    expect(el.querySelector<HTMLInputElement>('input[name=recipient]')!.value).toBe(BOB);
+    expect(el.querySelector('#contact-addresses option')?.textContent?.trim()).toBe(
+      'Bob from choir',
+    );
+    expect(el.querySelector('.recipient-name')?.textContent).toContain('To Bob from choir');
+
+    await compose(fixture);
+    button(el, 'Seal and send').click();
+    await settle(fixture, (e) => !!e.querySelector('.notice'));
+    expect(el.querySelector('.notice')?.textContent).toContain('Sealed for Bob from choir');
   });
 
   it('asks to enrol handwriting before letters can be sent', async () => {

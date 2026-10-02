@@ -45,6 +45,7 @@ In-memory token buckets (`security/`), refilled continuously. A limited request 
 | `POST /api/letters`                        | 30 / hour    | account |
 | `GET /api/backups/{id}`                    | 20 / hour    | IP      |
 | `PUT /api/me/backup`                       | 10 / hour    | account |
+| `PUT /api/me/contacts`                     | 120 / hour   | account |
 | `POST /api/calibration/samples`            | 60 / hour    | account |
 | `GET /api/calibration/forgery-target`      | 60 / hour    | account |
 | `GET /api/ledger/**` (key, proofs)         | 600 / 10 min | IP      |

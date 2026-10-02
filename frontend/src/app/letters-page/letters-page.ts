@@ -1,8 +1,9 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { RouterLink } from '@angular/router';
+import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
+import { ContactsService } from '../contacts/contacts.service';
 import {
   HandwritingApi,
   HandwritingRejection,
@@ -27,6 +28,7 @@ export class LettersPage {
   protected readonly wallet = inject(WalletService);
   private readonly letters = inject(LettersService);
   private readonly handwriting = inject(HandwritingApi);
+  protected readonly contacts = inject(ContactsService);
 
   protected readonly pad = viewChild(HandwritingPad);
   /** Null while unknown; sending needs enrolled handwriting. */
@@ -45,6 +47,13 @@ export class LettersPage {
   protected body = '';
 
   constructor() {
+    this.recipient = inject(ActivatedRoute).snapshot.queryParamMap.get('to') ?? '';
+    effect(() => {
+      if (this.auth.authenticated()) {
+        // Names are a convenience here: letters still work if the book can't be loaded.
+        this.contacts.ensureLoaded().catch(() => undefined);
+      }
+    });
     effect(() => {
       if (this.auth.authenticated()) {
         void this.show(this.box());
@@ -58,6 +67,11 @@ export class LettersPage {
         );
       }
     });
+  }
+
+  /** Your name for an address, if it is a contact. */
+  protected petname(address: string): string | null {
+    return this.contacts.petname(address.trim());
   }
 
   protected short(address: string): string {
@@ -101,9 +115,13 @@ export class LettersPage {
   }
 
   private async sendSigned(signature: HandwritingSample): Promise<void> {
-    const letter = await this.letters.send(this.recipient.trim(), this.body, signature);
+    const to = this.recipient.trim();
+    const letter = await this.letters.send(to, this.body, signature);
     this.body = '';
-    this.notice.set(`Sealed and recorded as ledger entry #${letter.ledger.seq}.`);
+    const name = this.petname(to);
+    this.notice.set(
+      `Sealed${name ? ` for ${name}` : ''} and recorded as ledger entry #${letter.ledger.seq}.`,
+    );
     if (this.box() === 'sent') {
       await this.show('sent');
     } else {

@@ -12,15 +12,31 @@
 
     <form class="compose" (ngSubmit)="send()">
       <label>
-        To (their address)
+        To (a contact, or paste an address)
         <input
           name="recipient"
           [(ngModel)]="recipient"
           required
           autocomplete="off"
           spellcheck="false"
+          list="contact-addresses"
         />
       </label>
+      <datalist id="contact-addresses">
+        @for (contact of contacts.contacts() ?? []; track contact.address) {
+          <option [value]="contact.address">{{ contact.petname }}</option>
+        }
+      </datalist>
+      @if (recipient.trim()) {
+        <p class="recipient-name">
+          @if (petname(recipient); as name) {
+            To <strong>{{ name }}</strong>
+          } @else {
+            Not one of your
+            <a routerLink="/contacts" [queryParams]="{ add: recipient.trim() }">contacts</a>
+          }
+        </p>
+      }
       <label>
         Letter
         <textarea
@@ -94,10 +110,18 @@
           <li class="letter">
             <div class="meta">
               <span>
-                @if (box() === 'inbox') {
-                  From <code>{{ short(letter.sender.publicKey) }}</code>
+                @let party = box() === 'inbox' ? letter.sender : letter.recipient;
+                {{ box() === 'inbox' ? 'From' : 'To' }}
+                @if (petname(party.publicKey); as name) {
+                  <strong class="petname">{{ name }}</strong>
                 } @else {
-                  To <code>{{ short(letter.recipient.publicKey) }}</code>
+                  <code>{{ short(party.publicKey) }}</code>
+                  <a
+                    class="add-contact"
+                    routerLink="/contacts"
+                    [queryParams]="{ add: party.publicKey }"
+                    >Add to contacts</a
+                  >
                 }
               </span>
               <span>{{ letter.sentAt }}</span>
