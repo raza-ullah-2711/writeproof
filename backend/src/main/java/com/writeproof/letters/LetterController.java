@@ -5,12 +5,16 @@ import com.writeproof.ledger.LedgerEntry;
 import jakarta.validation.Valid;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 import java.net.URI;
 import java.util.List;
 import java.util.UUID;
+import org.springframework.http.HttpStatus;
+import org.springframework.http.ProblemDetail;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
+import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -27,7 +31,11 @@ class LetterController {
             @NotBlank String recipientPublicKey,
             @NotBlank String sentAt,
             @NotNull @Valid LetterEnvelope envelope,
-            @NotBlank String signature) {}
+            @NotBlank String signature,
+            /** The handwriting sample (writeproof.handwriting v1) as a JSON string, hashed byte-for-byte. */
+            @NotBlank @Size(max = MAX_HANDWRITING_JSON) String handwriting) {}
+
+    static final int MAX_HANDWRITING_JSON = 500_000;
 
     record Party(UUID accountId, String publicKey) {}
 
@@ -38,8 +46,10 @@ class LetterController {
         }
     }
 
+    /** {@code handwritingHash} and {@code handwritingScore} are null for v1 letters (before hand-signing). */
     record LetterResponse(UUID letterId, Party sender, Party recipient, String sentAt, LetterEnvelope envelope,
-                          String signature, String letterHash, LedgerRef ledger) {
+                          String signature, String letterHash, LedgerRef ledger, String handwritingHash,
+                          Double handwritingScore) {
         static LetterResponse of(Letter l) {
             return new LetterResponse(
                     l.id(),
@@ -49,7 +59,9 @@ class LetterController {
                     l.envelope(),
                     Base64Url.encode(l.signature()),
                     Base64Url.encode(l.letterHash()),
-                    LedgerRef.of(l.ledgerEntry()));
+                    LedgerRef.of(l.ledgerEntry()),
+                    l.handSigned() ? Base64Url.encode(l.handwritingHash()) : null,
+                    l.handwritingScore() == null ? null : Math.round(l.handwritingScore() * 1000) / 1000.0);
         }
     }
 
@@ -66,7 +78,8 @@ class LetterController {
                 Base64Url.decode(request.recipientPublicKey()),
                 request.sentAt(),
                 request.envelope(),
-                Base64Url.decode(request.signature()));
+                Base64Url.decode(request.signature()),
+                request.handwriting());
         return ResponseEntity.created(URI.create("/api/letters/" + letter.id())).body(LetterResponse.of(letter));
     }
 
@@ -83,6 +96,16 @@ class LetterController {
     @GetMapping("/{id}")
     LetterResponse get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
         return LetterResponse.of(letters.get(accountId(jwt), id));
+    }
+
+    @ExceptionHandler(HandwritingRejectedException.class)
+    ProblemDetail handwritingRejected(HandwritingRejectedException e) {
+        ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.UNPROCESSABLE_ENTITY, e.getReason());
+        problem.setProperty("score", Math.round(e.verification.score() * 1000) / 1000.0);
+        problem.setProperty("threshold", e.verification.threshold());
+        problem.setProperty("match", e.verification.match());
+        problem.setProperty("livenessFlags", e.verification.livenessFlags());
+        return problem;
     }
 
     private static UUID accountId(Jwt jwt) {

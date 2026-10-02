@@ -2,8 +2,10 @@ import { fromBase64Url, toBase64Url } from '../crypto/base64url';
 import {
   LetterEnvelope,
   encryptionKeyBinding,
+  handwritingHash,
   letterHash,
   letterHeader,
+  letterHeaderV2,
   letterSignedMessage,
 } from './letter-format';
 
@@ -44,6 +46,23 @@ describe('letter format (shared vectors with the backend)', () => {
     expect(toBase64Url(hash)).toBe('9EcA6cSC4xiiDwmYh6svDBId42vzq_j1zMPjTcZZmTs');
     expect(new TextDecoder().decode(letterSignedMessage(hash))).toBe(
       'writeproof/letter-signature/v1\n9EcA6cSC4xiiDwmYh6svDBId42vzq_j1zMPjTcZZmTs',
+    );
+  });
+
+  it('builds the hand-signed (v2) header and hash', async () => {
+    const hw = await handwritingHash('{"format":"writeproof.handwriting"}');
+    const header = letterHeaderV2(bytes(1, 32), bytes(101, 32), '2026-10-02T12:00:00.000Z', hw);
+
+    expect(hw).toBe('ENPXVYNKkitwzrhusxhzz4zgCM6PlNr31tF_pUxw9QQ');
+    expect(header).toBe(
+      'writeproof/letter/v2\n' +
+        'AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA\n' +
+        'ZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGCg4Q\n' +
+        '2026-10-02T12:00:00.000Z\n' +
+        'ENPXVYNKkitwzrhusxhzz4zgCM6PlNr31tF_pUxw9QQ',
+    );
+    expect(toBase64Url(await letterHash(header, envelope))).toBe(
+      '0POqYGKL8NfQmv7K-jvj8VrFCxClE7yi8Tu3WRxPMKE',
     );
   });
 

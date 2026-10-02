@@ -59,3 +59,18 @@ sent it can't be edited or unsent — like a sealed letter.
    key, encrypt the body to the recipient's public key, append to
    `LedgerService` (mock: hash-chained table). Recipient can decrypt and verify
    signature and chain integrity. ✅ — see [letters-and-ledger.md](letters-and-ledger.md).
+6. **Hand-signed letters** — sending requires writing your signature: it is verified against
+   your enrolment (match, liveness, freshness, not a replay of a recent signature), its hash is
+   committed to by the wallet-signed letter header, and the strokes travel sealed inside the
+   letter so the recipient can replay them. ✅ — see [letters-and-ledger.md](letters-and-ledger.md).
+7. **Wallet backup & recovery** — encrypted export / recovery phrase, restore on a new device,
+   add a second device.
+8. **Security hardening** — CSP and security headers, rate limits (registration, challenges,
+   handwriting verification, sending), encrypt enrolment data at rest plus a deletion path,
+   return only `verified` from `/verify` in production.
+9. **Real-data calibration** — opt-in sample collection, FAR/FRR evaluation harness, retuned
+   thresholds, per-device templates.
+10. **Independent ledger** — anchor signed checkpoints externally or pick a chain; Merkle
+    inclusion proofs instead of re-walking from genesis.
+11. **Social layer** — contacts (petnames, QR address exchange), threads, open (unsealed but
+    signed) letters. Needs product decisions.

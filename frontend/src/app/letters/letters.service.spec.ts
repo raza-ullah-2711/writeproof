@@ -5,12 +5,15 @@ import { IDBFactory } from 'fake-indexeddb';
 import { nextRequest } from '../../testing/http';
 import { fromBase64Url, toBase64Url } from '../crypto/base64url';
 import { verifyEd25519 } from '../crypto/ed25519';
+import { HandwritingSample } from '../handwriting/handwriting-sample';
 import { WalletService } from '../wallet/wallet.service';
 import { GENESIS_PREV_HASH, LedgerEntry, entryHash } from './ledger-verify';
+import { sealLetter } from './letter-crypto';
 import {
   encryptionKeyBinding,
+  handwritingHash,
   letterHash,
-  letterHeader,
+  letterHeaderV2,
   letterSignedMessage,
 } from './letter-format';
 import { Letter, LettersService } from './letters.service';
@@ -46,6 +49,22 @@ async function correspondent() {
   };
 }
 
+const SIGNATURE: HandwritingSample = {
+  format: 'writeproof.handwriting',
+  version: 1,
+  capturedAt: '2026-10-02T12:00:00.000Z',
+  device: 'pen',
+  width: 600,
+  height: 240,
+  strokes: [
+    [
+      { x: 10, y: 20, t: 0, pressure: 0.4, penDown: true },
+      { x: 80, y: 40, t: 300, pressure: 0.6, penDown: true },
+      { x: 90, y: 30, t: 420, pressure: 0, penDown: false },
+    ],
+  ],
+};
+
 describe('LettersService', () => {
   let letters: LettersService;
   let wallet: WalletService;
@@ -66,23 +85,29 @@ describe('LettersService', () => {
 
   afterEach(() => http.verify());
 
-  /** Sends a letter to Bob, playing the server; returns what the server stored. */
-  async function sendToBob(body: string): Promise<Letter> {
-    const sending = letters.send(bob.publicKey, body);
-    (await nextRequest(http, `/api/accounts/by-key/${bob.publicKey}`)).flush(bob.account);
-    const post = await nextRequest(http, '/api/letters');
-    const { sentAt, envelope, signature } = post.request.body;
-    const hash = toBase64Url(
-      await letterHash(letterHeader(wallet.publicKey()!, bob.publicKey, sentAt), envelope),
-    );
-    const prevHash = GENESIS_PREV_HASH;
-    const ledger: LedgerEntry = {
+  function ledgerFor(hash: string): Promise<LedgerEntry> {
+    return entryHash(1, GENESIS_PREV_HASH, hash, 1_790_000_000_000).then((entry) => ({
       seq: 1,
-      prevHash,
+      prevHash: GENESIS_PREV_HASH,
       payloadHash: hash,
       recordedAtMillis: 1_790_000_000_000,
-      entryHash: await entryHash(1, prevHash, hash, 1_790_000_000_000),
-    };
+      entryHash: entry,
+    }));
+  }
+
+  /** Sends a hand-signed letter to Bob, playing the server; returns what the server stored. */
+  async function sendToBob(body: string): Promise<Letter> {
+    const sending = letters.send(bob.publicKey, body, SIGNATURE);
+    (await nextRequest(http, `/api/accounts/by-key/${bob.publicKey}`)).flush(bob.account);
+    const post = await nextRequest(http, '/api/letters');
+    const { sentAt, envelope, signature, handwriting } = post.request.body;
+    const hwHash = await handwritingHash(handwriting);
+    const hash = toBase64Url(
+      await letterHash(
+        letterHeaderV2(wallet.publicKey()!, bob.publicKey, sentAt, hwHash),
+        envelope,
+      ),
+    );
     const stored: Letter = {
       letterId: 'l1',
       sender: { accountId: 'alice', publicKey: wallet.publicKey()! },
@@ -91,7 +116,9 @@ describe('LettersService', () => {
       envelope,
       signature,
       letterHash: hash,
-      ledger,
+      ledger: await ledgerFor(hash),
+      handwritingHash: hwHash,
+      handwritingScore: 0.91,
     };
     post.flush(stored);
     await sending;
@@ -104,19 +131,23 @@ describe('LettersService', () => {
     return opening;
   }
 
-  it('seals, signs and sends a letter that only ciphertext reaches the server', async () => {
-    const sending = letters.send(bob.publicKey, 'Dear Bob, the quince tree bloomed.');
+  it('seals the signature inside, signs over its hash, and sends the exact JSON', async () => {
+    const sending = letters.send(bob.publicKey, 'Dear Bob, the quince tree bloomed.', SIGNATURE);
     (await nextRequest(http, `/api/accounts/by-key/${bob.publicKey}`)).flush(bob.account);
     const post = await nextRequest(http, '/api/letters');
-    const { recipientPublicKey, sentAt, envelope, signature } = post.request.body;
+    const { recipientPublicKey, sentAt, envelope, signature, handwriting } = post.request.body;
 
     expect(recipientPublicKey).toBe(bob.publicKey);
     expect(sentAt).toMatch(/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z$/);
-    expect(JSON.stringify(post.request.body)).not.toContain('quince');
-    const hash = await letterHash(
-      letterHeader(wallet.publicKey()!, bob.publicKey, sentAt),
-      envelope,
+    expect(JSON.stringify(envelope)).not.toContain('quince');
+    expect(JSON.parse(handwriting)).toEqual(SIGNATURE);
+    const header = letterHeaderV2(
+      wallet.publicKey()!,
+      bob.publicKey,
+      sentAt,
+      await handwritingHash(handwriting),
     );
+    const hash = await letterHash(header, envelope);
     expect(await verifyEd25519(wallet.publicKey()!, letterSignedMessage(hash), signature)).toBe(
       true,
     );
@@ -127,7 +158,7 @@ describe('LettersService', () => {
 
   it('refuses to encrypt to a key the recipient did not sign', async () => {
     const mallory = await correspondent();
-    const sending = letters.send(bob.publicKey, 'hello');
+    const sending = letters.send(bob.publicKey, 'hello', SIGNATURE);
     (await nextRequest(http, `/api/accounts/by-key/${bob.publicKey}`)).flush({
       ...bob.account,
       encryptionKey: mallory.encryptionKey, // substituted by a malicious server
@@ -138,21 +169,66 @@ describe('LettersService', () => {
 
   it('refuses when the server answers with a different account', async () => {
     const mallory = await correspondent();
-    const sending = letters.send(bob.publicKey, 'hello');
+    const sending = letters.send(bob.publicKey, 'hello', SIGNATURE);
     (await nextRequest(http, `/api/accounts/by-key/${bob.publicKey}`)).flush(mallory.account);
 
     await expect(sending).rejects.toThrow(/different account/);
   });
 
-  it('opens a sent letter and verifies signature, sealing and ledger', async () => {
+  it('opens a hand-signed letter and verifies every part, including the strokes', async () => {
     const letter = await sendToBob('Dear Bob, sealed by hand.');
 
     await expect(openWithLedger(letter, [letter.ledger])).resolves.toEqual({
       body: 'Dear Bob, sealed by hand.',
+      handSigned: true,
+      handwriting: SIGNATURE,
       signatureValid: true,
       decrypted: true,
       ledgerValid: true,
       ledgerProblem: null,
+    });
+  });
+
+  it('does not count a letter as hand-signed if the server swaps the handwriting hash', async () => {
+    const letter = await sendToBob('hi');
+    const otherHash = await handwritingHash('{"format":"writeproof.handwriting"}');
+
+    const opened = await openWithLedger({ ...letter, handwritingHash: otherHash }, [letter.ledger]);
+
+    expect(opened).toMatchObject({ handSigned: false, handwriting: null, signatureValid: false });
+  });
+
+  it('opens a v1 letter (sent before hand-signing) and says so', async () => {
+    const sentAt = '2026-10-01T09:00:00.000Z';
+    const sealed = await sealLetter({
+      body: 'from before',
+      senderKey: bob.publicKey,
+      recipientKey: wallet.publicKey()!,
+      senderEncryptionKey: bob.encryptionKey,
+      recipientEncryptionKey: wallet.encryptionPublicKey()!,
+      sentAt,
+    });
+    const hash = toBase64Url(sealed.hash);
+    const letter: Letter = {
+      letterId: 'old',
+      sender: { accountId: 'bob', publicKey: bob.publicKey },
+      recipient: { accountId: 'alice', publicKey: wallet.publicKey()! },
+      sentAt,
+      envelope: sealed.envelope,
+      signature: await bob.sign(letterSignedMessage(sealed.hash)),
+      letterHash: hash,
+      ledger: await ledgerFor(hash),
+      handwritingHash: null,
+      handwritingScore: null,
+    };
+
+    await expect(openWithLedger(letter, [letter.ledger])).resolves.toMatchObject({
+      body: 'from before',
+      handSigned: null,
+      handwriting: null,
+      signatureValid: true,
+      decrypted: true,
+      ledgerValid: true,
     });
   });
 
@@ -185,13 +261,14 @@ describe('LettersService', () => {
     expect(opened.ledgerProblem).toMatch(/Chain broken at entry 1/);
   });
 
-  it('flags a signature that is not the sender’s', async () => {
+  it('flags a wallet signature that is not the sender’s', async () => {
     const letter = await sendToBob('hi');
     const forgedSignature = await bob.sign(letterSignedMessage(fromBase64Url(letter.letterHash)));
 
     const opened = await openWithLedger({ ...letter, signature: forgedSignature }, [letter.ledger]);
 
     expect(opened.signatureValid).toBe(false);
+    expect(opened.handSigned).toBe(false);
     expect(opened.decrypted).toBe(true);
   });
 
@@ -203,11 +280,18 @@ describe('LettersService', () => {
 
     const opened = await openWithLedger(altered, [letter.ledger]);
 
-    expect(opened).toMatchObject({ body: null, decrypted: false, signatureValid: false });
+    expect(opened).toMatchObject({
+      body: null,
+      decrypted: false,
+      signatureValid: false,
+      handSigned: false,
+    });
   });
 
   it('rejects empty and oversized letters before contacting the server', async () => {
-    await expect(letters.send(bob.publicKey, '   ')).rejects.toThrow(/1 to/);
-    await expect(letters.send(bob.publicKey, 'x'.repeat(10_001))).rejects.toThrow(/1 to/);
+    await expect(letters.send(bob.publicKey, '   ', SIGNATURE)).rejects.toThrow(/1 to/);
+    await expect(letters.send(bob.publicKey, 'x'.repeat(10_001), SIGNATURE)).rejects.toThrow(
+      /1 to/,
+    );
   });
 });

@@ -10,6 +10,11 @@ public enum LivenessFlag {
     NO_TIMING_VARIANCE,
     /** A pen that reports the same pressure throughout. Not checked for mouse or touch. */
     CONSTANT_PRESSURE,
-    /** Near-identical to an enrolled sample; nobody writes the same thing twice exactly. */
-    REPLAY
+    /**
+     * Near-identical to an enrolled sample or to a recent letter signature; nobody writes the
+     * same thing twice exactly.
+     */
+    REPLAY,
+    /** Captured too long ago (or in the future) to count as signing this letter now. */
+    STALE
 }

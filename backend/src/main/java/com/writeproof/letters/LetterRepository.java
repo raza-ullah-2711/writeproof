@@ -21,6 +21,7 @@ class LetterRepository {
     private static final String SELECT = """
             SELECT l.id, l.sender_id, s.public_key AS sender_key, l.recipient_id, r.public_key AS recipient_key,
                    l.sent_at, l.envelope::text AS envelope, l.signature, l.letter_hash,
+                   l.handwriting_hash, l.handwriting_score,
                    e.seq, e.prev_hash, e.payload_hash, e.recorded_at, e.entry_hash
               FROM letters l
               JOIN accounts s ON s.id = l.sender_id
@@ -37,11 +38,12 @@ class LetterRepository {
     }
 
     void insert(UUID id, UUID senderId, UUID recipientId, String sentAt, LetterEnvelope envelope, byte[] signature,
-                byte[] letterHash, long ledgerSeq, Instant createdAt) {
+                byte[] letterHash, long ledgerSeq, Instant createdAt, byte[] handwritingHash, double handwritingScore) {
         jdbc.sql("""
                 INSERT INTO letters (id, sender_id, recipient_id, sent_at, envelope, signature, letter_hash,
-                                     ledger_seq, created_at)
-                VALUES (:id, :sender, :recipient, :sentAt, CAST(:envelope AS jsonb), :signature, :hash, :seq, :createdAt)
+                                     ledger_seq, created_at, handwriting_hash, handwriting_score)
+                VALUES (:id, :sender, :recipient, :sentAt, CAST(:envelope AS jsonb), :signature, :hash, :seq, :createdAt,
+                        :handwritingHash, :handwritingScore)
                 """)
                 .param("id", id)
                 .param("sender", senderId)
@@ -52,7 +54,16 @@ class LetterRepository {
                 .param("hash", letterHash)
                 .param("seq", ledgerSeq)
                 .param("createdAt", OffsetDateTime.ofInstant(createdAt, ZoneOffset.UTC))
+                .param("handwritingHash", handwritingHash)
+                .param("handwritingScore", handwritingScore)
                 .update();
+    }
+
+    boolean existsByHandwritingHash(byte[] handwritingHash) {
+        return jdbc.sql("SELECT EXISTS (SELECT 1 FROM letters WHERE handwriting_hash = :hash)")
+                .param("hash", handwritingHash)
+                .query(Boolean.class)
+                .single();
     }
 
     boolean existsByHash(byte[] letterHash) {
@@ -92,7 +103,9 @@ class LetterRepository {
                         rs.getBytes("prev_hash"),
                         rs.getBytes("payload_hash"),
                         rs.getObject("recorded_at", OffsetDateTime.class).toInstant(),
-                        rs.getBytes("entry_hash")));
+                        rs.getBytes("entry_hash")),
+                rs.getBytes("handwriting_hash"),
+                rs.getObject("handwriting_score", Double.class));
     }
 
     private String write(LetterEnvelope envelope) {

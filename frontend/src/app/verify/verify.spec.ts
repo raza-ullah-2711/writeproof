@@ -140,7 +140,7 @@ describe('Verify', () => {
       const result = el(fixture).querySelector('.result')!;
       expect(result.textContent).toContain('Not verified');
       expect(result.textContent).toContain('similarity 0.91 (needs 0.50)');
-      expect(result.textContent).toContain('Identical to an enrolled sample');
+      expect(result.textContent).toContain('Identical to a signature you already used');
     });
   });
 });

@@ -1,7 +1,11 @@
+import { HttpErrorResponse } from '@angular/common/http';
 import { signal } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
+import { fakeContext, scribble } from '../../testing/pointer';
 import { AuthService } from '../auth/auth.service';
+import { HandwritingApi } from '../handwriting/handwriting-api';
+import { HandwritingSample } from '../handwriting/handwriting-sample';
 import { Letter, LettersService, OpenedLetter } from '../letters/letters.service';
 import { WalletService } from '../wallet/wallet.service';
 import { LettersPage } from './letters-page';
@@ -9,7 +13,22 @@ import { LettersPage } from './letters-page';
 const ALICE = 'A'.repeat(43);
 const BOB = 'B'.repeat(43);
 
-function letter(id: string): Letter {
+const SIGNATURE: HandwritingSample = {
+  format: 'writeproof.handwriting',
+  version: 1,
+  capturedAt: '2026-10-02T12:00:00.000Z',
+  device: 'pen',
+  width: 600,
+  height: 240,
+  strokes: [
+    [
+      { x: 1, y: 1, t: 0, pressure: 0.5, penDown: true },
+      { x: 9, y: 9, t: 100, pressure: 0, penDown: false },
+    ],
+  ],
+};
+
+function letter(id: string, handSigned = true): Letter {
   return {
     letterId: id,
     sender: { accountId: 'b', publicKey: BOB },
@@ -19,6 +38,21 @@ function letter(id: string): Letter {
     signature: '',
     letterHash: '',
     ledger: { seq: 4, prevHash: '', payloadHash: '', recordedAtMillis: 0, entryHash: '' },
+    handwritingHash: handSigned ? 'h' : null,
+    handwritingScore: handSigned ? 0.913 : null,
+  };
+}
+
+function opened(overrides: Partial<OpenedLetter> = {}): OpenedLetter {
+  return {
+    body: 'Dear Alice',
+    handSigned: true,
+    handwriting: SIGNATURE,
+    signatureValid: true,
+    decrypted: true,
+    ledgerValid: true,
+    ledgerProblem: null,
+    ...overrides,
   };
 }
 
@@ -30,15 +64,21 @@ describe('LettersPage', () => {
     send: ReturnType<typeof vi.fn>;
     open: ReturnType<typeof vi.fn>;
   };
+  let enrolment: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
     authenticated.set(true);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getContext').mockReturnValue(fakeContext() as never);
+    vi.spyOn(HTMLCanvasElement.prototype, 'getBoundingClientRect').mockReturnValue(
+      new DOMRect(0, 0, 600, 200),
+    );
     service = {
       inbox: vi.fn().mockResolvedValue([letter('in-1')]),
       sent: vi.fn().mockResolvedValue([]),
       send: vi.fn(),
       open: vi.fn(),
     };
+    enrolment = vi.fn().mockResolvedValue({ enrolled: true, sampleCount: 3, enrolledAt: '' });
     await TestBed.configureTestingModule({
       imports: [LettersPage],
       providers: [
@@ -46,13 +86,19 @@ describe('LettersPage', () => {
         { provide: AuthService, useValue: { authenticated } },
         { provide: WalletService, useValue: { publicKey: () => ALICE } },
         { provide: LettersService, useValue: service },
+        { provide: HandwritingApi, useValue: { enrolment } },
       ],
     }).compileComponents();
   });
 
+  afterEach(() => vi.restoreAllMocks());
+
   async function render() {
     const fixture = TestBed.createComponent(LettersPage);
-    await settle(fixture, (el) => !el.textContent?.includes('Loading'));
+    await settle(
+      fixture,
+      (el) => !el.textContent?.includes('Loading') && !!el.querySelector('.sign, .compose .error'),
+    );
     return fixture;
   }
 
@@ -68,6 +114,20 @@ describe('LettersPage', () => {
 
   const button = (el: HTMLElement, label: string) =>
     [...el.querySelectorAll('button')].find((b) => b.textContent?.trim() === label)!;
+
+  async function compose(fixture: ComponentFixture<LettersPage>, sign = true) {
+    const el: HTMLElement = fixture.nativeElement;
+    const recipient = el.querySelector<HTMLInputElement>('input[name=recipient]')!;
+    const body = el.querySelector<HTMLTextAreaElement>('textarea[name=body]')!;
+    recipient.value = ` ${BOB} `;
+    recipient.dispatchEvent(new Event('input'));
+    body.value = 'Dear Bob';
+    body.dispatchEvent(new Event('input'));
+    if (sign) {
+      scribble(el.querySelector('.sign canvas')!);
+    }
+    await fixture.whenStable();
+  }
 
   it('asks for a wallet sign-in first', async () => {
     authenticated.set(false);
@@ -87,15 +147,78 @@ describe('LettersPage', () => {
     expect(el.querySelector('.letter .meta')?.textContent).toContain('ledger #4');
   });
 
-  it('opens a letter and shows each verification', async () => {
-    const opened: OpenedLetter = {
-      body: 'Dear Alice',
-      signatureValid: true,
-      decrypted: true,
-      ledgerValid: false,
-      ledgerProblem: 'Chain broken at entry 2: does not link to the previous entry',
-    };
-    service.open.mockResolvedValue(opened);
+  it('asks to enrol handwriting before letters can be sent', async () => {
+    enrolment.mockResolvedValue({ enrolled: false, sampleCount: null, enrolledAt: null });
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+    await compose(fixture, false);
+
+    expect(el.querySelector('.compose .error')?.textContent).toContain('Enrol your handwriting');
+    expect(el.querySelector('.sign')).toBeNull();
+    expect(button(el, 'Seal and send').disabled).toBe(true);
+  });
+
+  it('needs a hand signature before sending', async () => {
+    const fixture = await render();
+    await compose(fixture, false);
+
+    expect(button(fixture.nativeElement, 'Seal and send').disabled).toBe(true);
+  });
+
+  it('sends with the signature, clears the pad and switches to the sent box', async () => {
+    service.send.mockResolvedValue({
+      ...letter('out-1'),
+      ledger: { ...letter('x').ledger, seq: 9 },
+    });
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+    await compose(fixture);
+    expect(button(el, 'Seal and send').disabled).toBe(false);
+
+    button(el, 'Seal and send').click();
+    await settle(fixture, (e) => !!e.querySelector('.notice'));
+
+    const [to, body, signature] = service.send.mock.calls[0];
+    expect([to, body]).toEqual([BOB, 'Dear Bob']);
+    expect(signature).toMatchObject({ format: 'writeproof.handwriting', device: 'pen' });
+    expect(signature.strokes).toHaveLength(1);
+    expect(el.querySelector('.notice')?.textContent).toContain('ledger entry #9');
+    expect(button(el, 'Clear signature').disabled).toBe(true); // pad is empty again
+    await vi.waitFor(() => expect(service.sent).toHaveBeenCalled());
+  });
+
+  it('explains a rejected hand signature and asks for a fresh one', async () => {
+    service.send.mockRejectedValue(
+      new HttpErrorResponse({
+        status: 422,
+        error: {
+          detail: "Your signature didn't pass the liveness checks",
+          score: 0.88,
+          livenessFlags: ['REPLAY'],
+        },
+      }),
+    );
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+    await compose(fixture);
+
+    button(el, 'Seal and send').click();
+    await settle(fixture, (e) => !!e.querySelector('[role=alert]'));
+
+    expect(el.querySelector('[role=alert]')?.textContent).toBe(
+      "Your signature didn't pass the liveness checks (similarity 0.88). " +
+        'Identical to a signature you already used. Write it fresh.',
+    );
+    expect(button(el, 'Clear signature').disabled).toBe(true);
+  });
+
+  it('opens a hand-signed letter: body, replayable signature and every check', async () => {
+    service.open.mockResolvedValue(
+      opened({
+        ledgerValid: false,
+        ledgerProblem: 'Chain broken at entry 2: does not link to the previous entry',
+      }),
+    );
     const fixture = await render();
     const el: HTMLElement = fixture.nativeElement;
 
@@ -103,33 +226,26 @@ describe('LettersPage', () => {
     await settle(fixture, (e) => !!e.querySelector('.checks'));
 
     expect(el.querySelector('.body')?.textContent).toBe('Dear Alice');
+    expect(el.querySelector('app-signature-view canvas')).not.toBeNull();
+    expect(button(el, 'Replay signature')).toBeDefined();
     const checks = [...el.querySelectorAll('.checks li')].map((li) => li.textContent?.trim());
-    expect(checks[0]).toContain('✓ Signed by the sender');
-    expect(checks[1]).toContain('✓ Sealed for you');
-    expect(checks[2]).toContain('✗ In the ledger');
-    expect(checks[2]).toContain('Chain broken at entry 2');
+    expect(checks[0]).toMatch(/^✓ Signed by hand\s+\(similarity 0\.91/);
+    expect(checks[1]).toContain("✓ Signed by the sender's wallet");
+    expect(checks[2]).toContain('✓ Sealed for you');
+    expect(checks[3]).toContain('✗ In the ledger');
+    expect(checks[3]).toContain('Chain broken at entry 2');
   });
 
-  it('sends a letter and switches to the sent box', async () => {
-    service.send.mockResolvedValue({
-      ...letter('out-1'),
-      ledger: { ...letter('x').ledger, seq: 9 },
-    });
+  it('marks letters sent before hand-signing as wallet-signed only', async () => {
+    service.inbox.mockResolvedValue([letter('old', false)]);
+    service.open.mockResolvedValue(opened({ handSigned: null, handwriting: null }));
     const fixture = await render();
     const el: HTMLElement = fixture.nativeElement;
-    const recipient = el.querySelector<HTMLInputElement>('input[name=recipient]')!;
-    const body = el.querySelector<HTMLTextAreaElement>('textarea[name=body]')!;
-    recipient.value = ` ${BOB} `;
-    recipient.dispatchEvent(new Event('input'));
-    body.value = 'Dear Bob';
-    body.dispatchEvent(new Event('input'));
-    await fixture.whenStable();
 
-    button(el, 'Seal and send').click();
-    await settle(fixture, (e) => !!e.querySelector('.notice'));
+    button(el, 'Open and verify').click();
+    await settle(fixture, (e) => !!e.querySelector('.checks'));
 
-    expect(service.send).toHaveBeenCalledWith(BOB, 'Dear Bob');
-    expect(el.querySelector('.notice')?.textContent).toContain('ledger entry #9');
-    await vi.waitFor(() => expect(service.sent).toHaveBeenCalled());
+    expect(el.querySelector('.checks .legacy')?.textContent).toContain('Sent before hand-signing');
+    expect(el.querySelector('app-signature-view')).toBeNull();
   });
 });
