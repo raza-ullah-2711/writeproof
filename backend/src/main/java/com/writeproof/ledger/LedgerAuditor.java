@@ -9,12 +9,19 @@ import java.net.URI;
 import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
+import java.security.PublicKey;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Base64;
 import java.util.Comparator;
+import java.util.HashMap;
+import java.util.HashSet;
+import java.util.HexFormat;
 import java.util.List;
+import java.util.Map;
 import java.util.Optional;
+import java.util.Set;
 
 /**
  * An outside witness's check of a Writeproof ledger, over its public API only. It checks that the
@@ -25,8 +32,15 @@ import java.util.Optional;
  */
 public class LedgerAuditor {
 
-    /** What a witness remembers between runs: the key it pinned and the last checkpoint it verified. */
-    public record WitnessState(String publicKey, long size, String root) {}
+    /**
+     * What a witness remembers between runs: the key it pinned and the last checkpoint it verified;
+     * with a public log, that log's key (pinned like the ledger key) and the last anchor it verified.
+     */
+    public record WitnessState(String publicKey, long size, String root, String logKey, long anchoredSize) {
+        public WitnessState(String publicKey, long size, String root) {
+            this(publicKey, size, root, null, 0);
+        }
+    }
 
     public record Report(boolean ok, List<String> lines, WitnessState state) {}
 
@@ -35,11 +49,24 @@ public class LedgerAuditor {
     private final HttpClient http;
     private final URI base;
     private final ObjectMapper json;
+    private final Optional<Rekor> log;
+    private final Duration anchorGrace;
 
+    /** A witness that checks the ledger only, not its anchors in a public log. */
     public LedgerAuditor(HttpClient http, URI base, ObjectMapper json) {
+        this(http, base, json, Optional.empty(), Duration.ZERO);
+    }
+
+    /**
+     * @param log         the public log the ledger's checkpoints must be anchored in, if checked
+     * @param anchorGrace how long after it is signed a published checkpoint may still be unanchored
+     */
+    public LedgerAuditor(HttpClient http, URI base, ObjectMapper json, Optional<Rekor> log, Duration anchorGrace) {
         this.http = http;
         this.base = base;
         this.json = json;
+        this.log = log;
+        this.anchorGrace = anchorGrace;
     }
 
     /**
@@ -134,11 +161,117 @@ public class LedgerAuditor {
             prevRoot = c.root();
         }
         Checkpoint latest = chain.getLast();
-        if (ok) {
-            lines.add("ok   ledger verified up to " + latest.size() + " entries");
-            return new Report(true, lines, new WitnessState(key, latest.size(), Base64Url.encode(latest.root())));
+        if (!ok) {
+            return new Report(false, lines, null);
         }
-        return new Report(false, lines, null);
+        lines.add("ok   ledger verified up to " + latest.size() + " entries");
+        WitnessState state = new WitnessState(key, latest.size(), Base64Url.encode(latest.root()));
+        if (log.isPresent()) {
+            state = checkAnchors(log.get(), keys, rotations, previous, state, lines);
+            if (state == null) {
+                return new Report(false, lines, null);
+            }
+        }
+        return new Report(true, lines, state);
+    }
+
+    /**
+     * Holds the ledger to its anchors in the public log: each one is checked in the log itself, no
+     * published checkpoint stays unanchored past the grace period, and the log holds nothing under
+     * the ledger key that the server doesn't publish. A server showing someone a different history
+     * must anchor it too (their browser insists), so it would surface here. Null on failure.
+     */
+    private WitnessState checkAnchors(Rekor rekor, List<byte[]> keys, List<KeyRotation> rotations,
+                                      Optional<WitnessState> previous, WitnessState state, List<String> lines)
+            throws IOException {
+        PublicKey logKey = rekor.publicKey();
+        String logKeyText = Base64.getEncoder().encodeToString(logKey.getEncoded());
+        String pinnedLogKey = previous.map(WitnessState::logKey).orElse(null);
+        if (pinnedLogKey != null && !pinnedLogKey.equals(logKeyText)) {
+            lines.add("FAIL the public log's key changed since this witness last checked: " + rekor.url());
+            return null;
+        }
+        // Every checkpoint the server ever published, and the hash Rekor files each one under.
+        Map<Long, Checkpoint> published = new HashMap<>();
+        Set<String> publishedHashes = new HashSet<>();
+        for (JsonNode node : pages("/api/ledger/checkpoints")) {
+            Checkpoint c = checkpoint(node);
+            published.put(c.size(), c);
+            publishedHashes.add(HexFormat.of().formatHex(Rekor.sha256(c.signedMessage())));
+        }
+        Set<String> anchoredUuids = new HashSet<>();
+        Set<Long> anchoredSizes = new HashSet<>();
+        long verifiedBefore = previous.map(WitnessState::anchoredSize).orElse(0L);
+        long anchoredSize = verifiedBefore;
+        int checked = 0;
+        for (JsonNode a : pages("/api/ledger/anchors")) {
+            long size = a.path("size").asLong();
+            String uuid = a.path("uuid").asText();
+            anchoredUuids.add(uuid);
+            anchoredSizes.add(size);
+            if (!rekor.url().equals(a.path("logUrl").asText())) {
+                lines.add("FAIL the checkpoint at size " + size + " is anchored in " + a.path("logUrl").asText()
+                        + ", not in " + rekor.url());
+                return null;
+            }
+            if (size <= verifiedBefore) {
+                continue; // checked on an earlier run
+            }
+            Checkpoint c = published.get(size);
+            byte[] signer = c == null ? null : keyInCharge(c, keys, rotations);
+            if (signer == null) {
+                lines.add("FAIL an anchor points at size " + size + ", which has no published, signed checkpoint");
+                return null;
+            }
+            try {
+                Rekor.verify(rekor.entry(uuid), logKey, c.signedMessage(), signer, json);
+            } catch (Rekor.VerificationException e) {
+                lines.add("FAIL the anchor of the checkpoint at size " + size + " doesn't hold: " + e.getMessage());
+                return null;
+            }
+            anchoredSize = Math.max(anchoredSize, size);
+            checked++;
+        }
+        long deadline = System.currentTimeMillis() - anchorGrace.toMillis();
+        for (Checkpoint c : published.values()) {
+            if (!anchoredSizes.contains(c.size()) && c.timestampMillis() < deadline) {
+                lines.add("FAIL the checkpoint at size " + c.size() + " was never anchored in " + rekor.url());
+                return null;
+            }
+        }
+        lines.add("ok   " + checked + " new anchor(s) verified in " + rekor.url() + " (anchored up to " + anchoredSize
+                + " entries)");
+        // Everything the log holds under the ledger's keys must be a checkpoint the server publishes.
+        for (byte[] key : keys) {
+            for (String uuid : rekor.search(Rekor.keyIndexHash(key))) {
+                if (anchoredUuids.contains(uuid)) {
+                    continue;
+                }
+                byte[] hash = Rekor.payloadHashUnder(rekor.entry(uuid), key, json);
+                if (hash != null && !publishedHashes.contains(HexFormat.of().formatHex(hash))) {
+                    lines.add("FAIL the public log holds a checkpoint signed by the ledger key that the server doesn't "
+                            + "publish (" + rekor.url() + " entry " + uuid + "): it may be showing someone a "
+                            + "different history");
+                    return null;
+                }
+            }
+        }
+        lines.add("ok   the public log holds no checkpoint under the ledger key that the server doesn't publish");
+        return new WitnessState(state.publicKey(), state.size(), state.root(), logKeyText, anchoredSize);
+    }
+
+    /** Every item of a paged list endpoint ({@code ?after=size&limit=}), in order. */
+    private List<JsonNode> pages(String path) throws IOException {
+        List<JsonNode> all = new ArrayList<>();
+        long after = 0;
+        while (true) {
+            JsonNode page = get(path + "?after=" + after + "&limit=" + PAGE);
+            page.forEach(all::add);
+            if (page.size() < PAGE) {
+                return all;
+            }
+            after = page.get(page.size() - 1).path("size").asLong();
+        }
     }
 
     private boolean consistent(long from, long to, byte[] oldRoot, byte[] newRoot) throws IOException {
@@ -154,14 +287,19 @@ public class LedgerAuditor {
      * leading to it) vouches for sizes from that rotation's size up to the next rotation's size.
      */
     private static boolean signedByKeyInCharge(Checkpoint c, List<byte[]> keys, List<KeyRotation> rotations) {
+        return keyInCharge(c, keys, rotations) != null;
+    }
+
+    /** The key in charge at the checkpoint's size that signed it, or null. */
+    private static byte[] keyInCharge(Checkpoint c, List<byte[]> keys, List<KeyRotation> rotations) {
         for (int i = 0; i < keys.size(); i++) {
             long from = i == 0 ? 0 : rotations.get(i - 1).size();
             long until = i == rotations.size() ? Long.MAX_VALUE : rotations.get(i).size();
             if (from <= c.size() && c.size() <= until && Ed25519.verify(keys.get(i), c.signedMessage(), c.signature())) {
-                return true;
+                return keys.get(i);
             }
         }
-        return false;
+        return null;
     }
 
     private static int indexOf(List<byte[]> keys, byte[] key) {

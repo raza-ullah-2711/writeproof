@@ -113,8 +113,13 @@ The admin app's CSP is stricter (no `data:` images, `base-uri 'none'`, `form-act
 | `ADMIN_ALLOWED_IPS`           | no       | networks allowed to reach the admin host       |
 | `LEDGER_SIGNING_KEY`          | yes      | base64 Ed25519 seed signing ledger checkpoints |
 | `LEDGER_PREVIOUS_SIGNING_KEY` | no       | only while rotating: the key being retired     |
+| `LEDGER_REKOR_URL`            | no\*     | public log checkpoints are anchored in         |
 | `HANDWRITING_EXPOSE_SCORES`   | no       | `true` to return scores (development only)     |
 | `RATE_LIMITS_ENABLED`         | no       | `false` to disable limits (development only)   |
+
+\* Required in production in practice: production builds of the app expect the ledger to be
+anchored (see [ledger.md](ledger.md#anchoring-in-a-public-log)); `generate-env.sh` sets it for real
+domains.
 
 ## Still open
 

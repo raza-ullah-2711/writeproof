@@ -56,6 +56,13 @@ docker compose -f deploy/compose.yml up -d --build --wait
 ./deploy/smoke-test.sh https://writeproof.example.com
 ```
 
+Upgrading a stack created before public anchoring: turn it on once,
+`echo "LEDGER_REKOR_URL=https://rekor.sigstore.dev" >> deploy/.env`. Every published checkpoint is
+then anchored in Sigstore's public log, and production browsers expect it: they flag letters whose
+ledger isn't anchored within a day (see [ledger.md](ledger.md#anchoring-in-a-public-log)). The
+server needs outbound HTTPS to rekor.sigstore.dev. Run at least one witness (`AuditLedger`)
+somewhere you don't control, so a split view would be noticed.
+
 Upgrading a stack created before the separate admin app: add its host once,
 `echo "ADMIN_DOMAIN=admin.writeproof.example.com" >> deploy/.env`, and point DNS for it at the
 server. Compose refuses to start the web service without it. Admins then sign in at that host

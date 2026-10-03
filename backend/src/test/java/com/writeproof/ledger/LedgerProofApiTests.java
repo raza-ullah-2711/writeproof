@@ -168,14 +168,14 @@ class LedgerProofApiTests {
         checkpoints.publishIfGrown();
         Path state = dir.resolve("witness.json");
 
-        assertThat(AuditLedger.run(new String[] {"http://localhost:" + port, "--state", state.toString()})).isZero();
+        assertThat(AuditLedger.run(new String[] {"http://localhost:" + port, "--state", state.toString(), "--no-rekor"})).isZero();
         assertThat(Files.readString(state)).contains(Base64Url.encode(signer.publicKey()));
 
         appendSome(3);
         checkpoints.publishIfGrown();
         appendSome(1);
 
-        assertThat(AuditLedger.run(new String[] {"http://localhost:" + port, "--state", state.toString()})).isZero();
+        assertThat(AuditLedger.run(new String[] {"http://localhost:" + port, "--state", state.toString(), "--no-rekor"})).isZero();
         assertThat(new ObjectMapper().readValue(state.toFile(), LedgerAuditor.WitnessState.class).size())
                 .isEqualTo(ledger.size());
     }
