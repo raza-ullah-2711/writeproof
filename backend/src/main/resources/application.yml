@@ -19,6 +19,8 @@ writeproof:
   auth:
     # Base64 HMAC key, >= 32 bytes decoded. Generate with: openssl rand -base64 32
     jwt-secret: ${JWT_SECRET}
+    # Only while rotating: the secret being retired. Tokens it signed stay valid until they expire.
+    previous-jwt-secret: ${JWT_PREVIOUS_SECRET:}
     token-ttl: ${JWT_TTL:PT15M}
     challenge-ttl: PT2M
   admin:
@@ -31,6 +33,8 @@ writeproof:
     expose-scores: ${HANDWRITING_EXPOSE_SCORES:false}
     # Base64 AES-256 key encrypting stored handwriting at rest. Generate: openssl rand -base64 32
     data-key: ${HANDWRITING_DATA_KEY}
+    # Only while rotating: keys being retired (comma-separated). They decrypt; data-key encrypts.
+    previous-data-keys: ${HANDWRITING_PREVIOUS_DATA_KEYS:}
   ledger:
     # Base64 32-byte Ed25519 seed for the key that signs ledger checkpoints. Generate:
     # openssl rand -base64 32. Clients pin its public half: keep it, and back it up.

@@ -33,6 +33,9 @@ services:
       DB_PASSWORD: ${DB_PASSWORD:?run deploy/generate-env.sh first}
       JWT_SECRET: ${JWT_SECRET:?run deploy/generate-env.sh first}
       HANDWRITING_DATA_KEY: ${HANDWRITING_DATA_KEY:?run deploy/generate-env.sh first}
+      # Only while rotating (docs/security.md, "Rotating secrets").
+      HANDWRITING_PREVIOUS_DATA_KEYS: ${HANDWRITING_PREVIOUS_DATA_KEYS:-}
+      JWT_PREVIOUS_SECRET: ${JWT_PREVIOUS_SECRET:-}
       LEDGER_SIGNING_KEY: ${LEDGER_SIGNING_KEY:?run deploy/generate-env.sh first (or add LEDGER_SIGNING_KEY to deploy/.env)}
       LEDGER_CHECKPOINT_INTERVAL: ${LEDGER_CHECKPOINT_INTERVAL:-PT10M}
       LEDGER_PREVIOUS_SIGNING_KEY: ${LEDGER_PREVIOUS_SIGNING_KEY:-}

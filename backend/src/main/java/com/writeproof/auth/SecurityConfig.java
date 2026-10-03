@@ -20,6 +20,7 @@ import org.springframework.security.config.annotation.web.builders.HttpSecurity;
 import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.oauth2.core.DelegatingOAuth2TokenValidator;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
+import org.springframework.security.oauth2.jwt.BadJwtException;
 import org.springframework.security.oauth2.jwt.JwtDecoder;
 import org.springframework.security.oauth2.jwt.JwtEncoder;
 import org.springframework.security.oauth2.jwt.JwtValidators;
@@ -83,11 +84,7 @@ class SecurityConfig {
 
     @Bean
     SecretKey jwtSigningKey(AuthProperties properties) {
-        byte[] secret = Base64.getDecoder().decode(properties.jwtSecret());
-        if (secret.length < MIN_SECRET_BYTES) {
-            throw new IllegalStateException("JWT_SECRET must decode to at least " + MIN_SECRET_BYTES + " bytes");
-        }
-        return new SecretKeySpec(secret, "HmacSHA256");
+        return hmacKey(properties.jwtSecret(), "JWT_SECRET");
     }
 
     @Bean
@@ -96,12 +93,38 @@ class SecurityConfig {
     }
 
     @Bean
-    JwtDecoder jwtDecoder(SecretKey jwtSigningKey) {
-        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(jwtSigningKey)
+    JwtDecoder jwtDecoder(SecretKey jwtSigningKey, AuthProperties properties) {
+        JwtDecoder current = decoder(jwtSigningKey);
+        String previous = properties.previousJwtSecret();
+        if (previous == null || previous.isBlank()) {
+            return current;
+        }
+        // Rotating JWT_SECRET: tokens the previous secret signed stay valid until they expire, so
+        // nobody is signed out. New tokens are always signed with the current secret.
+        JwtDecoder old = decoder(hmacKey(previous, "JWT_PREVIOUS_SECRET"));
+        return token -> {
+            try {
+                return current.decode(token);
+            } catch (BadJwtException e) {
+                return old.decode(token);
+            }
+        };
+    }
+
+    private static JwtDecoder decoder(SecretKey key) {
+        NimbusJwtDecoder decoder = NimbusJwtDecoder.withSecretKey(key)
                 .macAlgorithm(MacAlgorithm.HS256)
                 .build();
         decoder.setJwtValidator(new DelegatingOAuth2TokenValidator<>(
                 JwtValidators.createDefaultWithIssuer(TokenService.ISSUER)));
         return decoder;
+    }
+
+    private static SecretKey hmacKey(String base64, String name) {
+        byte[] secret = Base64.getDecoder().decode(base64);
+        if (secret.length < MIN_SECRET_BYTES) {
+            throw new IllegalStateException(name + " must decode to at least " + MIN_SECRET_BYTES + " bytes");
+        }
+        return new SecretKeySpec(secret, "HmacSHA256");
     }
 }
