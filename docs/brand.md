@@ -20,16 +20,22 @@ tell apart.
 | -------------------- | --------- | --------- | --------- |
 | Ink (wordmark, text) | `#1b1f3a` | `#e6e8f5` | `--ink`   |
 | Seal (accent)        | `#a8322d` | `#ef6b62` | `--seal`  |
-| Paper (background)   | `#fffdf7` | `#1f1e1a` | `--paper` |
+| Paper (sheets)       | `#fffdf7` | `#171824` | `--paper` |
+| Page (desk)          | `#f5f0e6` | `#0b0c14` | `--page`  |
 
-Seal red is an accent: the seal, the dot. Don't use it for text or status (critical red is a
+Seal red is an accent: the seal, the dot, the active-page dot, small uppercase eyebrows and the
+opening quotation mark of an open letter. Don't use it for body text or status (critical red is a
 different colour on purpose).
 
 ## Type
 
-Georgia (serif) italic for the wordmark and taglines, as in the apps. The static wordmark files
-use Georgia from the system; for print, convert the text to outlines in a design tool with a
-licensed copy of the font.
+- **Fraunces** (variable, OFL): headings, the wordmark (italic, soft and "wonky" axes on), letter
+  bodies and the editorial lede. Self-hosted from `@fontsource-variable/fraunces`.
+- **Inter** (variable, OFL): everything else in the interface.
+
+Tokens: `--font-display`, `--font-ui`, `--font-mono` (theme.scss). The static wordmark files and
+the social image still set "riteproof" in Georgia; redraw them in Fraunces italic (outlined) when
+they are next touched.
 
 ## Rules
 

@@ -48,7 +48,7 @@ h3 {
   padding: 0.5rem 0.75rem;
   background: var(--paper);
   border-left: 3px solid var(--border);
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--font-display);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
 }

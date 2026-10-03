@@ -1,4 +1,14 @@
 <section class="wallet">
+  @if (!auth.account()) {
+    <header class="hero">
+      <p class="eyebrow">Handwritten. Signed. Sealed.</p>
+      <h2>Every word, <em>provably</em> human.</h2>
+      <p class="lede">
+        Letters you write by hand, signed with a key only you hold, and sealed on a public ledger
+        that no one can rewrite. Not even us.
+      </p>
+    </header>
+  }
   @switch (wallet.state()) {
     @case ('unknown') {
       <p>Opening wallet&hellip;</p>
@@ -6,7 +16,9 @@
     @case ('none') {
       <p>Your identity is a key that lives only in this browser. No username, password or email.</p>
       @if (system.status().registrationOpen) {
-        <button type="button" (click)="createWallet()" [disabled]="busy()">Create wallet</button>
+        <button type="button" class="primary" (click)="createWallet()" [disabled]="busy()">
+          Create wallet
+        </button>
       } @else {
         <p class="closed">
           Writeproof isn't accepting new accounts right now. If you already have a wallet, restore
@@ -126,7 +138,9 @@
         </section>
       } @else {
         <p>A wallet is saved in this browser.</p>
-        <button type="button" (click)="signIn()" [disabled]="busy()">Sign in</button>
+        <button type="button" class="primary" (click)="signIn()" [disabled]="busy()">
+          Sign in
+        </button>
       }
     }
   }

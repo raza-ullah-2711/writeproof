@@ -1,5 +1,5 @@
 .calibration {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
 }
 
 .terms {
@@ -14,7 +14,7 @@
 }
 
 .practice-name {
-  font-family: Georgia, 'Times New Roman', serif;
+  font-family: var(--font-display);
   font-size: 1.1rem;
   color: var(--ink);
 }

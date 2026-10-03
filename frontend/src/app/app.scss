@@ -1,66 +1,242 @@
-.shell {
-  max-width: 40rem;
-  margin: 4rem auto;
-  padding: 0 1rem;
-  font-family: Georgia, 'Times New Roman', serif;
+:host {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
 }
 
-.tagline {
-  font-style: italic;
-  color: var(--text-secondary);
+// A frosted bar that stays put: the wordmark, the pages as pills, the theme.
+.masthead {
+  // Its own view-transition layer: the bar stays put while pages change beneath it.
+  view-transition-name: masthead;
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  background: var(--header-bg);
+  backdrop-filter: blur(14px) saturate(1.4);
+  -webkit-backdrop-filter: blur(14px) saturate(1.4);
+  border-bottom: 1px solid var(--border);
+}
+
+.bar {
+  display: flex;
+  align-items: center;
+  gap: 1.25rem;
+  max-width: 68rem;
+  margin: 0 auto;
+  padding: 0.7rem 1.25rem;
+}
+
+.brand {
+  margin: 0;
+  font-size: 1.55rem;
+  flex: none;
+
+  a {
+    display: inline-block;
+    text-decoration: none;
+    border-radius: 6px;
+  }
+}
+
+.tabs {
+  display: flex;
+  gap: 0.15rem;
+  flex: 1;
+  justify-content: center;
+  font-size: 0.875rem;
+  overflow-x: auto;
+  scrollbar-width: none;
+
+  a {
+    position: relative;
+    padding: 0.4rem 0.85rem;
+    border-radius: 999px;
+    color: var(--text-secondary);
+    font-weight: 500;
+    text-decoration: none;
+    white-space: nowrap;
+    transition:
+      color 0.18s var(--ease),
+      background-color 0.18s var(--ease);
+
+    &:hover {
+      color: var(--text);
+      background: var(--hover-wash);
+    }
+
+    // The current page: a raised pill with a seal-red dot.
+    &.active {
+      color: var(--text);
+      background: var(--surface);
+      box-shadow:
+        var(--shadow-sm),
+        inset 0 0 0 1px var(--border);
+      padding-left: 1.35rem;
+
+      &::before {
+        content: '';
+        position: absolute;
+        left: 0.65rem;
+        top: 50%;
+        width: 6px;
+        height: 6px;
+        margin-top: -3px;
+        border-radius: 50%;
+        background: var(--seal);
+      }
+    }
+  }
+}
+
+.theme {
+  flex: none;
+}
+
+.shell {
+  flex: 1;
+  width: 100%;
+  max-width: 48rem;
+  margin: 0 auto;
+  padding: clamp(1.5rem, 5vw, 3.5rem) 1rem 2rem;
+}
+
+// The page is a sheet of paper on a desk: a second sheet peeks out underneath, and a red margin
+// line runs down the left like ruled stationery.
+.desk {
+  position: relative;
+  animation: rise-in 0.6s var(--ease) both;
+
+  &::before {
+    content: '';
+    position: absolute;
+    inset: 14px -8px -12px 10px;
+    border-radius: var(--radius-lg);
+    background: var(--surface-muted);
+    border: 1px solid var(--border);
+    transform: rotate(1.1deg);
+    box-shadow: var(--shadow-md);
+  }
+}
+
+.sheet {
+  position: relative;
+  min-height: 14rem;
+  padding: clamp(1.4rem, 4vw, 2.75rem) clamp(1.25rem, 4vw, 2.75rem) clamp(1.4rem, 4vw, 2.75rem)
+    clamp(1.25rem, 6vw, 3.75rem);
+  background: var(--paper);
+  border: 1px solid var(--paper-border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-lg);
+
+  &::before {
+    content: '';
+    position: absolute;
+    top: 1.25rem;
+    bottom: 1.25rem;
+    left: clamp(0.6rem, 3vw, 2.1rem);
+    width: 1px;
+    background: var(--margin-line);
+  }
+}
+
+.suspended,
+.announcement {
+  margin: 0 0 1.25rem;
+  padding: 0.75rem 1rem;
+  border-radius: var(--radius);
+  font-size: 0.875rem;
+  box-shadow: var(--shadow-sm);
+}
+
+.suspended {
+  border: 1px solid var(--critical-border);
+  background: var(--critical-bg);
+  color: var(--critical-text);
+}
+
+.announcement {
+  border: 1px solid var(--info-border);
+  background: var(--info-bg);
+  color: var(--info-text);
+}
+
+.colophon {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 2rem 1rem 2.5rem;
+  text-align: center;
+
+  .seal {
+    opacity: 0.9;
+  }
+
+  .motto {
+    margin: 0;
+    font-family: var(--font-display);
+    font-style: italic;
+    font-size: 1.05rem;
+    color: var(--text-secondary);
+  }
 }
 
 .status {
-  font-family: system-ui, sans-serif;
-  font-size: 0.875rem;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  color: var(--text-muted);
 
-  &[data-status='up'] {
-    color: var(--good-text);
+  .dot {
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--border-strong);
+  }
+
+  &[data-status='up'] .dot {
+    background: var(--good-text);
+    box-shadow: 0 0 0 3px color-mix(in srgb, var(--good-text) 20%, transparent);
   }
 
   &[data-status='down'] {
     color: var(--critical-text);
+
+    .dot {
+      background: var(--critical-text);
+    }
   }
 }
 
-nav {
-  display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 0.25rem 1rem;
-  font-family: system-ui, sans-serif;
-  font-size: 0.875rem;
+// Phones: the wordmark and theme on one row, the pages scroll sideways beneath.
+@media (max-width: 760px) {
+  .bar {
+    flex-wrap: wrap;
+    row-gap: 0.5rem;
+    padding: 0.6rem 1rem 0.5rem;
+  }
 
-  a {
-    color: var(--text-secondary);
-    white-space: nowrap;
+  .brand {
+    font-size: 1.3rem;
   }
 
   .theme {
     margin-left: auto;
   }
 
-  a.active {
-    color: inherit;
-    font-weight: 600;
-    text-decoration: none;
+  .tabs {
+    order: 3;
+    flex-basis: 100%;
+    justify-content: flex-start;
+    margin: 0 -1rem;
+    padding: 0 1rem 0.15rem;
+    // Hints that more pages scroll in from the right.
+    mask-image: linear-gradient(to right, #000 85%, transparent);
   }
-}
 
-.suspended {
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--critical-border);
-  border-radius: 6px;
-  background: var(--critical-bg);
-  color: var(--critical-text);
-  font-size: 0.875rem;
-}
-
-.announcement {
-  padding: 0.6rem 0.75rem;
-  border: 1px solid var(--info-border);
-  border-radius: 6px;
-  background: var(--info-bg);
-  color: var(--info-text);
-  font-size: 0.875rem;
+  .desk::before {
+    display: none;
+  }
 }

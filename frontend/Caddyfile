@@ -28,13 +28,13 @@
 	}
 }
 
-# A built Angular app: hashed bundles never change; everything else (index.html, the SPA
+# A built Angular app: hashed bundles and fonts never change; everything else (index.html, the SPA
 # fallback) is revalidated.
 (spa) {
 	root * {args[0]}
-	@hashed path_regexp \-[A-Z0-9]{8}\.(js|css)$
+	@hashed path_regexp \-[A-Z0-9]{8}\.(js|css|woff2)$
 	header @hashed Cache-Control "public, max-age=31536000, immutable"
-	@other not path_regexp \-[A-Z0-9]{8}\.(js|css)$
+	@other not path_regexp \-[A-Z0-9]{8}\.(js|css|woff2)$
 	header @other Cache-Control "no-cache"
 	try_files {path} /index.html
 	file_server

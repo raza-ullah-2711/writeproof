@@ -1,21 +1,29 @@
-// Colour tokens for both apps (public and admin). Components use these roles, never raw colours.
-// Light keeps the original look; dark values are chosen for the dark surface, not inverted, and
-// every text/background pair clears WCAG AA (4.5:1) in both modes. Chart roles follow the dataviz
-// reference palette (validated light and dark). An explicit choice (ThemeService, data-theme on
-// <html>) wins over the OS setting either way.
+// Design tokens for both apps (public and admin). Components use these roles, never raw values.
+// Two moods from one palette: "parchment" (light) and "midnight desk" (dark). Dark values are
+// chosen for the dark surface, not inverted, and every text/background pair clears WCAG AA (4.5:1)
+// on --page, --surface and --paper in both modes. Chart roles follow the dataviz reference palette
+// (validated light and dark). An explicit choice (ThemeService, data-theme on <html>) wins over
+// the OS setting either way. Element styles live in design.scss; brand rules in docs/brand.md.
 
 @mixin light {
   color-scheme: light;
-  --page: #ffffff;
-  --surface: #fcfcfb;
-  --surface-muted: #f4f1ea;
+  --page: #f5f0e6;
+  // Soft halos behind the page: seal red top left, ink blue top right.
+  --page-glow: rgba(168, 50, 45, 0.15);
+  --page-glow-2: rgba(29, 79, 143, 0.12);
+  --grain-opacity: 0.45;
+  --header-bg: rgba(245, 240, 230, 0.78);
+  --surface: #fffdf8;
+  --surface-muted: #efe8da;
   --paper: #fffdf7;
-  --paper-border: #d6d0c4;
-  --text: #0b0b0b;
-  --text-secondary: #555555;
-  --text-muted: #6b6a65;
-  --border: #e5e3dd;
-  --border-strong: #767676;
+  --paper-border: #d9cfbd;
+  --margin-line: rgba(168, 50, 45, 0.22);
+  --rule: rgba(29, 79, 143, 0.16);
+  --text: #16172b;
+  --text-secondary: #4f4d48;
+  --text-muted: #67655f;
+  --border: #e3dbcb;
+  --border-strong: #8a8578;
   --link: #1d4f8f;
   --info-bg: #eef3fb;
   --info-border: #c9d8ef;
@@ -31,12 +39,21 @@
   --critical-border: #f3b4b4;
   --critical-text: #b42318;
   --ink: #1b1f3a;
-  // Brand accent: the wax seal in the logo.
+  // Brand accent: the wax seal in the logo. An accent, never text or status.
   --seal: #a8322d;
-  --hover-wash: rgba(0, 0, 0, 0.04);
-  --button-bg: #efefef;
-  --button-hover: #e3e2dd;
-  --shadow: rgba(0, 0, 0, 0.08);
+  --focus: #a8322d;
+  --hover-wash: rgba(27, 31, 58, 0.05);
+  --button-bg: #fffdf8;
+  --button-hover: #f3ecdf;
+  --primary-bg: #1b1f3a;
+  --primary-hover: #2b3163;
+  --primary-text: #fffdf7;
+  --shadow: rgba(27, 31, 58, 0.1);
+  --shadow-sm: 0 1px 2px rgba(27, 31, 58, 0.06), 0 1px 1px rgba(27, 31, 58, 0.04);
+  --shadow-md: 0 1px 2px rgba(27, 31, 58, 0.05), 0 10px 24px -10px rgba(27, 31, 58, 0.18);
+  --shadow-lg:
+    0 1px 2px rgba(27, 31, 58, 0.04), 0 4px 8px -2px rgba(27, 31, 58, 0.05),
+    0 28px 56px -20px rgba(27, 31, 58, 0.24);
   // Charts (dataviz reference palette).
   --chart-surface: #fcfcfb;
   --chart-text: #0b0b0b;
@@ -49,16 +66,22 @@
 
 @mixin dark {
   color-scheme: dark;
-  --page: #0d0d0d;
-  --surface: #1a1a19;
-  --surface-muted: #2a2a27;
-  --paper: #1f1e1a;
-  --paper-border: #4a463d;
+  --page: #0b0c14;
+  --page-glow: rgba(239, 107, 98, 0.13);
+  --page-glow-2: rgba(134, 182, 239, 0.1);
+  --grain-opacity: 0.3;
+  --header-bg: rgba(11, 12, 20, 0.72);
+  --surface: #13141f;
+  --surface-muted: #1d1f2d;
+  --paper: #171824;
+  --paper-border: #2f3145;
+  --margin-line: rgba(239, 107, 98, 0.28);
+  --rule: rgba(134, 182, 239, 0.14);
   --text: #ecebe6;
   --text-secondary: #c3c2b7;
   --text-muted: #a3a29b;
-  --border: #34332f;
-  --border-strong: #6b6a65;
+  --border: #262839;
+  --border-strong: #5f6279;
   --link: #86b6ef;
   --info-bg: #15263b;
   --info-border: #2a4a73;
@@ -75,10 +98,19 @@
   --critical-text: #ff8a80;
   --ink: #e6e8f5;
   --seal: #ef6b62;
+  --focus: #ef6b62;
   --hover-wash: rgba(255, 255, 255, 0.06);
-  --button-bg: #2a2a27;
-  --button-hover: #34332f;
+  --button-bg: #191a27;
+  --button-hover: #222436;
+  --primary-bg: #e6e8f5;
+  --primary-hover: #ffffff;
+  --primary-text: #0b0c14;
   --shadow: rgba(0, 0, 0, 0.5);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 1px 2px rgba(0, 0, 0, 0.4), 0 10px 24px -10px rgba(0, 0, 0, 0.6);
+  --shadow-lg:
+    0 1px 2px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.03),
+    0 28px 56px -20px rgba(0, 0, 0, 0.75);
   --chart-surface: #1a1a19;
   --chart-text: #ffffff;
   --chart-text-secondary: #c3c2b7;
@@ -88,7 +120,20 @@
   --series-2: #d95926;
 }
 
+// Type, shape and motion: the same in both modes.
+@mixin scale {
+  --font-display: 'Fraunces Variable', Georgia, 'Times New Roman', serif;
+  --font-ui:
+    'Inter Variable', system-ui, -apple-system, 'Segoe UI', Roboto, 'Helvetica Neue', sans-serif;
+  --font-mono: ui-monospace, 'SF Mono', 'Cascadia Code', Consolas, monospace;
+  --radius-sm: 8px;
+  --radius: 12px;
+  --radius-lg: 22px;
+  --ease: cubic-bezier(0.2, 0.7, 0.2, 1);
+}
+
 :root {
+  @include scale;
   @include light;
 }
 
@@ -100,31 +145,4 @@
 
 :root[data-theme='dark'] {
   @include dark;
-}
-
-body {
-  background: var(--page);
-  color: var(--text);
-}
-
-a {
-  color: var(--link);
-}
-
-// Buttons get theme colours rather than the browser's: a native dark button is mid-grey, which
-// coloured (e.g. danger) text can't clear 4.5:1 on. Classes that restyle a button still win.
-button {
-  color: var(--text);
-  background: var(--button-bg);
-  border: 1px solid var(--border-strong);
-  border-radius: 3px;
-
-  &:hover:not(:disabled) {
-    background: var(--button-hover);
-  }
-
-  &:disabled {
-    color: var(--text-muted);
-    opacity: 0.7;
-  }
 }

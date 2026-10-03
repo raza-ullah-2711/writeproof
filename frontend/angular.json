@@ -29,7 +29,12 @@
                 "input": "public"
               }
             ],
-            "styles": ["src/styles.scss"]
+            "styles": [
+              "node_modules/@fontsource-variable/fraunces/full.css",
+              "node_modules/@fontsource-variable/fraunces/full-italic.css",
+              "node_modules/@fontsource-variable/inter/index.css",
+              "src/styles.scss"
+            ]
           },
           "configurations": {
             "production": {
@@ -105,7 +110,12 @@
             ],
             "tsConfig": "projects/admin/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
-            "styles": ["projects/admin/src/styles.scss"]
+            "styles": [
+              "node_modules/@fontsource-variable/fraunces/full.css",
+              "node_modules/@fontsource-variable/fraunces/full-italic.css",
+              "node_modules/@fontsource-variable/inter/index.css",
+              "projects/admin/src/styles.scss"
+            ]
           },
           "configurations": {
             "production": {
