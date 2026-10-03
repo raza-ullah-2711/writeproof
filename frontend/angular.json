@@ -97,6 +97,12 @@
           "builder": "@angular/build:application",
           "options": {
             "browser": "projects/admin/src/main.ts",
+            "assets": [
+              {
+                "glob": "**/*",
+                "input": "projects/admin/public"
+              }
+            ],
             "tsConfig": "projects/admin/tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "styles": ["projects/admin/src/styles.scss"]

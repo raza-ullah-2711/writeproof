@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 200 64" role="img" aria-label="Writeproof">
+  <!-- The signed wordmark: handwritten W, serif italic "riteproof", signature underline, seal dot. -->
+  <path d="M10 8 C13 20 16 28 19 34 L28 14 L37 34 C41 26 45 16 49 6" fill="none" stroke="#1b1f3a" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="48" y="33" font-family="Georgia, 'Times New Roman', serif" font-style="italic" font-size="24" fill="#1b1f3a">riteproof</text>
+  <path d="M14 46 C62 54 112 52 156 42" fill="none" stroke="#1b1f3a" stroke-width="1.6" stroke-linecap="round"/>
+  <circle cx="161" cy="41" r="3.6" fill="#a8322d"/>
+</svg>
