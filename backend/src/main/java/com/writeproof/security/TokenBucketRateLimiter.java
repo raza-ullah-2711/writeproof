@@ -66,6 +66,13 @@ public class TokenBucketRateLimiter {
         buckets.entrySet().removeIf(e -> e.getValue().idle(now));
     }
 
+    /** Forgets every bucket of one subject (an account id or an IP), across all rules. */
+    public int forget(String subject) {
+        int before = buckets.size();
+        buckets.keySet().removeIf(key -> key.endsWith(":" + subject));
+        return before - buckets.size();
+    }
+
     int size() {
         return buckets.size();
     }

@@ -60,6 +60,21 @@ public class AuditLog {
                 .list();
     }
 
+    /** Entries about one target (e.g. an account's address), newest first. */
+    public List<Entry> forTarget(String target, int limit) {
+        return jdbc.sql("""
+                SELECT id, at, actor_key, actor_role, action, target, detail::text AS detail
+                  FROM admin_audit_log WHERE target = :target ORDER BY id DESC LIMIT :limit
+                """)
+                .param("target", target)
+                .param("limit", limit)
+                .query((rs, row) -> new Entry(rs.getLong("id"),
+                        rs.getObject("at", OffsetDateTime.class).toInstant(),
+                        Base64Url.encode(rs.getBytes("actor_key")), rs.getString("actor_role"),
+                        rs.getString("action"), rs.getString("target"), read(rs.getString("detail"))))
+                .list();
+    }
+
     private String write(Map<String, ?> detail) {
         try {
             return json.writeValueAsString(detail == null ? Map.of() : detail);

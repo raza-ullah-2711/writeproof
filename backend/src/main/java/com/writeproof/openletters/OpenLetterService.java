@@ -7,6 +7,7 @@ import com.writeproof.handwriting.HandwritingSample;
 import com.writeproof.handwriting.HandwritingService;
 import com.writeproof.identity.Account;
 import com.writeproof.identity.AccountRepository;
+import com.writeproof.identity.AccountStatus;
 import com.writeproof.identity.Ed25519;
 import com.writeproof.ledger.LedgerEntry;
 import com.writeproof.ledger.LedgerService;
@@ -36,9 +37,12 @@ public class OpenLetterService {
     private final HandwritingService handwritingService;
     private final ObjectMapper objectMapper;
     private final Clock clock;
+    private final AccountStatus accountStatus;
 
     OpenLetterService(AccountRepository accounts, OpenLetterRepository letters, LedgerService ledger,
-                      HandwritingService handwritingService, ObjectMapper objectMapper, Clock clock) {
+                      HandwritingService handwritingService, ObjectMapper objectMapper, Clock clock,
+                      AccountStatus accountStatus) {
+        this.accountStatus = accountStatus;
         this.accounts = accounts;
         this.letters = letters;
         this.ledger = ledger;
@@ -58,6 +62,7 @@ public class OpenLetterService {
         LetterService.requireCurrent(sentAt, now);
         Account author = accounts.findById(authorId)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account no longer exists"));
+        accountStatus.requireCanSend(author.id());
 
         byte[] hash = OpenLetterHashing.letterHash(author.publicKey(), sentAt, handwritingHash, body);
         if (!Ed25519.verify(author.publicKey(), LetterHashing.signedMessage(hash), signature)) {

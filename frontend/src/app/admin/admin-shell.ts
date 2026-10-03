@@ -25,6 +25,7 @@ import { AdminService } from './admin.service';
             [routerLinkActiveOptions]="{ exact: true }"
             >Dashboard</a
           >
+          <a routerLink="/admin/accounts" routerLinkActive="active">Accounts</a>
           <a routerLink="/admin/audit" routerLinkActive="active">Audit log</a>
         </nav>
         <router-outlet />

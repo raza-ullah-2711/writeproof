@@ -23,6 +23,7 @@ describe('AdminShell', () => {
     expect(el.querySelector('.role')?.textContent).toBe('Administrator');
     expect([...el.querySelectorAll('.admin-nav a')].map((a) => a.textContent?.trim())).toEqual([
       'Dashboard',
+      'Accounts',
       'Audit log',
     ]);
     expect(el.querySelector('.limits')?.textContent).toContain("can't be read here");

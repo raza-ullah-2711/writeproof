@@ -74,5 +74,41 @@ server restarts, and the dashboard says so.
 
 `GET /api/admin/audit?before&limit`, shown at `/admin/audit`, newest first. Each entry records
 when, the actor's address and role, the action, the target and details. The table can't be
-updated, deleted or truncated (database triggers). The actions that write to it arrive with
-13b–13e.
+updated, deleted or truncated (database triggers).
+
+## Accounts (13b)
+
+`/admin/accounts` lists the newest accounts. You can also find one by the first characters of its
+address (at least 4). Each account shows its join date, whether handwriting is enrolled, letters
+sent and received, open letters, and its status.
+
+The detail page also shows whether it can receive letters, its wallet backup, its last letter,
+whether it uses contacts and calibration, and its last forced sign-out. Below that is the
+account's admin history: every audit entry targeting it.
+
+| Action              | Effect                                                                                                                                                          | Audit action                |
+| ------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------- | --------------------------- |
+| Suspend (reason)    | Can't send letters, reply or publish open letters (403 with the reason). Can still sign in, read and back up. The account holder sees a banner with the reason. | `account.suspended`         |
+| Reinstate           | Can send again                                                                                                                                                  | `account.reinstated`        |
+| Sign out everywhere | Every token issued up to now is rejected (401). The app returns to the sign-in. The account holder can sign in again with their wallet.                         | `account.signed-out`        |
+| Clear rate limits   | Drops the account's per-account rate-limit buckets. Per-address limits (sign-up, sign-in, backups) are untouched.                                               | `account.rate-limits-reset` |
+
+**Guard rails**
+
+- Admins and moderators can't be suspended; remove their role first.
+- A reason (1–500 characters) is required to suspend.
+- Suspending twice, or reinstating an account that isn't suspended, is refused (409).
+
+Suspension and sign-out live in `account_status` (migration V14), apart from `accounts`. Both are
+checked on every request: `AccountAuthenticationConverter` rejects revoked tokens, and
+`AccountStatus.requireCanSend` guards sending.
+
+API (ADMIN only):
+
+- `GET /api/admin/accounts?query&limit`
+- `GET /api/admin/accounts/{id}`
+- `POST` and `DELETE /api/admin/accounts/{id}/suspension`
+- `POST /api/admin/accounts/{id}/sign-out`
+- `POST /api/admin/accounts/{id}/rate-limits/reset`
+
+Users can see their own status at `GET /api/me/status`.

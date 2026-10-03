@@ -1,0 +1,151 @@
+<p><a routerLink="/admin/accounts">&larr; All accounts</a></p>
+@if (error(); as message) {
+  <p class="error" role="alert">{{ message }}</p>
+}
+@if (detail(); as d) {
+  <h3>
+    Account <code class="address">{{ d.account.publicKey }}</code>
+  </h3>
+  <div class="status">
+    @if (d.account.suspension; as s) {
+      <span class="badge suspended">Suspended</span>
+      since {{ s.since | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} UTC: “{{ s.reason }}”
+    } @else {
+      <span class="badge active">Active</span>
+    }
+    @if (d.account.role) {
+      <span class="badge role">{{ d.account.role === 'ADMIN' ? 'Admin' : 'Moderator' }}</span>
+    }
+  </div>
+
+  <dl class="facts">
+    <dt>Joined</dt>
+    <dd>{{ d.account.createdAt | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} UTC</dd>
+    <dt>Handwriting</dt>
+    <dd>{{ d.account.enrolled ? 'Enrolled' : 'Not enrolled' }}</dd>
+    <dt>Can receive letters</dt>
+    <dd>{{ d.account.canReceiveLetters ? 'Yes' : 'No encryption key yet' }}</dd>
+    <dt>Wallet backup</dt>
+    <dd>{{ d.account.backedUp ? 'Backed up' : 'None' }}</dd>
+    <dt>Letters</dt>
+    <dd>
+      {{ d.account.lettersSent }} sent, {{ d.account.lettersReceived }} received,
+      {{ d.account.openLetters }} open
+    </dd>
+    <dt>Last letter</dt>
+    <dd>
+      {{ d.lastLetterAt ? (d.lastLetterAt | date: 'yyyy-MM-dd HH:mm' : 'UTC') + ' UTC' : 'Never' }}
+    </dd>
+    <dt>Contacts</dt>
+    <dd>{{ d.usesContacts ? 'Uses contacts (encrypted)' : 'None' }}</dd>
+    <dt>Calibration</dt>
+    <dd>{{ d.calibrationContributor ? 'Contributor' : 'No' }}</dd>
+    <dt>Last forced sign-out</dt>
+    <dd>
+      {{
+        d.sessionsRevokedAt
+          ? (d.sessionsRevokedAt | date: 'yyyy-MM-dd HH:mm' : 'UTC') + ' UTC'
+          : 'Never'
+      }}
+    </dd>
+  </dl>
+  <p class="hint">Letter bodies, contacts and handwriting are encrypted and not shown here.</p>
+
+  <h4>Actions</h4>
+  @if (pending() === null) {
+    <div class="actions">
+      @if (d.account.suspension) {
+        <button type="button" (click)="ask('reinstate')">Reinstate</button>
+      } @else {
+        <button
+          type="button"
+          class="danger"
+          (click)="ask('suspend')"
+          [disabled]="!!d.account.role"
+          [title]="d.account.role ? 'Remove their admin role first' : ''"
+        >
+          Suspend
+        </button>
+      }
+      <button type="button" (click)="ask('sign-out')">Sign out everywhere</button>
+      <button type="button" (click)="ask('reset')">Clear rate limits</button>
+    </div>
+  } @else {
+    <form class="confirm" (ngSubmit)="confirm()">
+      @switch (pending()) {
+        @case ('suspend') {
+          <label>
+            Reason (the account holder sees this)
+            <textarea
+              name="reason"
+              [(ngModel)]="reason"
+              rows="2"
+              maxlength="500"
+              required
+            ></textarea>
+          </label>
+          <p class="hint">
+            They will still be able to sign in, read their letters and back up their wallet.
+          </p>
+        }
+        @case ('reinstate') {
+          <p>Let this account send letters again?</p>
+        }
+        @case ('sign-out') {
+          <p>End every session of this account now? They can sign in again with their wallet.</p>
+        }
+        @case ('reset') {
+          <p>
+            Clear this account's rate limits? Per-address limits (sign-in, sign-up) are not
+            affected.
+          </p>
+        }
+      }
+      <div class="actions">
+        <button
+          type="submit"
+          class="primary"
+          [disabled]="busy() || (pending() === 'suspend' && !reason.trim())"
+        >
+          Confirm
+        </button>
+        <button type="button" (click)="pending.set(null)">Cancel</button>
+      </div>
+    </form>
+  }
+  @if (notice(); as message) {
+    <p class="notice" role="status">{{ message }}</p>
+  }
+
+  <h4>Admin history</h4>
+  @if (d.history.length === 0) {
+    <p class="hint">No admin actions on this account.</p>
+  } @else {
+    <table class="history">
+      <thead>
+        <tr>
+          <th>When</th>
+          <th>Action</th>
+          <th>By</th>
+          <th>Details</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (e of d.history; track e.id) {
+          <tr>
+            <td>{{ e.at | date: 'yyyy-MM-dd HH:mm' : 'UTC' }}</td>
+            <td>{{ e.action }}</td>
+            <td>
+              <code [title]="e.actor">{{ e.actor.slice(0, 8) }}…</code>
+            </td>
+            <td>
+              <code>{{ e.detail | json }}</code>
+            </td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  }
+} @else if (!error()) {
+  <p>Loading&hellip;</p>
+}

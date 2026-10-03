@@ -39,12 +39,22 @@ class AccountController {
 
     record EncryptionKeyRequest(@NotBlank String encryptionKey, @NotBlank String signature) {}
 
+    /** {@code suspension} is null unless an admin suspended the account. */
+    record StatusResponse(AccountStatus.Suspension suspension) {}
+
     private final AccountService accountService;
     private final AccountRepository accounts;
+    private final AccountStatus status;
 
-    AccountController(AccountService accountService, AccountRepository accounts) {
+    AccountController(AccountService accountService, AccountRepository accounts, AccountStatus status) {
         this.accountService = accountService;
         this.accounts = accounts;
+        this.status = status;
+    }
+
+    @GetMapping("/me/status")
+    StatusResponse status(@AuthenticationPrincipal Jwt jwt) {
+        return new StatusResponse(status.of(UUID.fromString(jwt.getSubject())).suspension());
     }
 
     @PostMapping("/accounts")

@@ -7,15 +7,17 @@ import { AuthService } from './auth.service';
 describe('authInterceptor', () => {
   let http: HttpTestingController;
   let client: HttpClient;
+  const logout = vi.fn();
 
   beforeEach(() => {
     TestBed.configureTestingModule({
       providers: [
         provideHttpClient(withInterceptors([authInterceptor])),
         provideHttpClientTesting(),
-        { provide: AuthService, useValue: { token: () => 'secret-token' } },
+        { provide: AuthService, useValue: { token: () => 'secret-token', logout } },
       ],
     });
+    logout.mockClear();
     http = TestBed.inject(HttpTestingController);
     client = TestBed.inject(HttpClient);
   });
@@ -37,5 +39,15 @@ describe('authInterceptor', () => {
       false,
     );
     expect(http.expectOne('/actuator/health').request.headers.has('Authorization')).toBe(false);
+  });
+
+  it('forgets a token the server rejects, but not on other errors', () => {
+    client.get('/api/me').subscribe({ error: () => undefined });
+    http.expectOne('/api/me').flush('', { status: 403, statusText: 'Forbidden' });
+    expect(logout).not.toHaveBeenCalled();
+
+    client.get('/api/me').subscribe({ error: () => undefined });
+    http.expectOne('/api/me').flush('', { status: 401, statusText: 'Unauthorized' });
+    expect(logout).toHaveBeenCalledTimes(1);
   });
 });
