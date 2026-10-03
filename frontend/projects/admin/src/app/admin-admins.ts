@@ -3,7 +3,7 @@ import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { RouterLink } from '@angular/router';
-import { WalletService } from '../wallet/wallet.service';
+import { WalletService } from '@app/wallet/wallet.service';
 import { AdminTeam, TeamMember } from './admin-team';
 import { AdminRole } from './admin.service';
 

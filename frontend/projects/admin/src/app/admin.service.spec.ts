@@ -3,7 +3,7 @@ import { HttpTestingController, provideHttpClientTesting } from '@angular/common
 import { signal } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 import { Router, provideRouter } from '@angular/router';
-import { AuthService } from '../auth/auth.service';
+import { AdminAuth } from './admin-auth.service';
 import { adminGuard } from './admin.guard';
 import { AdminService } from './admin.service';
 
@@ -19,7 +19,7 @@ describe('AdminService and adminGuard', () => {
         provideRouter([]),
         provideHttpClient(),
         provideHttpClientTesting(),
-        { provide: AuthService, useValue: { authenticated } },
+        { provide: AdminAuth, useValue: { authenticated } },
       ],
     });
     admin = TestBed.inject(AdminService);
@@ -60,18 +60,18 @@ describe('AdminService and adminGuard', () => {
 
   it('sends ordinary and signed-out accounts to the wallet page', async () => {
     const router = TestBed.inject(Router);
-    expect(router.serializeUrl((await guard()) as never)).toBe('/');
+    expect(router.serializeUrl((await guard()) as never)).toBe('/sign-in');
 
     authenticated.set(true);
     TestBed.tick();
     http.expectOne('/api/admin/me').flush({ role: null });
     const result = guard();
     http.expectOne('/api/admin/me').flush({ role: null });
-    expect(router.serializeUrl((await result) as never)).toBe('/');
+    expect(router.serializeUrl((await result) as never)).toBe('/sign-in');
 
     const failing = guard();
     http.expectOne('/api/admin/me').flush('', { status: 500, statusText: 'Error' });
-    expect(router.serializeUrl((await failing) as never)).toBe('/');
+    expect(router.serializeUrl((await failing) as never)).toBe('/sign-in');
   });
 
   it('pages the audit log', async () => {

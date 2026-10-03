@@ -2,7 +2,7 @@ import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
-import { SystemStatus, SystemStatusService } from '../system/system-status.service';
+import { SystemStatus, SystemStatusService } from '@app/system/system-status.service';
 import { LedgerAudit, SystemAdmin, SystemOverview } from './system-admin';
 
 type Flag = 'registrationOpen' | 'sendingEnabled' | 'openLettersEnabled';

@@ -35,15 +35,52 @@ working immediately.
 Addresses listed there are always ADMIN while listed. Other admins and moderators are granted on
 the Admins page (13e) and stored in `admin_roles`.
 
+## A separate app on its own host
+
+The admin side is its own app (`frontend/projects/admin`) on its own origin, `ADMIN_DOMAIN`
+(`admin.<your domain>` by default). The public app contains no admin code and no admin link.
+Keeping them apart means a bug in a public page (say, an XSS in a shared open letter) runs on the
+public origin, away from an admin's session, and can't drive the admin API.
+
+**Signing in.** Browsers keep a wallet per origin, so the admin site has its own copy:
+
+1. In the app, open the Wallet page and create a recovery code for your admin wallet.
+2. Open `https://admin.<your domain>` and enter the code. The wallet is restored on this origin,
+   and you sign in with it from then on.
+
+Only admins and moderators can sign in there; other wallets get "not an admin or moderator".
+
+**Two kinds of session.** The proxy marks requests that arrive on the admin host
+(`X-Writeproof-Surface: admin`, set by Caddy on the admin host and stripped on the public one).
+The server stamps each token with the app it was issued for (`aud`: `writeproof-app` or
+`writeproof-admin`, see `Surface`):
+
+- An admin-app token is issued only to admins and moderators, carries their role, and works only
+  on `/api/admin/**`. It can't send letters or act as the user.
+- A public-app token never carries a role, so it opens nothing under `/api/admin/**`, even for an
+  admin.
+
+**Network rules** (`frontend/Caddyfile`):
+
+- The public host answers `404` for `/api/admin/**`.
+- The admin host routes only `/api/admin/**`, sign-in (`/api/auth/challenge`, `/api/auth/verify`),
+  wallet restore (`GET /api/backups/*`) and `/api/system/status`. Every other API path is `404`.
+- Optionally, `ADMIN_ALLOWED_IPS` (space-separated addresses or CIDR ranges) limits who can reach
+  the admin host at all; everyone else gets `403`. This is the strongest setting: a stolen wallet
+  then still needs one of those networks. See [deployment.md](deployment.md).
+
 Access rules (in `SecurityConfig`):
 
-- `GET /api/admin/me`: any signed-in account; returns `{role}`, which is null for ordinary
-  accounts.
+- `GET /api/admin/me`: any admin-app session; returns `{role}`.
 - `/api/admin/moderation/**`: ADMIN or MODERATOR.
 - every other `/api/admin/**` endpoint: ADMIN.
+- everything else that needs a login: public-app sessions only.
 
-In the app, the **Admin** link appears only for admins and moderators, and `/admin` is guarded.
-The server still checks every request.
+In the admin app, `/admin` is guarded and unauthenticated visits go to `/sign-in`. The server
+still checks every request.
+
+**Locally**, `npm run start:admin` (in `frontend/`) serves the admin app on `:4300`; its dev proxy
+adds the admin header the way Caddy does. The public app stays on `:4200`, a different origin.
 
 ## Dashboard (13a)
 

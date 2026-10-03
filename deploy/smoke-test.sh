@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
-# Checks a running deployment end to end through the proxy.
-# Usage: deploy/smoke-test.sh https://writeproof.example.com   (add -k via INSECURE=1 for localhost)
+# Checks a running deployment end to end through the proxy: the public app and the admin app.
+# Usage: deploy/smoke-test.sh https://writeproof.example.com [admin url]   (add -k via INSECURE=1
+# for localhost). The admin url defaults to the base url's host with "admin." in front.
 set -euo pipefail
-base="${1:?usage: $0 <base url>}"
+base="${1:?usage: $0 <base url> [admin url]}"
+admin_base="${2:-${base/:\/\//://admin.}}"
 curl_opts=(-sS --max-time 15)
 [[ "${INSECURE:-0}" == "1" ]] && curl_opts+=(-k)
 fail() { echo "FAIL: $*" >&2; exit 1; }
@@ -57,4 +59,24 @@ if [[ "$base" == https://* ]]; then
   [[ "$code" == "308" || "$code" == "301" ]] || fail "HTTP did not redirect to HTTPS ($code)"
   ok "HTTP redirects to HTTPS"
 fi
+code() { curl "${curl_opts[@]}" -o /dev/null -w '%{http_code}' "$@"; }
+
+# The admin app lives only on its own host (docs/admin.md).
+[[ "$(code "$base/api/admin/me")" == "404" ]] || fail "the admin API is reachable on the public host"
+main_js=$(curl "${curl_opts[@]}" "$base/$bundle")
+! grep -q "/api/admin" <<<"$main_js" || fail "admin code in the public app"
+ok "no admin API or admin code on the public host"
+
+admin_headers=$(curl "${curl_opts[@]}" -D - -o /tmp/writeproof-admin-index.html "$admin_base/")
+grep -qi "^HTTP/[0-9.]* 200" <<<"$admin_headers" || fail "admin app not served on $admin_base"
+grep -qi "^strict-transport-security: max-age=31536000" <<<"$admin_headers" || fail "admin host missing HSTS"
+grep -qi "^x-robots-tag: noindex" <<<"$admin_headers" || fail "admin host may be indexed"
+grep -q "form-action 'none'" /tmp/writeproof-admin-index.html || fail "admin CSP missing"
+ok "admin app served on its own host with its own CSP"
+
+# Reaches the API (401: no token), but only the admin API and sign-in are routed there.
+[[ "$(code "$admin_base/api/admin/me")" == "401" ]] || fail "admin API not reachable on the admin host"
+[[ "$(code "$admin_base/api/me")" == "404" ]] || fail "the public API is reachable on the admin host"
+ok "admin host routes only the admin API"
+
 echo "Smoke test passed."

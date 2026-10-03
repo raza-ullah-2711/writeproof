@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <!--
+      Production Content Security Policy for the admin app: as the public app's, but no data:
+      images, no base URL and no form submissions. Trusted Types make the DOM's script sinks refuse raw
+      strings, so an XSS bug can't easily turn into code running next to the wallet's keys.
+      frame-ancestors can't be set in a meta tag: the host must also send
+      "Content-Security-Policy: frame-ancestors 'none'" (see docs/security.md).
+    -->
+    <meta
+      http-equiv="Content-Security-Policy"
+      content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self'; font-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; require-trusted-types-for 'script'; trusted-types angular angular#bundler"
+    />
+    <meta name="referrer" content="no-referrer" />
+    <meta name="robots" content="noindex, nofollow" />
+    <title>Writeproof admin</title>
+    <base href="/" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+  </head>
+  <body>
+    <app-root></app-root>
+  </body>
+</html>

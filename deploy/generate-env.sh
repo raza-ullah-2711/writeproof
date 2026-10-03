@@ -18,9 +18,11 @@ fi
 umask 077
 cat > .env <<ENV
 DOMAIN=$1
+ADMIN_DOMAIN=admin.$1
 DB_PASSWORD=$(openssl rand -hex 24)
 JWT_SECRET=$(openssl rand -base64 32)
 HANDWRITING_DATA_KEY=$(openssl rand -base64 32)
 LEDGER_SIGNING_KEY=$(openssl rand -base64 32)
 ENV
 echo "Wrote deploy/.env (mode 600). Back it up somewhere safe and separate from the database backups."
+echo "Point DNS for $1 and admin.$1 (the admin app, see docs/admin.md) at this server."

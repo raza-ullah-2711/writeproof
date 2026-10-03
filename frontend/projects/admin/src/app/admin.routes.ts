@@ -9,7 +9,7 @@ import { adminOnlyGuard } from './admin-only.guard';
 import { AdminShell } from './admin-shell';
 import { AdminSystem } from './admin-system';
 
-/** The admin area, lazy-loaded behind adminGuard (app.routes.ts). */
+/** The admin area, behind adminGuard (admin-app.routes.ts). */
 export const ADMIN_ROUTES: Routes = [
   {
     path: '',

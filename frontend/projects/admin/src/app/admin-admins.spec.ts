@@ -1,7 +1,7 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { TestBed } from '@angular/core/testing';
 import { provideRouter } from '@angular/router';
-import { WalletService } from '../wallet/wallet.service';
+import { WalletService } from '@app/wallet/wallet.service';
 import { AdminAdmins } from './admin-admins';
 import { AdminTeam, TeamMember } from './admin-team';
 

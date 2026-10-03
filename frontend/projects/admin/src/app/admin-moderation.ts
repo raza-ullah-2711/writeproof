@@ -7,7 +7,7 @@ import {
   REPORT_CATEGORIES,
   ReportCategory,
   categoryLabel,
-} from '../open-letters/report-categories';
+} from '@app/open-letters/report-categories';
 import { Moderation, ModerationCase } from './moderation';
 
 interface Decision {

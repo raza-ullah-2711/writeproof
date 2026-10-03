@@ -1,5 +1,4 @@
 import { Routes } from '@angular/router';
-import { adminGuard } from './admin/admin.guard';
 import { Calibration } from './calibration/calibration';
 import { Capture } from './capture/capture';
 import { ContactsPage } from './contacts-page/contacts-page';
@@ -17,11 +16,8 @@ export const routes: Routes = [
   { path: 'open/:hash', component: OpenLetterView, title: 'Open letter · Writeproof' },
   { path: 'handwriting', component: Verify, title: 'Handwriting · Writeproof' },
   { path: 'capture', component: Capture, title: 'Capture playground · Writeproof' },
-  {
-    path: 'admin',
-    canMatch: [adminGuard],
-    // Loaded only for admins and moderators: everyone else never downloads the admin area.
-    loadChildren: () => import('./admin/admin.routes').then((m) => m.ADMIN_ROUTES),
-  },
+  // The admin area is a separate app on its own origin (projects/admin, docs/admin.md); old links
+  // to it here land on the home page.
+  { path: 'admin', redirectTo: '' },
   { path: 'calibration', component: Calibration, title: 'Help improve verification · Writeproof' },
 ];

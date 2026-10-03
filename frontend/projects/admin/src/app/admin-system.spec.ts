@@ -1,5 +1,5 @@
 import { TestBed } from '@angular/core/testing';
-import { SystemStatusService } from '../system/system-status.service';
+import { SystemStatusService } from '@app/system/system-status.service';
 import { AdminSystem } from './admin-system';
 import { SystemAdmin, SystemOverview } from './system-admin';
 

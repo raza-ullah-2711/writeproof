@@ -54,6 +54,9 @@ services:
         condition: service_healthy
     environment:
       DOMAIN: ${DOMAIN:?run deploy/generate-env.sh first}
+      ADMIN_DOMAIN: ${ADMIN_DOMAIN:?add ADMIN_DOMAIN (e.g. admin.your-domain) to deploy/.env; see docs/deployment.md}
+      # Optional: space-separated addresses or CIDR ranges allowed to reach the admin host.
+      ADMIN_ALLOWED_IPS: ${ADMIN_ALLOWED_IPS:-0.0.0.0/0 ::/0}
     ports:
       - "80:80"
       - "443:443"

@@ -72,10 +72,11 @@ class AdminManagementApiTests {
 
     @Test
     void grantChangeAndRevokeTakeEffectAtOnceAndAreAudited() throws Exception {
-        TestWallet person = TestWallet.create(rest);
-        assertThat(roleOf(person)).isNull();
+        TestWallet user = TestWallet.create(rest);
+        assertThat(user.adminSession(rest).token).isNull();
 
-        assertThat(grant(admin, address(person), "MODERATOR").getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        assertThat(grant(admin, address(user), "MODERATOR").getStatusCode()).isEqualTo(HttpStatus.NO_CONTENT);
+        TestWallet person = user.adminSession(rest);
         assertThat(roleOf(person)).isEqualTo("MODERATOR");
         assertThat(rest.exchange("/api/admin/moderation/queue", HttpMethod.GET, new HttpEntity<>(person.headers()),
                 List.class).getStatusCode()).isEqualTo(HttpStatus.OK);
@@ -110,8 +111,9 @@ class AdminManagementApiTests {
 
     @Test
     void protectsBootstrapAdminsAndYourOwnRole() throws Exception {
-        TestWallet other = TestWallet.create(rest);
-        grant(admin, address(other), "ADMIN");
+        TestWallet otherUser = TestWallet.create(rest);
+        grant(admin, address(otherUser), "ADMIN");
+        TestWallet other = otherUser.adminSession(rest);
 
         assertThat(grant(admin, address(admin), "MODERATOR").getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
         assertThat(revoke(admin, address(admin)).getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
@@ -136,8 +138,9 @@ class AdminManagementApiTests {
         assertThat(grant(admin, "not-an-address", "ADMIN").getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
         assertThat(grant(admin, address(suspended), "SUPERUSER").getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
 
-        TestWallet moderator = TestWallet.create(rest);
-        grant(admin, address(moderator), "MODERATOR");
+        TestWallet moderatorUser = TestWallet.create(rest);
+        grant(admin, address(moderatorUser), "MODERATOR");
+        TestWallet moderator = moderatorUser.adminSession(rest);
         TestWallet target = TestWallet.create(rest);
         assertThat(grant(moderator, address(target), "ADMIN").getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(rest.exchange("/api/admin/admins", HttpMethod.GET, new HttpEntity<>(moderator.headers()),

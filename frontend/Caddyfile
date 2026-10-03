@@ -1,10 +1,10 @@
-# Production host for Writeproof. {$DOMAIN} gets a certificate automatically (Let's Encrypt for
-# a public name; Caddy's own local CA for "localhost"). HTTP redirects to HTTPS.
-{$DOMAIN} {
-	encode zstd gzip
+# Production hosts for Writeproof: the public app on {$DOMAIN}, the admin app on its own origin,
+# {$ADMIN_DOMAIN}. Each gets a certificate automatically (Let's Encrypt for a public name; Caddy's
+# own local CA for "localhost" names). HTTP redirects to HTTPS. See docs/deployment.md.
 
-	# The headers docs/security.md asks the host for. frame-ancestors can't be set in the
-	# page's meta CSP, so it is sent here; the meta policy (with Trusted Types) still applies.
+# The headers docs/security.md asks the host for. frame-ancestors can't be set in the page's meta
+# CSP, so it is sent here; the meta policy (with Trusted Types) still applies.
+(security_headers) {
 	header {
 		Strict-Transport-Security "max-age=31536000; includeSubDomains"
 		Content-Security-Policy "frame-ancestors 'none'"
@@ -14,7 +14,31 @@
 		Cross-Origin-Opener-Policy same-origin
 		-Server
 	}
+}
 
+# A built Angular app: hashed bundles never change; everything else (index.html, the SPA
+# fallback) is revalidated.
+(spa) {
+	root * {args[0]}
+	@hashed path_regexp \-[A-Z0-9]{8}\.(js|css)$
+	header @hashed Cache-Control "public, max-age=31536000, immutable"
+	@other not path_regexp \-[A-Z0-9]{8}\.(js|css)$
+	header @other Cache-Control "no-cache"
+	try_files {path} /index.html
+	file_server
+}
+
+{$DOMAIN} {
+	encode zstd gzip
+	import security_headers
+
+	# Only the admin host may say a request is the admin app's (see backend Surface).
+	request_header -X-Writeproof-Surface
+
+	# The admin API is not served here at all, whatever token comes with the request.
+	handle /api/admin* {
+		respond 404
+	}
 	# Same origin for the API: no CORS needed or allowed.
 	handle /api/* {
 		reverse_proxy backend:8080
@@ -25,13 +49,34 @@
 	}
 
 	handle {
-		root * /srv
-		# Hashed bundles never change; everything else (index.html, the SPA fallback) is revalidated.
-		@hashed path_regexp \-[A-Z0-9]{8}\.(js|css)$
-		header @hashed Cache-Control "public, max-age=31536000, immutable"
-		@other not path_regexp \-[A-Z0-9]{8}\.(js|css)$
-		header @other Cache-Control "no-cache"
-		try_files {path} /index.html
-		file_server
+		import spa /srv/app
+	}
+}
+
+{$ADMIN_DOMAIN} {
+	encode zstd gzip
+	import security_headers
+	header X-Robots-Tag "noindex, nofollow"
+
+	# Optional allowlist: ADMIN_ALLOWED_IPS, space-separated addresses or CIDR ranges.
+	@outside not remote_ip {$ADMIN_ALLOWED_IPS:0.0.0.0/0 ::/0}
+	# Only what the admin app uses, marked as the admin app's: the server issues admin-app tokens
+	# only here, and accepts them only on the admin API.
+	@api path /api/admin /api/admin/* /api/auth/challenge /api/auth/verify /api/backups/* /api/system/status
+
+	# route keeps this order: Caddy would otherwise run the handle blocks before the allowlist.
+	route {
+		respond @outside 403
+		handle @api {
+			reverse_proxy backend:8080 {
+				header_up X-Writeproof-Surface admin
+			}
+		}
+		handle /api/* {
+			respond 404
+		}
+		handle {
+			import spa /srv/admin
+		}
 	}
 }
