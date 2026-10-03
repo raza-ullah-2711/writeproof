@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { ReportCategory } from '../open-letters/report-categories';
+import { ReportCategory } from '@app/open-letters/report-categories';
 
 export interface Report {
   id: number;

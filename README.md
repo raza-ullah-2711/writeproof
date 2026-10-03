@@ -17,11 +17,11 @@ and the per-feature docs: [identity](docs/identity.md),
 
 ## Layout
 
-| Path        | What                                         |
-| ----------- | -------------------------------------------- |
-| `backend/`  | Spring Boot 3 API (Java 21, Maven, Flyway)   |
-| `frontend/` | Angular app (standalone components, signals) |
-| `docs/`     | Architecture and design notes                |
+| Path        | What                                                     |
+| ----------- | -------------------------------------------------------- |
+| `backend/`  | Spring Boot 3 API (Java 21, Maven, Flyway)               |
+| `frontend/` | Angular apps: public (`src/`), admin (`projects/admin/`) |
+| `docs/`     | Architecture and design notes                            |
 
 ## Running locally
 
@@ -38,6 +38,7 @@ set -a; . ../.env; set +a
 cd ../frontend
 npm ci
 npm start
+npm run start:admin            # the admin app, on its own origin: http://localhost:4300
 ```
 
 ## Deploying

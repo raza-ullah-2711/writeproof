@@ -96,12 +96,21 @@ sealed letters, contacts or handwriting, and every admin action goes to the appe
 `admin_audit_log`. A forced sign-out rejects every token issued before it on the next request;
 the app forgets a token the server rejects (401). See [admin.md](admin.md).
 
+The admin side is a separate app on its own origin (`ADMIN_DOMAIN`), so script running on a
+public page can't reach an admin's session. The public host doesn't route `/api/admin/**`; the
+admin host routes only the admin API and sign-in. Tokens are bound to the app they were issued for
+(`aud`), so a public-app token never carries a role and an admin-app token can't act as the user.
+The admin app's CSP is stricter (no `data:` images, `base-uri 'none'`, `form-action 'none'`), and
+`ADMIN_ALLOWED_IPS` can restrict the admin host to known networks.
+
 ## Configuration
 
 | Variable                      | Required | Purpose                                        |
 | ----------------------------- | -------- | ---------------------------------------------- |
 | `HANDWRITING_DATA_KEY`        | yes      | base64 AES-256 key for handwriting at rest     |
 | `ADMIN_PUBLIC_KEYS`           | no       | wallet addresses that are always admins        |
+| `ADMIN_DOMAIN`                | yes      | the admin app's own host (deploy/compose.yml)  |
+| `ADMIN_ALLOWED_IPS`           | no       | networks allowed to reach the admin host       |
 | `LEDGER_SIGNING_KEY`          | yes      | base64 Ed25519 seed signing ledger checkpoints |
 | `LEDGER_PREVIOUS_SIGNING_KEY` | no       | only while rotating: the key being retired     |
 | `HANDWRITING_EXPOSE_SCORES`   | no       | `true` to return scores (development only)     |

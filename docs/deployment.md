@@ -14,8 +14,15 @@ up to 20s).
 
 ## First deployment
 
-Needs a Linux host with Docker (Compose v2), ports 80/443 open, and a DNS `A`/`AAAA` record
-for your domain pointing at it.
+Needs a Linux host with Docker (Compose v2), ports 80/443 open, and DNS `A`/`AAAA` records for
+your domain **and** for the admin app's host (`admin.<your domain>`, `ADMIN_DOMAIN` in
+`deploy/.env`) pointing at it. See [admin.md](admin.md) for why admin has its own host.
+
+To limit the admin host to known networks, add `ADMIN_ALLOWED_IPS` to `deploy/.env`
+(space-separated addresses or CIDR ranges, e.g. `ADMIN_ALLOWED_IPS=203.0.113.7/32 10.8.0.0/24`).
+Everyone else gets `403` there; the public host is unaffected. Caddy must see real client
+addresses for this: check by setting it to your own address and confirming the admin host still
+opens for you and not from elsewhere.
 
 ```bash
 git clone https://github.com/raza-ullah-2711/writeproof && cd writeproof
@@ -24,8 +31,9 @@ docker compose -f deploy/compose.yml up -d --build --wait
 ./deploy/smoke-test.sh https://writeproof.example.com
 ```
 
-Caddy obtains a Let's Encrypt certificate on first request. To try it locally, use
-`generate-env.sh localhost` (Caddy's local CA) and `INSECURE=1 ./deploy/smoke-test.sh https://localhost`.
+Caddy obtains a Let's Encrypt certificate for each host on first request. To try it locally, use
+`generate-env.sh localhost` (Caddy's local CA; the admin app is then on `https://admin.localhost`)
+and `INSECURE=1 ./deploy/smoke-test.sh https://localhost`.
 
 **Back up `deploy/.env` now, separately from database backups.** It holds:
 
@@ -47,6 +55,11 @@ git pull
 docker compose -f deploy/compose.yml up -d --build --wait
 ./deploy/smoke-test.sh https://writeproof.example.com
 ```
+
+Upgrading a stack created before the separate admin app: add its host once,
+`echo "ADMIN_DOMAIN=admin.writeproof.example.com" >> deploy/.env`, and point DNS for it at the
+server. Compose refuses to start the web service without it. Admins then sign in at that host
+(see [admin.md](admin.md)); `/admin` on the public host now just opens the app.
 
 Upgrading a stack created before the independent ledger (Task 10): add a ledger key once:
 `echo "LEDGER_SIGNING_KEY=$(openssl rand -base64 32)" >> deploy/.env`. Change it afterwards only
@@ -94,7 +107,10 @@ smoke test passed.
 - SPA routes fall back to the app, and hashed bundles are cached immutably;
 - registering an account works end to end;
 - no actuator endpoint other than health is reachable;
-- HTTP redirects to HTTPS.
+- HTTP redirects to HTTPS;
+- the public host serves no admin API and no admin code;
+- the admin app is served on its own host (`admin.` + the base host, or the second argument) with
+  HSTS, `noindex` and its own CSP, and that host routes only the admin API.
 
 ## Operational notes
 

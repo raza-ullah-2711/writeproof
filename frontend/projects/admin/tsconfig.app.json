@@ -1,0 +1,9 @@
+/* The admin app (see docs/admin.md). It builds from its own sources plus the shared code it imports. */
+{
+  "extends": "../../tsconfig.json",
+  "compilerOptions": {
+    "types": []
+  },
+  "include": ["src/**/*.ts"],
+  "exclude": ["src/**/*.spec.ts", "src/test-setup.ts"]
+}

@@ -1,5 +1,6 @@
 package com.writeproof.auth;
 
+import com.writeproof.admin.AdminRoles;
 import com.writeproof.identity.Account;
 import com.writeproof.identity.AccountRepository;
 import com.writeproof.identity.Ed25519;
@@ -25,6 +26,7 @@ class ChallengeService {
     private final AccountRepository accounts;
     private final ChallengeRepository challenges;
     private final TokenService tokens;
+    private final AdminRoles roles;
     private final AuthProperties properties;
     private final Clock clock;
     private final SecureRandom random = new SecureRandom();
@@ -33,11 +35,13 @@ class ChallengeService {
             AccountRepository accounts,
             ChallengeRepository challenges,
             TokenService tokens,
+            AdminRoles roles,
             AuthProperties properties,
             Clock clock) {
         this.accounts = accounts;
         this.challenges = challenges;
         this.tokens = tokens;
+        this.roles = roles;
         this.properties = properties;
         this.clock = clock;
     }
@@ -54,14 +58,18 @@ class ChallengeService {
         return new IssuedChallenge(id, nonce, expiresAt);
     }
 
-    TokenService.IssuedToken verify(UUID challengeId, byte[] signature) {
+    /** Signs the account in on {@code surface}; only admins and moderators may sign in to the admin app. */
+    TokenService.IssuedToken verify(UUID challengeId, byte[] signature, Surface surface) {
         ChallengeRepository.ConsumedChallenge challenge = challenges.consume(challengeId, clock.instant())
                 .orElseThrow(() -> unauthorized("Challenge is unknown, expired or already used"));
         byte[] message = LoginMessage.of(challengeId, challenge.nonce());
         if (!Ed25519.verify(challenge.publicKey(), message, signature)) {
             throw unauthorized("Signature does not verify");
         }
-        return tokens.issue(challenge.accountId());
+        if (surface == Surface.ADMIN && roles.roleOf(challenge.accountId()).isEmpty()) {
+            throw new ResponseStatusException(HttpStatus.FORBIDDEN, "This wallet is not an admin or moderator");
+        }
+        return tokens.issue(challenge.accountId(), surface);
     }
 
     @Scheduled(fixedDelayString = "PT10M")

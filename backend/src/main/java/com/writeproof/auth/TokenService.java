@@ -2,6 +2,7 @@ package com.writeproof.auth;
 
 import java.time.Clock;
 import java.time.Instant;
+import java.util.List;
 import java.util.UUID;
 import org.springframework.security.oauth2.jose.jws.MacAlgorithm;
 import org.springframework.security.oauth2.jwt.JwsHeader;
@@ -27,12 +28,13 @@ class TokenService {
         this.clock = clock;
     }
 
-    IssuedToken issue(UUID accountId) {
+    IssuedToken issue(UUID accountId, Surface surface) {
         Instant now = clock.instant();
         Instant expiresAt = now.plus(properties.tokenTtl());
         JwtClaimsSet claims = JwtClaimsSet.builder()
                 .issuer(ISSUER)
                 .subject(accountId.toString())
+                .audience(List.of(surface.audience()))
                 .issuedAt(now)
                 .expiresAt(expiresAt)
                 .id(UUID.randomUUID().toString())

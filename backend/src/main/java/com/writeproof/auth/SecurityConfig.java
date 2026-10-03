@@ -58,12 +58,13 @@ class SecurityConfig {
                         // Open letters are public to anyone with the link.
                         .requestMatchers(HttpMethod.GET, "/api/open-letters/*", "/api/system/status").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/open-letters/*/reports").permitAll()
-                        // Admin area: any signed-in account may ask whether it is an admin;
-                        // moderation is open to moderators; everything else needs ADMIN.
-                        .requestMatchers(HttpMethod.GET, "/api/admin/me").authenticated()
+                        // Admin area, only with an admin-app token (roles come only with one; see
+                        // Surface): moderation is open to moderators, everything else needs ADMIN.
+                        .requestMatchers(HttpMethod.GET, "/api/admin/me").hasAuthority(Surface.ADMIN.authority())
                         .requestMatchers("/api/admin/moderation/**").hasAnyRole("ADMIN", "MODERATOR")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
-                        .anyRequest().authenticated())
+                        // Everything else is the public app's: an admin-app token can't act as the user.
+                        .anyRequest().hasAuthority(Surface.APP.authority()))
                 .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(accounts)))
                 // A JSON API: nothing it returns should ever render, frame, or leak a referrer.
                 .headers(headers -> headers

@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { SystemStatus } from '../system/system-status.service';
+import { SystemStatus } from '@app/system/system-status.service';
 
 export interface SystemOverview {
   settings: SystemStatus;

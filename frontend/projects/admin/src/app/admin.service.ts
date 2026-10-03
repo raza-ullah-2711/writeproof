@@ -1,7 +1,7 @@
 import { HttpClient } from '@angular/common/http';
 import { Injectable, effect, inject, signal } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
-import { AuthService } from '../auth/auth.service';
+import { AdminAuth } from './admin-auth.service';
 
 export type AdminRole = 'ADMIN' | 'MODERATOR';
 
@@ -68,7 +68,7 @@ export interface AuditEntry {
 @Injectable({ providedIn: 'root' })
 export class AdminService {
   private readonly http = inject(HttpClient);
-  private readonly auth = inject(AuthService);
+  private readonly auth = inject(AdminAuth);
 
   private readonly _role = signal<AdminRole | null>(null);
   /** Null for ordinary accounts (and while signed out). */

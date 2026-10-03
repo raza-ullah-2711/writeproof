@@ -56,7 +56,9 @@ class AdminApiTests {
     void ordinaryAccountsAreNotAdmins() throws Exception {
         TestWallet user = TestWallet.create(rest);
 
-        assertThat(get(user, "/api/admin/me").getBody()).containsEntry("role", null);
+        // They can't sign in to the admin app, and their public-app token opens nothing there.
+        assertThat(user.adminSession(rest).token).isNull();
+        assertThat(get(user, "/api/admin/me").getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(get(user, "/api/admin/dashboard").getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(get(user, "/api/admin/audit").getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(rest.getForEntity("/api/admin/me", Map.class).getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
@@ -74,20 +76,34 @@ class AdminApiTests {
     }
 
     @Test
-    void rolesComeFromTheTableAndTakeEffectWithoutSigningInAgain() throws Exception {
-        TestWallet moderator = TestWallet.create(rest);
-        TestWallet admin = TestWallet.create(rest);
-        assertThat(get(admin, "/api/admin/dashboard").getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
-
-        grant(moderator, AdminRole.MODERATOR);
-        grant(admin, AdminRole.ADMIN);
+    void rolesComeFromTheTableAndRevokingOneTakesEffectWithoutSigningInAgain() throws Exception {
+        TestWallet moderatorUser = TestWallet.create(rest);
+        TestWallet adminUser = TestWallet.create(rest);
+        grant(moderatorUser, AdminRole.MODERATOR);
+        grant(adminUser, AdminRole.ADMIN);
+        TestWallet moderator = moderatorUser.adminSession(rest);
+        TestWallet admin = adminUser.adminSession(rest);
 
         assertThat(get(moderator, "/api/admin/me").getBody()).containsEntry("role", "MODERATOR");
         assertThat(get(moderator, "/api/admin/dashboard").getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
         assertThat(get(admin, "/api/admin/dashboard").getStatusCode()).isEqualTo(HttpStatus.OK);
+        // Their public-app sessions stay ordinary, roles or not.
+        assertThat(get(adminUser, "/api/admin/dashboard").getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
 
         jdbc.sql("DELETE FROM admin_roles WHERE public_key = :k").param("k", admin.publicKey).update();
         assertThat(get(admin, "/api/admin/dashboard").getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+    }
+
+    @Test
+    void anAdminAppTokenWorksOnlyInTheAdminApp() throws Exception {
+        TestWallet admin = TestWallet.bootstrapAdmin(rest);
+        TestWallet asUser = TestWallet.create(rest, admin.identity);
+
+        assertThat(get(admin, "/api/admin/dashboard").getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(get(admin, "/api/me").getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(get(asUser, "/api/me").getStatusCode()).isEqualTo(HttpStatus.OK);
+        assertThat(get(asUser, "/api/admin/me").getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
+        assertThat(get(asUser, "/api/admin/dashboard").getStatusCode()).isEqualTo(HttpStatus.FORBIDDEN);
     }
 
     @Test

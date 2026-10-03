@@ -64,6 +64,7 @@ class ModerationApiTests {
         moderator = TestWallet.create(rest);
         jdbc.sql("INSERT INTO admin_roles (public_key, role, granted_at) VALUES (:k, 'MODERATOR', :at)")
                 .param("k", moderator.publicKey).param("at", OffsetDateTime.now(ZoneOffset.UTC)).update();
+        moderator = moderator.adminSession(rest);
         admin = TestWallet.bootstrapAdmin(rest);
     }
 

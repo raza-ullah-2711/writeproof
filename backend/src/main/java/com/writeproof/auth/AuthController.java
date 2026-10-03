@@ -8,6 +8,7 @@ import java.time.Instant;
 import java.util.UUID;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
+import org.springframework.web.bind.annotation.RequestHeader;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
@@ -35,9 +36,12 @@ class AuthController {
         return new ChallengeResponse(issued.challengeId(), Base64Url.encode(issued.nonce()), issued.expiresAt());
     }
 
+    /** The token is for the app the request came through: see {@link Surface}. */
     @PostMapping("/verify")
-    TokenResponse verify(@Valid @RequestBody VerifyRequest request) {
-        TokenService.IssuedToken token = challenges.verify(request.challengeId(), Base64Url.decode(request.signature()));
+    TokenResponse verify(@Valid @RequestBody VerifyRequest request,
+                         @RequestHeader(name = Surface.HEADER, required = false) String surface) {
+        TokenService.IssuedToken token = challenges.verify(request.challengeId(), Base64Url.decode(request.signature()),
+                Surface.fromHeader(surface));
         return new TokenResponse(token.token(), token.expiresAt());
     }
 }

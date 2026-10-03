@@ -1,6 +1,7 @@
 package com.writeproof;
 
 import com.writeproof.auth.LoginMessage;
+import com.writeproof.auth.Surface;
 import com.writeproof.common.Base64Url;
 import com.writeproof.identity.EncryptionKeyBinding;
 import java.security.KeyPair;
@@ -37,7 +38,7 @@ public final class TestWallet {
         return create(rest, KeyPairGenerator.getInstance("Ed25519").generateKeyPair());
     }
 
-    /** The bootstrap admin of the test profile (seed 0x42 x 32; see application-test.yml). */
+    /** The bootstrap admin of the test profile (seed 0x42 x 32; see application-test.yml), signed in to the admin app. */
     public static TestWallet bootstrapAdmin(TestRestTemplate rest) throws Exception {
         byte[] seed = new byte[32];
         java.util.Arrays.fill(seed, (byte) 0x42);
@@ -48,21 +49,34 @@ public final class TestWallet {
                 System.arraycopy(seed, 0, bytes, 0, Math.min(seed.length, bytes.length));
             }
         });
-        return create(rest, generator.generateKeyPair());
+        return create(rest, generator.generateKeyPair()).adminSession(rest);
     }
 
-    /** Registers (if new) and logs in the given wallet. */
+    /** Registers (if new) and logs the given wallet in to the public app. */
     public static TestWallet create(TestRestTemplate rest, KeyPair wallet) throws Exception {
+        rest.postForEntity("/api/accounts", Map.of("publicKey", Base64Url.encode(raw(wallet))), Map.class);
+        return logIn(rest, wallet, Surface.APP);
+    }
+
+    /** The same wallet signed in to the admin app, as the admin host's proxy marks it (see Surface). */
+    public TestWallet adminSession(TestRestTemplate rest) throws Exception {
+        return logIn(rest, identity, Surface.ADMIN);
+    }
+
+    private static TestWallet logIn(TestRestTemplate rest, KeyPair wallet, Surface surface) throws Exception {
         byte[] raw = raw(wallet);
-        String publicKey = Base64Url.encode(raw);
-        rest.postForEntity("/api/accounts", Map.of("publicKey", publicKey), Map.class);
-        Map<?, ?> challenge = rest.postForEntity("/api/auth/challenge", Map.of("publicKey", publicKey), Map.class).getBody();
+        Map<?, ?> challenge = rest.postForEntity("/api/auth/challenge", Map.of("publicKey", Base64Url.encode(raw)),
+                Map.class).getBody();
         byte[] signature = sign(wallet.getPrivate(), LoginMessage.of(
                 UUID.fromString((String) challenge.get("challengeId")), Base64Url.decode((String) challenge.get("nonce"))));
-        Map<?, ?> token = rest.postForEntity("/api/auth/verify",
-                Map.of("challengeId", challenge.get("challengeId"), "signature", Base64Url.encode(signature)),
+        HttpHeaders headers = new HttpHeaders();
+        if (surface == Surface.ADMIN) {
+            headers.set(Surface.HEADER, "admin");
+        }
+        Map<?, ?> token = rest.postForEntity("/api/auth/verify", new HttpEntity<>(
+                Map.of("challengeId", challenge.get("challengeId"), "signature", Base64Url.encode(signature)), headers),
                 Map.class).getBody();
-        return new TestWallet(wallet, raw, (String) token.get("token"));
+        return new TestWallet(wallet, raw, token == null ? null : (String) token.get("token"));
     }
 
     /** Generates an X25519 key, signs the binding with the identity key and registers it. */
