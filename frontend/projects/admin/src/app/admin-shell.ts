@@ -61,13 +61,15 @@ import { AdminService } from './admin.service';
     }
     .admin-nav {
       display: flex;
-      gap: 1rem;
+      flex-wrap: wrap;
+      gap: 0.25rem 1rem;
       border-bottom: 1px solid var(--border);
       padding-bottom: 0.5rem;
       margin-bottom: 1rem;
     }
     .admin-nav a {
       color: var(--text);
+      white-space: nowrap;
     }
     .admin-nav a.active {
       font-weight: 600;
