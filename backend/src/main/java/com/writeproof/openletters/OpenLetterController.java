@@ -53,6 +53,8 @@ class OpenLetterController {
 
     record ReportRequest(@NotBlank String category, @Size(max = 500) String note) {}
 
+    record AppealRequest(@NotBlank @Size(max = 1000) String text) {}
+
     private final OpenLetterService letters;
 
     OpenLetterController(OpenLetterService letters) {
@@ -71,6 +73,14 @@ class OpenLetterController {
     @GetMapping("/api/me/open-letters")
     List<OpenLetterResponse> mine(@AuthenticationPrincipal Jwt jwt) {
         return letters.byAuthor(UUID.fromString(jwt.getSubject())).stream().map(OpenLetterResponse::of).toList();
+    }
+
+    /** The author appeals a takedown of their letter while it can still be restored. */
+    @PostMapping("/api/me/open-letters/{letterHash}/appeal")
+    ResponseEntity<Void> appeal(@AuthenticationPrincipal Jwt jwt, @PathVariable String letterHash,
+                                @Valid @RequestBody AppealRequest request) {
+        letters.appeal(UUID.fromString(jwt.getSubject()), hash32(letterHash), request.text());
+        return ResponseEntity.accepted().build();
     }
 
     @GetMapping("/api/open-letters/{letterHash}")

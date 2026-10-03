@@ -12,7 +12,16 @@ export interface Report {
   resolution: 'dismissed' | 'removed' | null;
 }
 
-/** Mirrors backend `ModerationService.Case`. `body` is null once removed. */
+/** A takedown still on hold: hidden, text kept until `deleteAfter` unless appealed. */
+export interface Hold {
+  category: ReportCategory;
+  heldAt: string;
+  deleteAfter: string;
+  appeal: string | null;
+  appealedAt: string | null;
+}
+
+/** Mirrors backend `ModerationService.Case`. `body` is null once removed (moderators see it during a hold). */
 export interface ModerationCase {
   letterHash: string;
   author: string;
@@ -24,6 +33,7 @@ export interface ModerationCase {
   firstReportedAt: string | null;
   reports: Report[];
   removal: { category: ReportCategory; at: string; by: string } | null;
+  hold: Hold | null;
 }
 
 /** Moderation API (moderators and admins). Every decision is audited server-side. */
@@ -33,6 +43,31 @@ export class Moderation {
 
   queue(): Promise<ModerationCase[]> {
     return firstValueFrom(this.http.get<ModerationCase[]>('/api/admin/moderation/queue'));
+  }
+
+  /** Takedowns their authors appealed, oldest first. */
+  appeals(): Promise<ModerationCase[]> {
+    return firstValueFrom(this.http.get<ModerationCase[]>('/api/admin/moderation/appeals'));
+  }
+
+  /** Reverses a takedown still on hold (grants an appeal). */
+  restore(hash: string, note: string): Promise<ModerationCase> {
+    return firstValueFrom(
+      this.http.post<ModerationCase>(
+        `/api/admin/moderation/letters/${encodeURIComponent(hash)}/restore`,
+        { note },
+      ),
+    );
+  }
+
+  /** Confirms a takedown still on hold (rejects an appeal): the text is deleted now. */
+  uphold(hash: string, note: string): Promise<ModerationCase> {
+    return firstValueFrom(
+      this.http.post<ModerationCase>(
+        `/api/admin/moderation/letters/${encodeURIComponent(hash)}/uphold`,
+        { note },
+      ),
+    );
   }
 
   letter(hash: string): Promise<ModerationCase> {

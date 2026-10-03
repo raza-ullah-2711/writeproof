@@ -1,3 +1,4 @@
+import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -19,7 +20,7 @@ import { SystemStatusService } from '../system/system-status.service';
 
 @Component({
   selector: 'app-open-letters-page',
-  imports: [FormsModule, RouterLink, HandwritingPad],
+  imports: [DatePipe, FormsModule, RouterLink, HandwritingPad],
   templateUrl: './open-letters-page.html',
   styleUrl: './open-letters-page.scss',
 })
@@ -36,6 +37,8 @@ export class OpenLettersPage {
   protected readonly error = signal<string | null>(null);
   protected readonly published = signal<OpenLetter | null>(null);
   protected readonly copied = signal<string | null>(null);
+  /** Appeal drafts, by letter hash. */
+  protected readonly appealText = signal<Record<string, string>>({});
   protected readonly maxLength = MAX_OPEN_LETTER_LENGTH;
   protected readonly label = categoryLabel;
   /** Publishing is permanent and public, so it takes an explicit confirmation. */
@@ -79,6 +82,17 @@ export class OpenLettersPage {
       } finally {
         this.pad()?.clear();
       }
+    });
+  }
+
+  protected setAppealText(letterHash: string, text: string): void {
+    this.appealText.update((all) => ({ ...all, [letterHash]: text }));
+  }
+
+  protected sendAppeal(letterHash: string): Promise<void> {
+    return this.run(async () => {
+      await this.openLetters.appeal(letterHash, this.appealText()[letterHash] ?? '');
+      this.mine.set(await this.openLetters.mine());
     });
   }
 

@@ -102,7 +102,7 @@ public class OpenLetterService {
 
     /** Report categories, shared with moderation (and the open_letter_reports check constraint). */
     public static final List<String> REPORT_CATEGORIES = List.of("spam", "harassment", "illegal", "impersonation",
-            "other");
+            "child_safety", "copyright", "other");
 
     /**
      * Files a reader's report. {@code reporterId} is null for readers without an account; a
@@ -122,6 +122,21 @@ public class OpenLetterService {
         }
         if (!letters.report(letterHash, reporterId, category, trimmed, clock.instant())) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "You already reported this letter");
+        }
+    }
+
+    /**
+     * The author appeals a takedown while it is still a hold (docs/launch-policies.md, T4): the text
+     * then waits for a moderator's decision instead of being deleted when the window ends.
+     */
+    public void appeal(UUID authorId, byte[] letterHash, String text) {
+        String trimmed = text == null ? "" : text.trim();
+        if (trimmed.isEmpty() || trimmed.length() > 1000) {
+            throw new IllegalArgumentException("An appeal needs 1 to 1000 characters");
+        }
+        if (!letters.appeal(letterHash, authorId, trimmed, clock.instant())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT,
+                    "There's no takedown of your letter that can still be appealed");
         }
     }
 

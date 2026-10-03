@@ -32,7 +32,9 @@ public class BiometricKeyRotation implements InitializingBean {
                     BiometricCipher::enrolmentContext),
             new Column("handwriting_history", "id", "account_id", "sample_encrypted", BiometricCipher::historyContext),
             new Column("calibration_samples", "id", "contributor_id", "sample_encrypted",
-                    BiometricCipher::calibrationContext));
+                    BiometricCipher::calibrationContext),
+            new Column("preserved_content", "letter_hash", "author_id", "body_encrypted",
+                    BiometricCipher::preservationContext));
 
     private final BiometricCipher cipher;
     private final JdbcClient jdbc;

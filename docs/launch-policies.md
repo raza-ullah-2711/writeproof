@@ -89,9 +89,10 @@ Recommended grounds: content that is illegal where you operate; child sexual abu
 exploitation; harassment or threats; impersonation; spam; copyright infringement (through
 DMCA notices).
 **Decided** (see the table): the list, and whether "something else" can lead to removal.
-*Needs code:* for the child-abuse category, the removal must first copy the text and its
-metadata to a restricted, encrypted preservation store kept for 1 year, then blank the public
-text. NCMEC reporting is a manual step in the procedure.
+**Built (Task 7b).** A child-safety removal preserves the text and its metadata, encrypted, for 1
+year (`preserved_content`, admin-only, every read audited), then blanks the public text and
+suspends the author. NCMEC reporting stays a manual step; admins record the report number on the
+Preserved page. See [admin.md](admin.md), "Moderation".
 
 **T2. How people can ask.** Recommended: the report button for users. Add a legal-notices
 email address (copyright notices, legal requests, image requests under the TAKE IT DOWN Act) and
@@ -199,5 +200,5 @@ browser afterwards.
 4. Build the code they need. Two pieces should land before launch:
    - **Task 7a, account deletion:** "close and forget" as above. *Done.*
    - **Task 7b, moderation compliance:** preservation before removing child-abuse content, a
-     copyright route, and appeals with hide-then-delete. Blocking and recipient-disclosed
-     reports for sealed letters can follow.
+     copyright route, and appeals with hide-then-delete. *Done*, with the 3-strikes suspension.
+     Blocking and recipient-disclosed reports for sealed letters (T5) are next.

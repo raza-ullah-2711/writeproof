@@ -35,6 +35,7 @@ const CASE: ModerationCase = {
     },
   ],
   removal: null,
+  hold: null,
 };
 
 describe('AdminModeration', () => {
@@ -54,6 +55,9 @@ describe('AdminModeration', () => {
       }),
       dismiss: vi.fn().mockResolvedValue(undefined),
       remove: vi.fn().mockResolvedValue({ ...CASE, body: null }),
+      appeals: vi.fn().mockResolvedValue([]),
+      restore: vi.fn().mockResolvedValue(CASE),
+      uphold: vi.fn().mockResolvedValue({ ...CASE, body: null }),
     };
     await TestBed.configureTestingModule({
       imports: [AdminModeration],
@@ -96,11 +100,11 @@ describe('AdminModeration', () => {
     button(el, 'Remove').click();
     await fixture.whenStable();
     expect(el.querySelector<HTMLSelectElement>('select[name=category]')!.value).toBe('spam');
-    button(el, 'Remove permanently').click();
+    button(el, 'Remove').click();
     await vi.waitFor(() => expect(el.querySelector('.notice')).not.toBeNull());
 
     expect(service['remove']).toHaveBeenCalledWith('h1', 'spam', '');
-    expect(el.querySelector('.notice')?.textContent).toContain('Letter removed');
+    expect(el.querySelector('.notice')?.textContent).toContain('Letter hidden');
     expect(service['queue']).toHaveBeenCalledTimes(2);
   });
 
@@ -145,5 +149,51 @@ describe('AdminModeration', () => {
     expect(router.serializeUrl(run() as never)).toBe('/admin/moderation');
     role.set('ADMIN');
     expect(run()).toBe(true);
+  });
+
+  it('lists appeals first, and restores a letter after confirmation', async () => {
+    const appealed = {
+      ...CASE,
+      letterHash: 'h2',
+      openReports: 0,
+      openReportsByCategory: {},
+      reports: [],
+      hold: {
+        category: 'spam',
+        heldAt: '2026-10-01T00:00:00Z',
+        deleteAfter: '2026-10-15T00:00:00Z',
+        appeal: 'It was a joke between friends',
+        appealedAt: '2026-10-02T00:00:00Z',
+      },
+    };
+    service['appeals'].mockResolvedValue([appealed]);
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+
+    expect(el.textContent).toContain('Appeals (1)');
+    expect(el.textContent).toContain('It was a joke between friends');
+    button(el, 'Restore').click();
+    await fixture.whenStable();
+    button(el, 'Restore the letter').click();
+    await vi.waitFor(() => expect(el.querySelector('.notice')).not.toBeNull());
+
+    expect(service['restore']).toHaveBeenCalledWith('h2', '');
+    expect(el.querySelector('.notice')?.textContent).toContain('public again');
+  });
+
+  it('warns before a child-safety removal', async () => {
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+
+    button(el, 'Remove').click();
+    await fixture.whenStable();
+    const select = el.querySelector<HTMLSelectElement>('select[name=category]')!;
+    select.value = 'child_safety';
+    select.dispatchEvent(new Event('change'));
+    fixture.detectChanges();
+    await fixture.whenStable();
+
+    expect(el.querySelector('.warn')?.textContent).toContain('NCMEC');
+    expect(button(el, 'Remove and preserve')).toBeTruthy();
   });
 });

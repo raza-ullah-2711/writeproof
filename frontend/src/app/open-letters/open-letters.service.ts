@@ -25,8 +25,12 @@ export interface OpenLetter {
   /** Similarity Writeproof measured when it was published. */
   handwritingScore: number;
   ledger: LedgerEntry;
-  /** Set when a moderator removed the text; the record and its ledger entry remain. */
-  removed: { category: string; at: string } | null;
+  /**
+   * Set when a moderator took the letter down (or its author withdrew it); the record and its
+   * ledger entry remain. While `appealUntil` is set the text still exists, hidden, and the author
+   * may appeal until then; `appealed` once they have.
+   */
+  removed: { category: string; at: string; appealUntil?: string | null; appealed?: boolean } | null;
 }
 
 /** What the reader's own browser established. */
@@ -89,6 +93,13 @@ export class OpenLettersService {
         category,
         ...(note.trim() ? { note: note.trim() } : {}),
       }),
+    );
+  }
+
+  /** Appeals a takedown of one of your letters while it can still be restored. */
+  appeal(letterHash: string, text: string): Promise<void> {
+    return firstValueFrom(
+      this.http.post<void>(`/api/me/open-letters/${letterHash}/appeal`, { text: text.trim() }),
     );
   }
 

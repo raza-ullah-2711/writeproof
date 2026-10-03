@@ -31,6 +31,7 @@ import { AdminService } from './admin.service';
         @if (admin.role() === 'ADMIN') {
           <a routerLink="/admin/system" routerLinkActive="active">System</a>
           <a routerLink="/admin/admins" routerLinkActive="active">Admins</a>
+          <a routerLink="/admin/preserved" routerLinkActive="active">Preserved</a>
           <a routerLink="/admin/audit" routerLinkActive="active">Audit log</a>
         }
       </nav>

@@ -20,11 +20,15 @@ class OpenLetterRepository {
             SELECT o.letter_hash, o.author_id, a.public_key AS author_key, o.sent_at, o.body, o.signature,
                    o.handwriting_hash, o.handwriting_score,
                    e.seq, e.prev_hash, e.payload_hash, e.recorded_at, e.entry_hash,
-                   r.category AS removal_category, r.removed_at
+                   COALESCE(r.category, h.category) AS removal_category,
+                   COALESCE(r.removed_at, h.held_at) AS removed_at,
+                   CASE WHEN r.letter_hash IS NULL THEN h.delete_after END AS appeal_until,
+                   (r.letter_hash IS NULL AND h.appealed_at IS NOT NULL) AS appealed
               FROM open_letters o
               JOIN accounts a ON a.id = o.author_id
               JOIN ledger_entries e ON e.seq = o.ledger_seq
               LEFT JOIN open_letter_removals r ON r.letter_hash = o.letter_hash
+              LEFT JOIN open_letter_holds h ON h.letter_hash = o.letter_hash AND h.decision IS NULL
             """;
 
     private final JdbcClient jdbc;
@@ -81,12 +85,17 @@ class OpenLetterRepository {
     }
 
     private OpenLetter map(ResultSet rs, int row) throws SQLException {
+        OpenLetter.Removal removal = rs.getString("removal_category") == null ? null : new OpenLetter.Removal(
+                rs.getString("removal_category"), rs.getObject("removed_at", OffsetDateTime.class).toInstant(),
+                rs.getObject("appeal_until", OffsetDateTime.class) == null ? null
+                        : rs.getObject("appeal_until", OffsetDateTime.class).toInstant(),
+                rs.getBoolean("appealed"));
         return new OpenLetter(
                 rs.getBytes("letter_hash"),
                 rs.getObject("author_id", UUID.class),
                 rs.getBytes("author_key"),
                 rs.getString("sent_at"),
-                rs.getString("body"),
+                removal == null ? rs.getString("body") : null, // hidden during a hold, gone after
                 rs.getBytes("signature"),
                 rs.getBytes("handwriting_hash"),
                 rs.getDouble("handwriting_score"),
@@ -96,8 +105,20 @@ class OpenLetterRepository {
                         rs.getBytes("payload_hash"),
                         rs.getObject("recorded_at", OffsetDateTime.class).toInstant(),
                         rs.getBytes("entry_hash")),
-                rs.getString("removal_category") == null ? null : new OpenLetter.Removal(
-                        rs.getString("removal_category"), rs.getObject("removed_at", OffsetDateTime.class).toInstant()));
+                removal);
+    }
+
+    /** Records the author's appeal of an active hold; false if there's none to appeal (or it's late). */
+    boolean appeal(byte[] letterHash, UUID authorId, String text, Instant at) {
+        return jdbc.sql("""
+                UPDATE open_letter_holds h SET appeal = :text, appealed_at = :at
+                  FROM open_letters o
+                 WHERE h.letter_hash = :hash AND o.letter_hash = h.letter_hash AND o.author_id = :author
+                   AND h.decision IS NULL AND h.appealed_at IS NULL AND h.delete_after > :at
+                """)
+                .param("text", text).param("at", OffsetDateTime.ofInstant(at, ZoneOffset.UTC))
+                .param("hash", letterHash).param("author", authorId)
+                .update() == 1;
     }
 
     /** @return false if this reader (when signed in) already reported the letter */

@@ -167,16 +167,38 @@ reports, most reported first. Each entry shows the letter's text, the counts per
 each report with its note and whether it came from a signed-in reader. Any letter can also be
 looked up by pasting its link, to act on letters nobody reported.
 
-| Decision | Effect                                                                                                                                                                             | Audit action           |
-| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
-| Dismiss  | The letter stays up; its open reports are resolved as dismissed                                                                                                                    | `moderation.dismissed` |
-| Remove   | The text is deleted permanently, and open reports are resolved as removed. The link shows "Removed by Writeproof" with the date and category, plus the ledger check of its record. | `moderation.removed`   |
+| Decision | Effect | Audit action |
+| --- | --- | --- |
+| Dismiss | The letter stays up; its open reports are resolved as dismissed | `moderation.dismissed` |
+| Remove | A **hold**: the letter is hidden at once ("Removed by Writeproof", with the category), its open reports are resolved as removed, and its text is kept for 14 days so the author can appeal | `moderation.removed` |
+| Remove as *child sexual abuse or exploitation* | Never held: a copy is preserved for law enforcement, the text is deleted at once, and the author is suspended | `moderation.removed`, `account.suspended` |
+| Restore | Ends a hold (grants an appeal): the letter is public again | `moderation.restored` |
+| Uphold | Ends a hold (rejects an appeal): the text is deleted now | `moderation.upheld` |
+
+**Appeals (Task 7b).** While a takedown is a hold, the author sees "its text will be deleted after
+⟨date⟩ unless you appeal" in their own list, and can appeal once, in up to 1,000 characters
+(`POST /api/me/open-letters/{hash}/appeal`). Appealed holds wait for a moderator; they're listed
+first on the moderation page and should be answered within 7 days. An hourly job deletes the text
+of holds whose 14 days ended without an appeal (`moderation.hold-expired`, role `SYSTEM`).
+
+**Repeat offenders.** The third final removal of an author's letters within 90 days suspends the
+author automatically (`account.suspended`, role `SYSTEM`). Withdrawals by the author don't count.
+
+**Preserved content.** US law requires reporting child sexual abuse material to NCMEC and
+preserving it for a year (docs/launch-policies.md, T1). A child-safety removal stores the text,
+encrypted at rest under `HANDWRITING_DATA_KEY`, with its metadata in `preserved_content`
+(migration V20). It is purged automatically after a year. The admin-only **Preserved** page lists
+the copies without their text. "Show text" decrypts one, and every read is audited
+(`preserved.read`). An admin records the CyberTipline report number there once reported
+(`preserved.reported`). Reporting itself is a manual step; NCMEC's CyberTipline isn't automated.
 
 The audit entry records the decision, the category, the number of reports and an optional note.
 It **never records the removed text**. It also records whether a moderator or an admin decided.
 
-**How a removal works.** `open_letter_removals` (migration V15, append-only) holds the hash, the
-category, when, and who.
+**How a removal works.** A hold is a row in `open_letter_holds` (migration V20). The final
+removal is a row in `open_letter_removals` (migration V15, append-only), with the hash, the
+category, when, and who. An author's withdrawal on account deletion is a removal of category
+`withdrawn`.
 
 The `open_letters` trigger was replaced by `writeproof_open_letter_takedown_only()`. It allows
 exactly one change: setting `body` to NULL, for a letter with a removal record, with every other
@@ -194,6 +216,11 @@ API (MODERATOR or ADMIN):
 - `GET /api/admin/moderation/letters/{hash}`
 - `POST /api/admin/moderation/letters/{hash}/dismiss` with `{note?}`
 - `POST /api/admin/moderation/letters/{hash}/remove` with `{category, note?}`
+- `GET /api/admin/moderation/appeals`
+- `POST /api/admin/moderation/letters/{hash}/restore` and `…/uphold` with `{note?}`
+
+Preserved content (ADMIN only): `GET /api/admin/preserved`, `GET /api/admin/preserved/{hash}`
+(audited), `POST /api/admin/preserved/{hash}/report` with `{reportId}`.
 
 Readers report with `POST /api/open-letters/{hash}/reports`, which is public.
 

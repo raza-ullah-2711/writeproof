@@ -20,10 +20,20 @@
 
     @if (l.removed; as r) {
       <div class="removed" role="note">
-        <strong>Removed by Writeproof</strong> on {{ r.at | date: 'yyyy-MM-dd' : 'UTC' }} ({{
-          label(r.category)
-        }}). The text is gone for good; the letter's record remains on the ledger, so it can't be
-        quietly rewritten or replaced.
+        @if (r.category === 'withdrawn') {
+          <strong>Withdrawn by its author</strong> on {{ r.at | date: 'yyyy-MM-dd' : 'UTC' }}.
+        } @else {
+          <strong>Removed by Writeproof</strong> on {{ r.at | date: 'yyyy-MM-dd' : 'UTC' }} ({{
+            label(r.category)
+          }}).
+        }
+        @if (r.appealUntil) {
+          The author can appeal until {{ r.appealUntil | date: 'yyyy-MM-dd' : 'UTC' }}; unless it's
+          restored, the text is then deleted for good.
+        } @else {
+          The text is gone for good.
+        }
+        The letter's record remains on the ledger, so it can't be quietly rewritten or replaced.
       </div>
       @if (checks(); as c) {
         <ul class="checks">

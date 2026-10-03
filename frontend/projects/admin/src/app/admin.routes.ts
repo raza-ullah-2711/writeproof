@@ -5,6 +5,7 @@ import { AdminAdmins } from './admin-admins';
 import { AdminAudit } from './admin-audit';
 import { AdminDashboard } from './admin-dashboard';
 import { AdminModeration } from './admin-moderation';
+import { AdminPreserved } from './admin-preserved';
 import { adminOnlyGuard } from './admin-only.guard';
 import { AdminShell } from './admin-shell';
 import { AdminSystem } from './admin-system';
@@ -45,6 +46,12 @@ export const ADMIN_ROUTES: Routes = [
         component: AdminAdmins,
         canActivate: [adminOnlyGuard],
         title: 'Admins · Admin · Writeproof',
+      },
+      {
+        path: 'preserved',
+        component: AdminPreserved,
+        canActivate: [adminOnlyGuard],
+        title: 'Preserved · Admin · Writeproof',
       },
       {
         path: 'audit',

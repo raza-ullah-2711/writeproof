@@ -10,10 +10,20 @@ import {
 } from '@app/open-letters/report-categories';
 import { Moderation, ModerationCase } from './moderation';
 
+type Action = 'dismiss' | 'remove' | 'restore' | 'uphold';
+
 interface Decision {
   hash: string;
-  action: 'dismiss' | 'remove';
+  action: Action;
 }
+
+const DONE: Record<Action, string> = {
+  dismiss: 'Reports dismissed; the letter stays up.',
+  remove:
+    'Letter hidden. Its text is deleted after 14 days unless the author appeals and it is restored.',
+  restore: 'Letter restored: it is public again.',
+  uphold: 'Takedown upheld. The text is deleted; the record stays on the ledger.',
+};
 
 /** The moderation queue: reported open letters, and a lookup for any letter by its link. */
 @Component({
@@ -26,6 +36,7 @@ export class AdminModeration implements OnInit {
   private readonly moderation = inject(Moderation);
 
   protected readonly queue = signal<ModerationCase[] | null>(null);
+  protected readonly appeals = signal<ModerationCase[]>([]);
   protected readonly looked = signal<ModerationCase | null>(null);
   protected readonly error = signal<string | null>(null);
   protected readonly notice = signal<string | null>(null);
@@ -45,7 +56,7 @@ export class AdminModeration implements OnInit {
     return Object.entries(c.openReportsByCategory) as [string, number][];
   }
 
-  protected decide(c: ModerationCase, action: 'dismiss' | 'remove'): void {
+  protected decide(c: ModerationCase, action: Action): void {
     this.deciding.set({ hash: c.letterHash, action });
     this.note = '';
     // Default to the category most reporters chose.
@@ -61,10 +72,15 @@ export class AdminModeration implements OnInit {
       return;
     }
     await this.run(async () => {
+      const childSafety = d.action === 'remove' && this.category === 'child_safety';
       if (d.action === 'dismiss') {
         await this.moderation.dismiss(d.hash, this.note);
-      } else {
+      } else if (d.action === 'remove') {
         await this.moderation.remove(d.hash, this.category, this.note);
+      } else if (d.action === 'restore') {
+        await this.moderation.restore(d.hash, this.note);
+      } else {
+        await this.moderation.uphold(d.hash, this.note);
       }
       this.deciding.set(null);
       await this.load();
@@ -72,9 +88,9 @@ export class AdminModeration implements OnInit {
         this.looked.set(await this.moderation.letter(d.hash));
       }
       this.notice.set(
-        d.action === 'dismiss'
-          ? 'Reports dismissed; the letter stays up.'
-          : 'Letter removed. Its text is deleted; its record stays on the ledger.',
+        childSafety
+          ? 'Removed and preserved for law enforcement; the author is suspended. Report it to NCMEC today, then record the report number under Preserved.'
+          : DONE[d.action],
       );
     });
   }
@@ -102,6 +118,7 @@ export class AdminModeration implements OnInit {
   private async load(): Promise<void> {
     try {
       this.queue.set(await this.moderation.queue());
+      this.appeals.set(await this.moderation.appeals());
     } catch {
       this.error.set('The moderation queue could not be loaded.');
     }

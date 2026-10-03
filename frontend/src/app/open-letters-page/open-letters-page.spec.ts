@@ -21,7 +21,11 @@ const PUBLISHED: OpenLetter = {
 
 describe('OpenLettersPage', () => {
   const authenticated = signal(true);
-  let service: { publish: ReturnType<typeof vi.fn>; mine: ReturnType<typeof vi.fn> };
+  let service: {
+    publish: ReturnType<typeof vi.fn>;
+    mine: ReturnType<typeof vi.fn>;
+    appeal: ReturnType<typeof vi.fn>;
+  };
   let enrolment: ReturnType<typeof vi.fn>;
 
   beforeEach(async () => {
@@ -33,6 +37,7 @@ describe('OpenLettersPage', () => {
     service = {
       publish: vi.fn().mockResolvedValue(PUBLISHED),
       mine: vi.fn().mockResolvedValue([]),
+      appeal: vi.fn().mockResolvedValue(undefined),
     };
     enrolment = vi.fn().mockResolvedValue({ enrolled: true, sampleCount: 3, enrolledAt: '' });
     await TestBed.configureTestingModule({
@@ -115,5 +120,37 @@ describe('OpenLettersPage', () => {
     await fixture.whenStable();
     expect(fixture.nativeElement.textContent).toContain('Sign in with your wallet to write one');
     expect(service.mine).toHaveBeenCalledTimes(1);
+  });
+
+  it('lets the author appeal a takedown while its text can still be restored', async () => {
+    const held: OpenLetter = {
+      ...PUBLISHED,
+      body: null,
+      removed: {
+        category: 'spam',
+        at: '2026-10-02T13:00:00Z',
+        appealUntil: '2026-10-16T13:00:00Z',
+        appealed: false,
+      },
+    };
+    service.mine
+      .mockResolvedValueOnce([held])
+      .mockResolvedValueOnce([{ ...held, removed: { ...held.removed!, appealed: true } }]);
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+    await vi.waitFor(() => expect(el.querySelector('.appeal')).not.toBeNull());
+
+    expect(el.querySelector('.appeal')?.textContent).toContain('2026-10-16');
+    expect(button(el, 'Appeal').disabled).toBe(true);
+    const text = el.querySelector<HTMLTextAreaElement>('.appeal textarea')!;
+    text.value = 'It was not spam';
+    text.dispatchEvent(new Event('input'));
+    fixture.detectChanges();
+    button(el, 'Appeal').click();
+    await vi.waitFor(() =>
+      expect(el.querySelector('.appeal')?.textContent).toContain('Appeal sent'),
+    );
+
+    expect(service.appeal).toHaveBeenCalledWith('hash-1', 'It was not spam');
   });
 });

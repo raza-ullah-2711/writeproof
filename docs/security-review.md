@@ -200,12 +200,13 @@ paths are only routed on the admin host.
 | `GET /api/me`, `GET /api/me/status`, `PUT /api/me/encryption-key` | user |
 | `POST /api/me/deletion` | user, plus a fresh wallet signature ([launch-policies.md](launch-policies.md)) |
 | `GET`/`PUT /api/me/backup`, `GET`/`PUT /api/me/contacts` | user |
-| `GET`/`POST /api/me/open-letters` | user |
+| `GET`/`POST /api/me/open-letters`, `POST /api/me/open-letters/{letterHash}/appeal` | user |
 | `POST /api/letters`, `GET /api/letters/{id}`, `/inbox`, `/sent`, `/threads`, `/threads/{threadId}` | user |
 | `GET`/`POST /api/handwriting/enrolment`, `POST /api/handwriting/enrolment/deletion`, `POST /api/handwriting/verify` | user |
 | `GET`/`DELETE /api/calibration`, `POST /api/calibration/consent`, `/samples`, `GET /api/calibration/forgery-target` | user |
 | `GET /api/admin/me` | any admin-app session |
-| `GET /api/admin/moderation/queue`, `GET /api/admin/moderation/letters/{letterHash}`, `POST …/dismiss`, `POST …/remove` | moderator or admin |
+| `GET /api/admin/moderation/queue`, `/appeals`, `GET /api/admin/moderation/letters/{letterHash}`, `POST …/dismiss`, `…/remove`, `…/restore`, `…/uphold` | moderator or admin |
+| `GET /api/admin/preserved`, `GET /api/admin/preserved/{letterHash}` (audited), `POST …/report` | admin |
 | `GET /api/admin/dashboard`, `/audit`, `/accounts`, `/accounts/{id}`, `/admins`, `/system` | admin |
 | `POST /api/admin/accounts/{id}/sign-out`, `/rate-limits/reset`, `POST`/`DELETE …/suspension` | admin |
 | `PUT`/`DELETE /api/admin/admins/{address}`, `PATCH /api/admin/system/settings`, `POST /api/admin/system/ledger/checkpoint`, `/audit` | admin |
