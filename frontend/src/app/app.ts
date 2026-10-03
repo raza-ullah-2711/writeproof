@@ -3,10 +3,11 @@ import { RouterLink, RouterLinkActive, RouterOutlet } from '@angular/router';
 import { AccountStatusService } from './auth/account-status.service';
 import { HealthService } from './health/health.service';
 import { SystemStatusService } from './system/system-status.service';
+import { Logo } from './brand/logo';
 import { ThemeSwitch } from './theme/theme-switch';
 
 @Component({
-  imports: [RouterOutlet, RouterLink, RouterLinkActive, ThemeSwitch],
+  imports: [RouterOutlet, RouterLink, RouterLinkActive, ThemeSwitch, Logo],
   selector: 'app-root',
   styleUrl: './app.scss',
   templateUrl: './app.html',
