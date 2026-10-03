@@ -8,7 +8,14 @@ curl_opts=(-sS --max-time 15)
 fail() { echo "FAIL: $*" >&2; exit 1; }
 ok() { echo "ok   $*"; }
 
-health=$(curl "${curl_opts[@]}" "$base/actuator/health") || fail "health request"
+# On a fresh start Caddy may still be issuing its certificate, so the first request can fail
+# to connect or handshake. Retry only those failures, for up to a minute. Any HTTP response
+# (such as a 502 when the API is down) is final.
+deadline=$((SECONDS + 60))
+until health=$(curl "${curl_opts[@]}" "$base/actuator/health" 2>/tmp/writeproof-curl.err); do
+  ((SECONDS < deadline)) || fail "health request: $(cat /tmp/writeproof-curl.err)"
+  sleep 2
+done
 grep -q '"UP"' <<<"$health" || fail "health is not UP: $health"
 ok "API healthy through the proxy"
 
