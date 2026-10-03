@@ -36,4 +36,23 @@ describe('App', () => {
     expect(status?.getAttribute('data-status')).toBe('up');
     expect(status?.textContent).toContain('Backend online');
   });
+
+  it('tells a suspended account why, and that reading still works', async () => {
+    const { AccountStatusService } = await import('./auth/account-status.service');
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    http.expectOne('/actuator/health').flush({ status: 'UP' });
+    // Set after start-up, which (signed out) clears it.
+    (
+      TestBed.inject(AccountStatusService) as unknown as { _suspension: { set(v: unknown): void } }
+    )._suspension.set({
+      since: '2026-10-01T00:00:00Z',
+      reason: 'Repeated spam reports',
+    });
+    await fixture.whenStable();
+
+    const banner = (fixture.nativeElement as HTMLElement).querySelector('.suspended');
+    expect(banner?.textContent).toContain('Repeated spam reports');
+    expect(banner?.textContent).toContain('You can still sign in, read your letters');
+  });
 });

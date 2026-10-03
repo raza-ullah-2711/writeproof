@@ -92,7 +92,8 @@ still see the score a letter was accepted with.
 Admins sign in with their wallet; the role (ADMIN or MODERATOR) comes from `ADMIN_PUBLIC_KEYS` or
 `admin_roles` and is checked on every request, so revocation is immediate. Admins can't read
 sealed letters, contacts or handwriting, and every admin action goes to the append-only
-`admin_audit_log`. See [admin.md](admin.md).
+`admin_audit_log`. A forced sign-out rejects every token issued before it on the next request;
+the app forgets a token the server rejects (401). See [admin.md](admin.md).
 
 ## Configuration
 

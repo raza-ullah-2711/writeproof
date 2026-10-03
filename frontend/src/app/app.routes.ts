@@ -1,4 +1,6 @@
 import { Routes } from '@angular/router';
+import { AdminAccount } from './admin/admin-account';
+import { AdminAccounts } from './admin/admin-accounts';
 import { AdminAudit } from './admin/admin-audit';
 import { AdminDashboard } from './admin/admin-dashboard';
 import { adminGuard } from './admin/admin.guard';
@@ -26,6 +28,8 @@ export const routes: Routes = [
     canMatch: [adminGuard],
     children: [
       { path: '', component: AdminDashboard, title: 'Dashboard · Admin · Writeproof' },
+      { path: 'accounts', component: AdminAccounts, title: 'Accounts · Admin · Writeproof' },
+      { path: 'accounts/:id', component: AdminAccount, title: 'Account · Admin · Writeproof' },
       { path: 'audit', component: AdminAudit, title: 'Audit log · Admin · Writeproof' },
     ],
   },

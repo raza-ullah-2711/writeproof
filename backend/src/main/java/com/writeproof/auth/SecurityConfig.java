@@ -9,7 +9,6 @@ import javax.crypto.spec.SecretKeySpec;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnWebApplication;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
-import com.writeproof.admin.AdminAuthenticationConverter;
 import com.writeproof.security.RateLimitFilter;
 import com.writeproof.security.RateLimitProperties;
 import com.writeproof.security.RateLimitRule;
@@ -42,7 +41,7 @@ class SecurityConfig {
     @ConditionalOnWebApplication
     SecurityFilterChain securityFilterChain(HttpSecurity http, TokenBucketRateLimiter rateLimiter,
                                             RateLimitProperties rateLimits, MeterRegistry meters,
-                                            AdminAuthenticationConverter adminRoles) throws Exception {
+                                            AccountAuthenticationConverter accounts) throws Exception {
         return http
                 // Stateless bearer-token API: no cookies, so no CSRF surface.
                 .csrf(csrf -> csrf.disable())
@@ -64,7 +63,7 @@ class SecurityConfig {
                         .requestMatchers("/api/admin/moderation/**").hasAnyRole("ADMIN", "MODERATOR")
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .anyRequest().authenticated())
-                .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(adminRoles)))
+                .oauth2ResourceServer(oauth -> oauth.jwt(jwt -> jwt.jwtAuthenticationConverter(accounts)))
                 // A JSON API: nothing it returns should ever render, frame, or leak a referrer.
                 .headers(headers -> headers
                         .contentSecurityPolicy(csp -> csp.policyDirectives(

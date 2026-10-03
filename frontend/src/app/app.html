@@ -31,5 +31,12 @@
     }
   </p>
 
+  @if (status.suspension(); as s) {
+    <p class="suspended" role="alert">
+      <strong>Your account is suspended</strong> and can't send letters or publish open letters:
+      {{ s.reason }}. You can still sign in, read your letters and back up your wallet.
+    </p>
+  }
+
   <router-outlet />
 </main>

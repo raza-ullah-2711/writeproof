@@ -1,0 +1,121 @@
+h3 {
+  font-size: 1rem;
+}
+
+h4 {
+  font-size: 0.9375rem;
+  margin: 1.25rem 0 0.5rem;
+}
+
+.address {
+  font-size: 0.8125rem;
+  overflow-wrap: anywhere;
+}
+
+.status {
+  font-size: 0.875rem;
+}
+
+.badge {
+  display: inline-block;
+  margin-right: 0.25rem;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  font-size: 0.75rem;
+
+  &.suspended {
+    background: #fdecec;
+    color: #9b1c1c;
+  }
+
+  &.active {
+    background: #e9f5ec;
+    color: #1b5e20;
+  }
+
+  &.role {
+    background: #eef3fb;
+    color: #1d4f8f;
+  }
+}
+
+.facts {
+  display: grid;
+  grid-template-columns: max-content 1fr;
+  gap: 0.25rem 1rem;
+  font-size: 0.875rem;
+
+  dt {
+    color: #52514e;
+  }
+
+  dd {
+    margin: 0;
+  }
+}
+
+.hint {
+  font-size: 0.8125rem;
+  color: #555;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.danger {
+  color: #9b1c1c;
+}
+
+.primary {
+  font-weight: 600;
+}
+
+.confirm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  max-width: 32rem;
+  padding: 0.75rem;
+  border: 1px solid #e7e6e1;
+  border-radius: 8px;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+  }
+
+  textarea {
+    font: inherit;
+    padding: 0.4rem;
+  }
+
+  p {
+    margin: 0;
+  }
+}
+
+.history {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+
+  th,
+  td {
+    text-align: left;
+    padding: 0.3rem 0.75rem 0.3rem 0;
+    border-bottom: 1px solid #eee;
+  }
+}
+
+.notice {
+  color: #1b5e20;
+}
+
+.error {
+  color: #b00020;
+}
