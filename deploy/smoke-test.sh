@@ -29,6 +29,10 @@ done
 ok "security and cache headers on the app"
 grep -q "require-trusted-types-for 'script'" /tmp/writeproof-index.html || fail "production CSP meta missing"
 ok "production CSP with Trusted Types"
+# Critical-CSS inlining defers the stylesheet behind an inline onload handler, which this CSP
+# blocks: the page would keep only the inlined slice of its styles.
+! grep -q 'media="print"' /tmp/writeproof-index.html || fail "stylesheet deferred behind a CSP-blocked onload"
+ok "stylesheet loads under the CSP"
 
 grep -qi "^HTTP/[0-9.]* 200" < <(curl "${curl_opts[@]}" -D - -o /dev/null "$base/letters") || fail "SPA route"
 ok "SPA routes fall back to the app"
@@ -72,6 +76,7 @@ grep -qi "^HTTP/[0-9.]* 200" <<<"$admin_headers" || fail "admin app not served o
 grep -qi "^strict-transport-security: max-age=31536000" <<<"$admin_headers" || fail "admin host missing HSTS"
 grep -qi "^x-robots-tag: noindex" <<<"$admin_headers" || fail "admin host may be indexed"
 grep -q "form-action 'none'" /tmp/writeproof-admin-index.html || fail "admin CSP missing"
+! grep -q 'media="print"' /tmp/writeproof-admin-index.html || fail "admin stylesheet deferred behind a CSP-blocked onload"
 ok "admin app served on its own host with its own CSP"
 
 # Reaches the API (401: no token), but only the admin API and sign-in are routed there.
