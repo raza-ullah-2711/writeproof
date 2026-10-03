@@ -11,7 +11,10 @@ import org.springframework.validation.annotation.Validated;
  * @param checkpointInterval how often a new checkpoint is stored and published (if the ledger grew)
  * @param checkpointLog      optional file that published checkpoints are appended to, one JSON per
  *                           line, for shipping to outside witnesses
+ * @param previousSigningKey optional seed of the key being rotated away from
+ *                           ({@code LEDGER_PREVIOUS_SIGNING_KEY}); see {@link KeyRotationService}
  */
 @Validated
 @ConfigurationProperties("writeproof.ledger")
-public record LedgerProperties(@NotBlank String signingKey, Duration checkpointInterval, String checkpointLog) {}
+public record LedgerProperties(@NotBlank String signingKey, Duration checkpointInterval, String checkpointLog,
+                               String previousSigningKey) {}

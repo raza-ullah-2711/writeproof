@@ -3,6 +3,7 @@ import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
 import { fromBase64Url } from '../crypto/base64url';
 import { Checkpoint, verifyCheckpoint } from './checkpoint';
+import { KeyRotation, followRotations } from './key-rotation';
 import { LedgerTrustStore } from './ledger-trust';
 import { LedgerEntry, entryHash } from './ledger-verify';
 import { leafHash, verifyConsistency, verifyInclusion } from './merkle';
@@ -27,7 +28,8 @@ export class LedgerVerifier {
 
   /**
    * Proves that `payloadHash` (a letter's hash) is entry `ref.seq` of the ledger without trusting the server or reading the whole ledger:
-   * an O(log n) inclusion proof against a checkpoint signed by the pinned ledger key, plus an
+   * an O(log n) inclusion proof against a checkpoint signed by the pinned ledger key (or a key it
+   * handed over to, through each handover's checkpoint), plus an
    * O(log n) consistency proof that this checkpoint extends the last one this browser verified,
    * so history can't have been rewritten in between.
    */
@@ -37,14 +39,18 @@ export class LedgerVerifier {
   ): Promise<LedgerCheck> {
     const fail = (problem: string) => ({ problem, size: 0 });
     try {
-      const { publicKey } = await firstValueFrom(
-        this.http.get<{ publicKey: string }>('/api/ledger/key'),
+      const { publicKey, rotations = [] } = await firstValueFrom(
+        this.http.get<{ publicKey: string; rotations?: KeyRotation[] }>('/api/ledger/key'),
       );
       const trusted = this.trust.load();
+      // A new key is trusted only through handovers signed by the key this browser pinned.
+      let handovers: KeyRotation[] = [];
       if (trusted && trusted.publicKey !== publicKey) {
-        return fail(
-          'The ledger key changed since this browser last checked, so nothing it signs can be trusted',
-        );
+        const path = await followRotations(trusted.publicKey, publicKey, rotations);
+        if ('problem' in path) {
+          return fail(path.problem);
+        }
+        handovers = path.rotations;
       }
       const seq = ref.seq;
       const { checkpoint, entry, proof } = await firstValueFrom(
@@ -76,9 +82,14 @@ export class LedgerVerifier {
         return fail(`Entry #${seq} is not in the signed checkpoint`);
       }
       if (trusted) {
-        const problem = await this.checkExtends(trusted.size, trusted.root, checkpoint);
-        if (problem) {
-          return fail(problem);
+        // From the last checkpoint seen, through each checkpoint an old key handed over at, to now.
+        let from: Pick<Checkpoint, 'size' | 'root'> = trusted;
+        for (const next of [...handovers, checkpoint]) {
+          const problem = await this.checkExtends(from.size, from.root, next);
+          if (problem) {
+            return fail(problem);
+          }
+          from = next;
         }
       }
       this.trust.remember({ publicKey, size: checkpoint.size, root: checkpoint.root });
@@ -92,7 +103,7 @@ export class LedgerVerifier {
   private async checkExtends(
     size: number,
     root: string,
-    checkpoint: Checkpoint,
+    checkpoint: Pick<Checkpoint, 'size' | 'root'>,
   ): Promise<string | null> {
     if (checkpoint.size < size) {
       return `The ledger shrank from ${size} to ${checkpoint.size} entries since this browser last checked`;

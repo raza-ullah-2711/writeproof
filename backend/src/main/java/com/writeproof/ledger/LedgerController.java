@@ -28,7 +28,16 @@ class LedgerController {
         }
     }
 
-    record KeyResponse(String publicKey) {}
+    /** The current key and every rotation that led to it, oldest first. */
+    record KeyResponse(String publicKey, List<RotationResponse> rotations) {}
+
+    record RotationResponse(String oldKey, String newKey, long size, String root, long timestampMillis,
+                            String signature) {
+        static RotationResponse of(KeyRotation r) {
+            return new RotationResponse(Base64Url.encode(r.oldKey()), Base64Url.encode(r.newKey()), r.size(),
+                    Base64Url.encode(r.root()), r.timestampMillis(), Base64Url.encode(r.signature()));
+        }
+    }
 
     record CheckpointResponse(long size, String root, long timestampMillis, String signature) {
         static CheckpointResponse of(Checkpoint c) {
@@ -44,11 +53,14 @@ class LedgerController {
     private final LedgerService ledger;
     private final CheckpointService checkpoints;
     private final LedgerSigner signer;
+    private final KeyRotationService rotations;
 
-    LedgerController(LedgerService ledger, CheckpointService checkpoints, LedgerSigner signer) {
+    LedgerController(LedgerService ledger, CheckpointService checkpoints, LedgerSigner signer,
+                     KeyRotationService rotations) {
         this.ledger = ledger;
         this.checkpoints = checkpoints;
         this.signer = signer;
+        this.rotations = rotations;
     }
 
     @GetMapping("/entries")
@@ -66,7 +78,8 @@ class LedgerController {
 
     @GetMapping("/key")
     KeyResponse key() {
-        return new KeyResponse(Base64Url.encode(signer.publicKey()));
+        return new KeyResponse(Base64Url.encode(signer.publicKey()),
+                rotations.rotations().stream().map(RotationResponse::of).toList());
     }
 
     @GetMapping("/checkpoint")

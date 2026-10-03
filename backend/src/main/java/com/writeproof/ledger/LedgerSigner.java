@@ -9,6 +9,7 @@ import java.security.Signature;
 import java.security.spec.NamedParameterSpec;
 import java.util.Arrays;
 import java.util.Base64;
+import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.stereotype.Component;
 
 /** Holds the ledger key and signs checkpoints with it. */
@@ -18,10 +19,16 @@ public class LedgerSigner {
     private final PrivateKey privateKey;
     private final byte[] publicKey;
 
+    @Autowired
     LedgerSigner(LedgerProperties properties) {
-        byte[] seed = Base64.getDecoder().decode(properties.signingKey());
+        this(properties.signingKey(), "LEDGER_SIGNING_KEY");
+    }
+
+    /** A signer for the base64 32-byte seed in the setting {@code name}. */
+    LedgerSigner(String base64Seed, String name) {
+        byte[] seed = Base64.getDecoder().decode(base64Seed);
         if (seed.length != 32) {
-            throw new IllegalStateException("LEDGER_SIGNING_KEY must decode to exactly 32 bytes");
+            throw new IllegalStateException(name + " must decode to exactly 32 bytes");
         }
         KeyPair pair = fromSeed(seed);
         this.privateKey = pair.getPrivate();

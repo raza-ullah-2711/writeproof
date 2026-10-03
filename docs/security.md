@@ -98,13 +98,14 @@ the app forgets a token the server rejects (401). See [admin.md](admin.md).
 
 ## Configuration
 
-| Variable                    | Required | Purpose                                        |
-| --------------------------- | -------- | ---------------------------------------------- |
-| `HANDWRITING_DATA_KEY`      | yes      | base64 AES-256 key for handwriting at rest     |
-| `ADMIN_PUBLIC_KEYS`         | no       | wallet addresses that are always admins        |
-| `LEDGER_SIGNING_KEY`        | yes      | base64 Ed25519 seed signing ledger checkpoints |
-| `HANDWRITING_EXPOSE_SCORES` | no       | `true` to return scores (development only)     |
-| `RATE_LIMITS_ENABLED`       | no       | `false` to disable limits (development only)   |
+| Variable                      | Required | Purpose                                        |
+| ----------------------------- | -------- | ---------------------------------------------- |
+| `HANDWRITING_DATA_KEY`        | yes      | base64 AES-256 key for handwriting at rest     |
+| `ADMIN_PUBLIC_KEYS`           | no       | wallet addresses that are always admins        |
+| `LEDGER_SIGNING_KEY`          | yes      | base64 Ed25519 seed signing ledger checkpoints |
+| `LEDGER_PREVIOUS_SIGNING_KEY` | no       | only while rotating: the key being retired     |
+| `HANDWRITING_EXPOSE_SCORES`   | no       | `true` to return scores (development only)     |
+| `RATE_LIMITS_ENABLED`         | no       | `false` to disable limits (development only)   |
 
 ## Still open
 
