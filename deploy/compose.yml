@@ -35,6 +35,8 @@ services:
       HANDWRITING_DATA_KEY: ${HANDWRITING_DATA_KEY:?run deploy/generate-env.sh first}
       LEDGER_SIGNING_KEY: ${LEDGER_SIGNING_KEY:?run deploy/generate-env.sh first (or add LEDGER_SIGNING_KEY to deploy/.env)}
       LEDGER_CHECKPOINT_INTERVAL: ${LEDGER_CHECKPOINT_INTERVAL:-PT10M}
+      # Wallet addresses that are always admins (docs/admin.md). Not secret.
+      ADMIN_PUBLIC_KEYS: ${ADMIN_PUBLIC_KEYS:-}
       # Published checkpoints, one JSON per line, for shipping to outside witnesses (docs/ledger.md).
       LEDGER_CHECKPOINT_LOG: /var/lib/writeproof/checkpoints.jsonl
       # Trust X-Forwarded-* from Caddy, so per-IP rate limits see the real client.

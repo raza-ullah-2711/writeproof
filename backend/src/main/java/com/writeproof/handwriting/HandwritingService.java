@@ -1,5 +1,6 @@
 package com.writeproof.handwriting;
 
+import io.micrometer.core.instrument.MeterRegistry;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -45,15 +46,26 @@ public class HandwritingService {
 
     private final EnrolmentRepository enrolments;
     private final SignatureHistoryRepository history;
+    /** Counted for the admin dashboard: accepted and rejected verifications, since server start. */
+    public static final String VERIFICATIONS_METRIC = "writeproof.handwriting.verifications";
+
     private final HandwritingProperties properties;
     private final Clock clock;
+    private final MeterRegistry meters;
 
     HandwritingService(EnrolmentRepository enrolments, SignatureHistoryRepository history,
-                       HandwritingProperties properties, Clock clock) {
+                       HandwritingProperties properties, Clock clock, MeterRegistry meters) {
         this.enrolments = enrolments;
         this.history = history;
         this.properties = properties;
         this.clock = clock;
+        this.meters = meters;
+    }
+
+    private Verification counted(String purpose, Verification v) {
+        meters.counter(VERIFICATIONS_METRIC, "purpose", purpose, "result", v.verified() ? "accepted" : "rejected")
+                .increment();
+        return v;
     }
 
     public Enrolled enrol(UUID accountId, List<HandwritingSample> samples) {
@@ -84,7 +96,7 @@ public class HandwritingService {
 
     public Verification verify(UUID accountId, HandwritingSample sample) {
         Evaluation e = evaluate(accountId, sample);
-        return e.verification(properties.threshold());
+        return counted("check", e.verification(properties.threshold()));
     }
 
     /**
@@ -110,7 +122,7 @@ public class HandwritingService {
                 break;
             }
         }
-        return e.verification(properties.threshold());
+        return counted("letter", e.verification(properties.threshold()));
     }
 
     /**

@@ -5,6 +5,9 @@ writeproof:
   handwriting:
     expose-scores: true
     data-key: dGVzdC1vbmx5LWhhbmR3cml0aW5nLWtleS0zMi1ieXQ=
+  admin:
+    # Public key of TestWallet.bootstrapAdmin (seed 0x42 x 32). Test-only, not a secret.
+    bootstrap-keys: IVL40Zt5HSRFMkLhXy6rbLfP-ntqXtMAl5YOBpiB2xI
   ledger:
     signing-key: dGVzdC1vbmx5LWxlZGdlci1zaWduaW5nLWtleS0zMmI=
     checkpoint-interval: PT24H

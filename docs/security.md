@@ -87,11 +87,19 @@ sends and deletions **omit similarity scores**, since a score tells a forger how
 attempt got. Liveness flags are still returned, because they help a genuine writer. Recipients
 still see the score a letter was accepted with.
 
+## Admin access
+
+Admins sign in with their wallet; the role (ADMIN or MODERATOR) comes from `ADMIN_PUBLIC_KEYS` or
+`admin_roles` and is checked on every request, so revocation is immediate. Admins can't read
+sealed letters, contacts or handwriting, and every admin action goes to the append-only
+`admin_audit_log`. See [admin.md](admin.md).
+
 ## Configuration
 
 | Variable                    | Required | Purpose                                        |
 | --------------------------- | -------- | ---------------------------------------------- |
 | `HANDWRITING_DATA_KEY`      | yes      | base64 AES-256 key for handwriting at rest     |
+| `ADMIN_PUBLIC_KEYS`         | no       | wallet addresses that are always admins        |
 | `LEDGER_SIGNING_KEY`        | yes      | base64 Ed25519 seed signing ledger checkpoints |
 | `HANDWRITING_EXPOSE_SCORES` | no       | `true` to return scores (development only)     |
 | `RATE_LIMITS_ENABLED`       | no       | `false` to disable limits (development only)   |
