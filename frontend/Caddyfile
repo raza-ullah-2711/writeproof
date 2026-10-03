@@ -1,6 +1,18 @@
 # Production hosts for Writeproof: the public app on {$DOMAIN}, the admin app on its own origin,
 # {$ADMIN_DOMAIN}. Each gets a certificate automatically (Let's Encrypt for a public name; Caddy's
 # own local CA for "localhost" names). HTTP redirects to HTTPS. See docs/deployment.md.
+#
+# Behind another reverse proxy that terminates TLS (deploy/compose.proxied.yml), the hosts are
+# given as http://… and TRUSTED_PROXIES names that proxy, so client addresses (rate limits, the
+# admin allowlist) come from its X-Forwarded-For. Without it, nothing is trusted to say who the
+# client is.
+{
+	servers {
+		trusted_proxies static {$TRUSTED_PROXIES:127.0.0.1/32}
+		# The right-most untrusted address: a client can prepend anything to X-Forwarded-For.
+		trusted_proxies_strict
+	}
+}
 
 # The headers docs/security.md asks the host for. frame-ancestors can't be set in the page's meta
 # CSP, so it is sent here; the meta policy (with Trusted Types) still applies.
@@ -41,11 +53,11 @@
 	}
 	# Same origin for the API: no CORS needed or allowed.
 	handle /api/* {
-		reverse_proxy backend:8080
+		reverse_proxy {$API_UPSTREAM:backend:8080}
 	}
 	# Only health is public; other actuator endpoints are never exposed.
 	handle /actuator/health {
-		reverse_proxy backend:8080
+		reverse_proxy {$API_UPSTREAM:backend:8080}
 	}
 
 	handle {
@@ -59,7 +71,7 @@
 	header X-Robots-Tag "noindex, nofollow"
 
 	# Optional allowlist: ADMIN_ALLOWED_IPS, space-separated addresses or CIDR ranges.
-	@outside not remote_ip {$ADMIN_ALLOWED_IPS:0.0.0.0/0 ::/0}
+	@outside not client_ip {$ADMIN_ALLOWED_IPS:0.0.0.0/0 ::/0}
 	# Only what the admin app uses, marked as the admin app's: the server issues admin-app tokens
 	# only here, and accepts them only on the admin API.
 	@api path /api/admin /api/admin/* /api/auth/challenge /api/auth/verify /api/backups/* /api/system/status
@@ -68,7 +80,7 @@
 	route {
 		respond @outside 403
 		handle @api {
-			reverse_proxy backend:8080 {
+			reverse_proxy {$API_UPSTREAM:backend:8080} {
 				header_up X-Writeproof-Surface admin
 			}
 		}

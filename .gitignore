@@ -3,3 +3,6 @@
 !.env.example
 .DS_Store
 .idea/
+
+# Local preview servers (Claude desktop app)
+.claude/launch.json
