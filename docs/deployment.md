@@ -85,7 +85,8 @@ smoke test passed.
 
 `deploy/smoke-test.sh <url>` (also run by CI against a freshly built stack):
 
-- the API is healthy through the proxy;
+- the API is healthy through the proxy (the first request retries connection and TLS errors for
+  up to a minute while Caddy issues its certificate; an HTTP error such as a 502 fails at once);
 - HSTS, `frame-ancestors 'none'`, `nosniff`, `no-referrer` and `no-cache` are on the app;
 - the production CSP with Trusted Types is served;
 - SPA routes fall back to the app, and hashed bundles are cached immutably;
