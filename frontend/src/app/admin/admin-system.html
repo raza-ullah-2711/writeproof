@@ -1,0 +1,158 @@
+@if (notice(); as message) {
+  <p class="notice" role="status">{{ message }}</p>
+}
+@if (error(); as message) {
+  <p class="error" role="alert">{{ message }}</p>
+}
+
+@if (overview(); as o) {
+  <section>
+    <h3>Switches</h3>
+    <ul class="flags">
+      @for (f of flags; track f.flag) {
+        @let on = isOn(o.settings, f.flag);
+        <li>
+          <span class="name">{{ f.label }}</span>
+          <span class="state" [class.off]="!on">{{ on ? 'On' : 'Paused' }}</span>
+          @if (
+            changedAt(
+              o,
+              f.flag === 'registrationOpen'
+                ? 'registration_open'
+                : f.flag === 'sendingEnabled'
+                  ? 'sending_enabled'
+                  : 'open_letters_enabled'
+            );
+            as at
+          ) {
+            <span class="when">since {{ at | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} UTC</span>
+          }
+          @if (pending()?.flag === f.flag) {
+            <span class="confirm">
+              {{ pending()?.on ? 'Turn back on?' : f.off + ' Pause?' }}
+              <button type="button" class="primary" (click)="confirm()" [disabled]="busy()">
+                Confirm
+              </button>
+              <button type="button" (click)="pending.set(null)">Cancel</button>
+            </span>
+          } @else {
+            <button type="button" [class.danger]="on" (click)="ask(f.flag, !on)">
+              {{ on ? 'Pause' : 'Turn on' }}
+            </button>
+          }
+        </li>
+      }
+    </ul>
+  </section>
+
+  <section>
+    <h3>Announcement</h3>
+    <form class="announcement" (ngSubmit)="saveAnnouncement()">
+      <label>
+        Shown at the top of every page (leave empty for none)
+        <input
+          name="announcement"
+          [(ngModel)]="announcement"
+          maxlength="280"
+          placeholder="e.g. Maintenance tonight at 22:00 UTC"
+        />
+      </label>
+      <button type="submit" [disabled]="busy()">Save</button>
+    </form>
+  </section>
+
+  <section>
+    <h3>Ledger</h3>
+    <p class="facts">
+      {{ o.ledgerSize }} entries · last published checkpoint:
+      {{ o.lastCheckpointSize === null ? 'none' : o.lastCheckpointSize + ' entries' }}
+      @if (o.lastCheckpointAt) {
+        ({{ o.lastCheckpointAt | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} UTC)
+      }
+    </p>
+    <div class="actions">
+      <button type="button" (click)="publishCheckpoint()" [disabled]="busy()">
+        Publish a checkpoint now
+      </button>
+      <button type="button" (click)="auditLedger()" [disabled]="busy()">Run a ledger audit</button>
+    </div>
+    @if (audit(); as a) {
+      <div class="audit" [class.bad]="!a.ok" role="status">
+        @if (a.ok) {
+          ✓ Ledger verified: the hash chain of {{ a.length }} entries is intact
+          @if (a.checkpointsChecked === 0) {
+            (no checkpoints published yet).
+          } @else {
+            and all {{ a.checkpointsChecked }} recent published checkpoints are signed and still
+            match.
+          }
+        } @else {
+          <strong>✗ The ledger failed its audit.</strong>
+          @if (!a.chainIntact) {
+            The hash chain breaks at entry #{{ a.brokenAt }}.
+          }
+          @if (a.rootMismatches.length) {
+            Published checkpoints no longer match at sizes {{ a.rootMismatches.join(', ') }}:
+            history was rewritten after they were published.
+          }
+          @if (a.badSignatures.length) {
+            Bad checkpoint signatures at sizes {{ a.badSignatures.join(', ') }}.
+          }
+        }
+      </div>
+    }
+  </section>
+
+  <section>
+    <h3>Handwriting and calibration</h3>
+    <p class="facts">
+      Match threshold {{ o.handwritingThreshold }} · similarity scores
+      {{ o.scoresExposed ? 'shown to users (development setting)' : 'hidden from users' }} ·
+      calibration: {{ o.calibrationContributors }} contributors, {{ o.genuineSamples }} genuine and
+      {{ o.forgerySamples }} forgery samples
+    </p>
+    <p class="hint">
+      These come from the server configuration (HANDWRITING_THRESHOLD and friends); change them
+      there after evaluating calibration data (docs/calibration.md).
+    </p>
+  </section>
+
+  <section>
+    <h3>Rate limits</h3>
+    <p class="hint">
+      {{ o.rateLimitsEnabled ? 'Enforced' : 'Not enforced (development setting)' }}. Set in
+      configuration; an account's limits can be cleared from its page.
+    </p>
+    <table>
+      <thead>
+        <tr>
+          <th>Rule</th>
+          <th>Request</th>
+          <th>Limit</th>
+          <th>Per</th>
+        </tr>
+      </thead>
+      <tbody>
+        @for (r of o.rateLimits; track r.name) {
+          <tr>
+            <td>{{ r.name }}</td>
+            <td>
+              <code>{{ r.method }} {{ r.path }}</code>
+            </td>
+            <td>
+              {{ r.capacity }} /
+              {{
+                r.windowSeconds >= 3600
+                  ? r.windowSeconds / 3600 + ' h'
+                  : r.windowSeconds / 60 + ' min'
+              }}
+            </td>
+            <td>{{ r.perAccount ? 'account' : 'IP' }}</td>
+          </tr>
+        }
+      </tbody>
+    </table>
+  </section>
+} @else if (!error()) {
+  <p>Loading&hellip;</p>
+}

@@ -10,6 +10,11 @@
       <button type="button" (click)="copyAddress()">{{ copied() ? 'Copied' : 'Copy' }}</button>
     </div>
 
+    @if (!system.status().sendingEnabled) {
+      <p class="paused" role="status">
+        Sending letters is paused by Writeproof for now. You can still read your letters.
+      </p>
+    }
     <form class="compose" (ngSubmit)="send()">
       @if (replyTo(); as parent) {
         <p class="replying">
@@ -76,7 +81,12 @@
         type="submit"
         class="primary"
         [disabled]="
-          busy() || !recipient.trim() || !body.trim() || enrolled() !== true || pad()?.empty()
+          busy() ||
+          !system.status().sendingEnabled ||
+          !recipient.trim() ||
+          !body.trim() ||
+          enrolled() !== true ||
+          pad()?.empty()
         "
       >
         Seal and send

@@ -1,0 +1,132 @@
+section {
+  margin-bottom: 1.25rem;
+}
+
+h3 {
+  font-size: 1rem;
+  margin: 0 0 0.5rem;
+}
+
+.flags {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+
+  li {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem 1rem;
+    padding: 0.5rem 0;
+    border-bottom: 1px solid #eee;
+    font-size: 0.875rem;
+  }
+
+  .name {
+    font-weight: 600;
+    min-width: 12rem;
+  }
+
+  .state {
+    padding: 0.05rem 0.5rem;
+    border-radius: 999px;
+    background: #e9f5ec;
+    color: #1b5e20;
+    font-size: 0.75rem;
+
+    &.off {
+      background: #fdf6e3;
+      color: #7a5b00;
+    }
+  }
+
+  .when {
+    color: #6b6a65;
+    font-size: 0.75rem;
+  }
+
+  .confirm {
+    display: inline-flex;
+    flex-wrap: wrap;
+    gap: 0.5rem;
+    align-items: center;
+  }
+}
+
+.announcement {
+  display: flex;
+  gap: 0.5rem;
+  align-items: flex-end;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    flex: 1;
+    max-width: 36rem;
+    font-size: 0.875rem;
+  }
+
+  input {
+    font: inherit;
+    padding: 0.4rem;
+  }
+}
+
+.facts {
+  font-size: 0.875rem;
+}
+
+.hint {
+  font-size: 0.8125rem;
+  color: #555;
+}
+
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+}
+
+.audit {
+  margin-top: 0.5rem;
+  padding: 0.5rem 0.75rem;
+  border-radius: 6px;
+  background: #e9f5ec;
+  color: #1b5e20;
+  font-size: 0.875rem;
+
+  &.bad {
+    background: #fdecec;
+    color: #7a1616;
+  }
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.3rem 0.75rem 0.3rem 0;
+  border-bottom: 1px solid #eee;
+}
+
+.danger {
+  color: #9b1c1c;
+}
+
+.primary {
+  font-weight: 600;
+}
+
+.notice {
+  color: #1b5e20;
+}
+
+.error {
+  color: #b00020;
+}

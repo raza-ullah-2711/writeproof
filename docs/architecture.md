@@ -95,4 +95,6 @@ sent it can't be edited or unsent — like a sealed letter.
     encrypted) and can't rewrite letters or the ledger. 13a **Foundation + dashboard** ✅ — see
     [admin.md](admin.md). 13b **Accounts** ✅ — search, suspend/reinstate, forced sign-out,
     clear rate limits. 13c **Moderation** ✅ — reader reports, a review queue, takedowns that
-    delete the text and keep the record. 13d system controls, 13e admin management to follow.
+    delete the text and keep the record. 13d **System controls** ✅ — registration, sending and
+    publishing switches, an announcement, checkpoint and ledger-audit tools. 13e admin management
+    to follow.

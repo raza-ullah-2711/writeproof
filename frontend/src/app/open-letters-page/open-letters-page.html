@@ -9,6 +9,9 @@
   @if (!auth.authenticated()) {
     <p>Sign in with your <a routerLink="/">wallet</a> to write one.</p>
   } @else {
+    @if (!system.status().openLettersEnabled) {
+      <p class="paused" role="status">Publishing open letters is paused by Writeproof for now.</p>
+    }
     <form class="compose" (ngSubmit)="publish()">
       <label>
         Your open letter
@@ -46,7 +49,14 @@
       <button
         type="submit"
         class="primary"
-        [disabled]="busy() || !body.trim() || !understood || enrolled() !== true || pad()?.empty()"
+        [disabled]="
+          !system.status().openLettersEnabled ||
+          busy() ||
+          !body.trim() ||
+          !understood ||
+          enrolled() !== true ||
+          pad()?.empty()
+        "
       >
         Sign and publish
       </button>

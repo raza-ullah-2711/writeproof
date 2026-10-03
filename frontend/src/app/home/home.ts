@@ -1,5 +1,6 @@
 import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
+import { SystemStatusService } from '../system/system-status.service';
 import { Component, OnInit, effect, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { AuthService } from '../auth/auth.service';
@@ -13,6 +14,7 @@ import { WalletService } from '../wallet/wallet.service';
   styleUrl: './home.scss',
 })
 export class Home implements OnInit {
+  protected readonly system = inject(SystemStatusService);
   protected readonly wallet = inject(WalletService);
   protected readonly auth = inject(AuthService);
 

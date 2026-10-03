@@ -1,12 +1,5 @@
 import { Routes } from '@angular/router';
-import { AdminAccount } from './admin/admin-account';
-import { AdminAccounts } from './admin/admin-accounts';
-import { AdminAudit } from './admin/admin-audit';
-import { AdminDashboard } from './admin/admin-dashboard';
-import { AdminModeration } from './admin/admin-moderation';
-import { adminOnlyGuard } from './admin/admin-only.guard';
 import { adminGuard } from './admin/admin.guard';
-import { AdminShell } from './admin/admin-shell';
 import { Calibration } from './calibration/calibration';
 import { Capture } from './capture/capture';
 import { ContactsPage } from './contacts-page/contacts-page';
@@ -26,35 +19,9 @@ export const routes: Routes = [
   { path: 'capture', component: Capture, title: 'Capture playground · Writeproof' },
   {
     path: 'admin',
-    component: AdminShell,
     canMatch: [adminGuard],
-    children: [
-      {
-        path: '',
-        component: AdminDashboard,
-        canActivate: [adminOnlyGuard],
-        title: 'Dashboard · Admin · Writeproof',
-      },
-      {
-        path: 'accounts',
-        component: AdminAccounts,
-        canActivate: [adminOnlyGuard],
-        title: 'Accounts · Admin · Writeproof',
-      },
-      {
-        path: 'accounts/:id',
-        component: AdminAccount,
-        canActivate: [adminOnlyGuard],
-        title: 'Account · Admin · Writeproof',
-      },
-      { path: 'moderation', component: AdminModeration, title: 'Moderation · Admin · Writeproof' },
-      {
-        path: 'audit',
-        component: AdminAudit,
-        canActivate: [adminOnlyGuard],
-        title: 'Audit log · Admin · Writeproof',
-      },
-    ],
+    // Loaded only for admins and moderators: everyone else never downloads the admin area.
+    loadChildren: () => import('./admin/admin.routes').then((m) => m.ADMIN_ROUTES),
   },
   { path: 'calibration', component: Calibration, title: 'Help improve verification · Writeproof' },
 ];

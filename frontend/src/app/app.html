@@ -31,6 +31,9 @@
     }
   </p>
 
+  @if (system.status().announcement; as announcement) {
+    <p class="announcement" role="status">{{ announcement }}</p>
+  }
   @if (status.suspension(); as s) {
     <p class="suspended" role="alert">
       <strong>Your account is suspended</strong> and can't send letters or publish open letters:

@@ -1,5 +1,6 @@
 package com.writeproof.identity;
 
+import com.writeproof.system.SystemSettings;
 import java.time.Clock;
 import java.time.temporal.ChronoUnit;
 import java.util.UUID;
@@ -12,14 +13,17 @@ public class AccountService {
 
     private final AccountRepository accounts;
     private final Clock clock;
+    private final SystemSettings settings;
 
-    AccountService(AccountRepository accounts, Clock clock) {
+    AccountService(AccountRepository accounts, Clock clock, SystemSettings settings) {
+        this.settings = settings;
         this.accounts = accounts;
         this.clock = clock;
     }
 
     /** Registers a wallet's public key as a new account. */
     public Account register(byte[] publicKey) {
+        settings.requireRegistrationOpen();
         Ed25519.decodePublicKey(publicKey); // rejects malformed keys with IllegalArgumentException
         Account account = new Account(
                 UUID.randomUUID(), publicKey, clock.instant().truncatedTo(ChronoUnit.MICROS), null, null);

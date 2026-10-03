@@ -160,3 +160,46 @@ API (MODERATOR or ADMIN):
 - `POST /api/admin/moderation/letters/{hash}/remove` with `{category, note?}`
 
 Readers report with `POST /api/open-letters/{hash}/reports`, which is public.
+
+## System controls (13d)
+
+`/admin/system` (ADMIN only):
+
+| Control                    | When off                                                                    | Enforced in                 |
+| -------------------------- | --------------------------------------------------------------------------- | --------------------------- |
+| New accounts               | `POST /api/accounts` → 403. Existing accounts sign in and restore as usual. | `AccountService.register`   |
+| Sending letters            | Sending and replying → 503. Everyone can still read.                        | `LetterService.send`        |
+| Publishing open letters    | Publishing → 503. Existing open letters stay readable and reportable.       | `OpenLetterService.publish` |
+| Announcement (≤ 280 chars) | (empty: none) A banner at the top of every page, for everyone.              | shown by the app            |
+
+- Switches live in `system_settings` (migration V16) and are read on every check, so a change takes
+  effect at once.
+- Pausing asks for confirmation and says what will stop.
+- Every change is audited as `system.setting-changed` with `{from, to}`.
+- The app reads `GET /api/system/status` (public) to show the announcement and explain a paused
+  feature before anyone tries. The server enforces the switches regardless.
+
+**Ledger tools:**
+
+- **Publish a checkpoint now:** publishes immediately if the ledger grew, rather than waiting for
+  the interval. Audited as `ledger.checkpoint-published`.
+- **Run a ledger audit:** walks the hash chain from genesis. It then checks the latest 200 published
+  checkpoints, each of which must be signed by the ledger key and still match the Merkle root of the
+  ledger as it is now. A mismatch means history was rewritten after that checkpoint was published.
+  Audited as `ledger.audited` with the result. This complements outside witnesses (`AuditLedger`),
+  which don't trust the server at all.
+
+**Read-only** (set in configuration, shown here):
+
+- the handwriting match threshold, and whether scores are exposed;
+- calibration counts;
+- every rate-limit rule, at its effective capacity.
+
+API (ADMIN only):
+
+- `GET /api/admin/system`
+- `PATCH /api/admin/system/settings` with `{registrationOpen?, sendingEnabled?, openLettersEnabled?, announcement?}`
+- `POST /api/admin/system/ledger/checkpoint`
+- `POST /api/admin/system/ledger/audit`
+
+The admin area is lazy-loaded, so ordinary visitors never download it.

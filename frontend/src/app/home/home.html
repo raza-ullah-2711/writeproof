@@ -5,7 +5,14 @@
     }
     @case ('none') {
       <p>Your identity is a key that lives only in this browser. No username, password or email.</p>
-      <button type="button" (click)="createWallet()" [disabled]="busy()">Create wallet</button>
+      @if (system.status().registrationOpen) {
+        <button type="button" (click)="createWallet()" [disabled]="busy()">Create wallet</button>
+      } @else {
+        <p class="closed">
+          Writeproof isn't accepting new accounts right now. If you already have a wallet, restore
+          it below.
+        </p>
+      }
 
       <form class="restore" (ngSubmit)="restore()">
         <label>
