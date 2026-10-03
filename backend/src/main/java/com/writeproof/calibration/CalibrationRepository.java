@@ -125,7 +125,7 @@ class CalibrationRepository {
     }
 
     private static String context(UUID contributorId) {
-        return "calibration:" + contributorId;
+        return BiometricCipher.calibrationContext(contributorId);
     }
 
     private String write(HandwritingSample sample) {

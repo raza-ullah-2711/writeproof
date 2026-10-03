@@ -64,14 +64,47 @@ largest legitimate request, an enrolment of 5 × 5,000 points, fits comfortably.
 
 ## Handwriting data at rest
 
-Enrolment samples and the recent-signature history are stored **encrypted** (AES-256-GCM,
-`BiometricCipher`) under `HANDWRITING_DATA_KEY`. The associated data names the table and account,
-so ciphertext can't be moved between rows. Format `0x01 || nonce || ciphertext` (the version
-byte leaves room for key rotation). Migration `V7__EncryptBiometricData` (a Java migration,
-since the key lives in the app) encrypted existing rows in place and dropped the plaintext columns.
+Enrolment samples, the recent-signature history and calibration samples are stored **encrypted**
+(AES-256-GCM, `BiometricCipher`) under `HANDWRITING_DATA_KEY`. The associated data names the
+table and account, so ciphertext can't be moved between rows. Format
+`0x02 || key id || nonce || ciphertext`, where the key id is 4 bytes of a labelled SHA-256 of the
+key. Values written before rotation existed are `0x01 || nonce || ciphertext` and still read.
+Migration `V7__EncryptBiometricData` (a Java migration, since the key lives in the app) encrypted
+existing rows in place and dropped the plaintext columns.
 
 This protects database dumps and backups. It doesn't protect against a compromised application
 server, which holds the key.
+
+## Rotating secrets
+
+Both rotations keep the old secret around for a while, read-only, so nothing breaks in between.
+Back up the new `deploy/.env` afterwards.
+
+**`HANDWRITING_DATA_KEY`.** Set the new key and list the old one, then restart:
+
+```bash
+# deploy/.env
+HANDWRITING_PREVIOUS_DATA_KEYS=<the current HANDWRITING_DATA_KEY>   # comma-separated if several
+HANDWRITING_DATA_KEY=<new: openssl rand -base64 32>
+```
+
+Every stored value stays readable: values carry their key's id, and older values are tried against
+each configured key. New values are written under the new key. `BiometricKeyRotation` re-encrypts
+the stored rows in the background, a minute after startup and then every 10 minutes, in batches. A
+row is only rewritten if it hasn't changed since it was read. When the log says "No handwriting
+data is left under a previous key", remove `HANDWRITING_PREVIOUS_DATA_KEYS`. The API refuses to
+start if its keys can't read the stored handwriting: a changed key without the old one listed would
+otherwise make every enrolment unreadable.
+
+**`JWT_SECRET`.** Set the new secret and keep the old one as `JWT_PREVIOUS_SECRET`, then restart.
+Tokens are signed with the new secret. Tokens the old one signed stay valid until they expire
+(15 minutes), so nobody is signed out. Remove `JWT_PREVIOUS_SECRET` after that. Rotating
+`JWT_SECRET` without it only signs everyone out, which is harmless: signing in is a wallet
+signature.
+
+`LEDGER_SIGNING_KEY` rotates differently, because clients pin it; see
+[ledger.md](ledger.md#rotating-the-ledger-key). `SecretRotationTests` restarts the server across
+both rotations against one database.
 
 ## Deleting handwriting
 
@@ -105,17 +138,19 @@ The admin app's CSP is stricter (no `data:` images, `base-uri 'none'`, `form-act
 
 ## Configuration
 
-| Variable                      | Required | Purpose                                        |
-| ----------------------------- | -------- | ---------------------------------------------- |
-| `HANDWRITING_DATA_KEY`        | yes      | base64 AES-256 key for handwriting at rest     |
-| `ADMIN_PUBLIC_KEYS`           | no       | wallet addresses that are always admins        |
-| `ADMIN_DOMAIN`                | yes      | the admin app's own host (deploy/compose.yml)  |
-| `ADMIN_ALLOWED_IPS`           | no       | networks allowed to reach the admin host       |
-| `LEDGER_SIGNING_KEY`          | yes      | base64 Ed25519 seed signing ledger checkpoints |
-| `LEDGER_PREVIOUS_SIGNING_KEY` | no       | only while rotating: the key being retired     |
-| `LEDGER_REKOR_URL`            | no\*     | public log checkpoints are anchored in         |
-| `HANDWRITING_EXPOSE_SCORES`   | no       | `true` to return scores (development only)     |
-| `RATE_LIMITS_ENABLED`         | no       | `false` to disable limits (development only)   |
+| Variable                         | Required | Purpose                                        |
+| -------------------------------- | -------- | ---------------------------------------------- |
+| `HANDWRITING_DATA_KEY`           | yes      | base64 AES-256 key for handwriting at rest     |
+| `HANDWRITING_PREVIOUS_DATA_KEYS` | no       | only while rotating: keys being retired        |
+| `JWT_PREVIOUS_SECRET`            | no       | only while rotating: the secret being retired  |
+| `ADMIN_PUBLIC_KEYS`              | no       | wallet addresses that are always admins        |
+| `ADMIN_DOMAIN`                   | yes      | the admin app's own host (deploy/compose.yml)  |
+| `ADMIN_ALLOWED_IPS`              | no       | networks allowed to reach the admin host       |
+| `LEDGER_SIGNING_KEY`             | yes      | base64 Ed25519 seed signing ledger checkpoints |
+| `LEDGER_PREVIOUS_SIGNING_KEY`    | no       | only while rotating: the key being retired     |
+| `LEDGER_REKOR_URL`               | no\*     | public log checkpoints are anchored in         |
+| `HANDWRITING_EXPOSE_SCORES`      | no       | `true` to return scores (development only)     |
+| `RATE_LIMITS_ENABLED`            | no       | `false` to disable limits (development only)   |
 
 \* Required in production in practice: production builds of the app expect the ledger to be
 anchored (see [ledger.md](ledger.md#anchoring-in-a-public-log)); `generate-env.sh` sets it for real
@@ -123,7 +158,6 @@ domains.
 
 ## Still open
 
-- Key rotation for `HANDWRITING_DATA_KEY` and `JWT_SECRET` (formats allow it; no tooling yet).
 - Shared rate-limit store for multiple instances, and per-IP limits behind proxies.
 - Account deletion as a whole (letters are immutable by design; what deletion means for them
   needs a product decision).
