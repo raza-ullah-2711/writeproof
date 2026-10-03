@@ -38,6 +38,8 @@ writeproof:
     checkpoint-interval: ${LEDGER_CHECKPOINT_INTERVAL:PT10M}
     # Optional file each published checkpoint is appended to (JSON lines), for outside witnesses.
     checkpoint-log: ${LEDGER_CHECKPOINT_LOG:}
+    # Only while rotating: the key being retired. It signs the handover to signing-key at startup.
+    previous-signing-key: ${LEDGER_PREVIOUS_SIGNING_KEY:}
   rate-limits:
     enabled: ${RATE_LIMITS_ENABLED:true}
     scale: 1

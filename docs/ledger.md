@@ -52,7 +52,7 @@ both sides (`LedgerSignerTest`, `checkpoint.spec.ts`).
 
 | Endpoint                                    | Returns                                             |
 | ------------------------------------------- | --------------------------------------------------- |
-| `GET /api/ledger/key`                       | `{publicKey}`, the raw Ed25519 key in base64url     |
+| `GET /api/ledger/key`                       | `{publicKey, rotations}`; the key in base64url      |
 | `GET /api/ledger/checkpoint`                | a freshly signed checkpoint                         |
 | `GET /api/ledger/checkpoints?after&limit`   | published checkpoints with `size > after`           |
 | `GET /api/ledger/proof/inclusion?seq`       | `{checkpoint, entry, proof}`; 404 if no entry       |
@@ -66,7 +66,8 @@ requests share a per-IP limit of 600 per 10 minutes. The mock recomputes the tre
 When a letter is opened, `LettersService.checkLedger`:
 
 1. Fetches the ledger key and **pins it on first use** (`LedgerTrustStore`, in localStorage). A
-   different key later fails every check ("The ledger key changed…").
+   different key later fails every check ("The ledger key changed…"), unless the pinned key
+   handed over to it (see [Rotating the ledger key](#rotating-the-ledger-key)).
 2. Fetches the inclusion proof for the letter's entry. It then checks four things:
    - the checkpoint's signature;
    - that the entry hashes to what it claims;
@@ -91,14 +92,57 @@ java -Dloader.main=com.writeproof.ledger.AuditLedger \
 
 On each run it:
 
-- checks the key against `--key` or the key pinned in the state file;
-- verifies every checkpoint published since its last run, plus the live one;
+- checks the key against `--key` or the key pinned in the state file, following any rotations
+  from it;
+- verifies every checkpoint published since its last run, plus the live one, each against the
+  key in charge at its size;
 - proves each checkpoint extends the one before it, starting from the checkpoint it last verified.
 
 On success it saves the new state and exits 0. A changed key, a bad signature, a shrunk ledger or
 rewritten history exits 1. Run it on a schedule from machines the operator doesn't control. Each
 witness then holds the operator to an append-only history. `LedgerProofApiTests` checks that it
 catches an entry rewritten directly in the database.
+
+## Rotating the ledger key
+
+The old key hands the ledger over to the new one by signing a rotation statement:
+
+```
+message   = "writeproof/key-rotation/v1\n" base64url(oldKey) "\n" base64url(newKey) "\n"
+            size "\n" base64url(root) "\n" timestampMillis
+signature = Ed25519(old key, message)
+```
+
+`size` and `root` are the ledger when the key changed: the old key vouches for checkpoints up to
+`size` and the new key from `size` on. History must pass through that checkpoint, so the new key
+can't rewrite anything the old key signed. A shared vector pins the message and signature on both
+sides (`KeyRotationTest`, `key-rotation.spec.ts`).
+
+To rotate, keep the current key and add a new one, then restart:
+
+```bash
+# deploy/.env
+LEDGER_PREVIOUS_SIGNING_KEY=<the current LEDGER_SIGNING_KEY>
+LEDGER_SIGNING_KEY=<new: openssl rand -base64 32>
+```
+
+At startup, before it answers requests, the server signs the statement with the previous key and
+stores it in `ledger_key_rotations` (append-only, migration V17). Restarting with the same settings
+changes nothing, and `LEDGER_PREVIOUS_SIGNING_KEY` can be removed once the log says "already
+rotated". Stop every API instance before rotating, so no old instance keeps signing past the
+handover. Back up the new `deploy/.env` (see [deployment.md](deployment.md)).
+
+The server also refuses to start when `LEDGER_SIGNING_KEY` isn't the ledger's key (the last
+rotation's new key or, before any rotation, the key that signed the published checkpoints). It
+also refuses to start when `LEDGER_PREVIOUS_SIGNING_KEY` isn't the ledger's key, and when it would
+rotate back to a retired key. A key swapped by mistake used to make every client refuse the
+ledger; now the server stops first.
+
+`GET /api/ledger/key` returns `{publicKey, rotations}`, every rotation oldest first. Browsers and
+witnesses that pinned an older key follow the chain from it. Each statement must be signed by the
+key before it, and the chain must end at the server's key. They then prove that the ledger they saw
+extends to each handover checkpoint, and from there to the current one. A changed key with no such
+chain still fails, as before.
 
 ## What this does and doesn't guarantee
 
@@ -111,8 +155,10 @@ catches an entry rewritten directly in the database.
   anchoring checkpoints on a public chain via `CheckpointPublisher`, is the next step.
 - **Trust on first use.** A browser that has never seen the ledger accepts whatever key it's
   given. The key could also be shipped in the app build or published out of band.
-- **The ledger key is long-lived.** Changing it makes every client and witness refuse the ledger.
-  Back it up with the other secrets (see [deployment.md](deployment.md)). Rotation, where the old
-  key signs the new one, isn't built yet.
+- **Rotation needs the old key.** A planned rotation is signed by the old key, so clients and
+  witnesses follow it. A **lost** key can't sign a handover, so losing it still makes every client
+  and witness refuse the ledger: back it up with the other secrets (see
+  [deployment.md](deployment.md)). A **stolen** key can sign a handover to the thief's key. Rotation
+  doesn't help there; witnesses comparing notes would show two handovers from one key.
 - **Real chain.** `LedgerService` is still the seam. A chain-backed implementation can serve the
   same proofs, or point clients at the chain's own.

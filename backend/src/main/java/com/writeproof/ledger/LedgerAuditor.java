@@ -12,12 +12,14 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 import java.util.ArrayList;
 import java.util.Arrays;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
 /**
  * An outside witness's check of a Writeproof ledger, over its public API only. It checks that the
- * ledger key is the one the witness pinned, that every checkpoint is signed by it, and that each
+ * ledger key is the one the witness pinned, or that a chain of {@link KeyRotation}s signed by the
+ * pinned key leads to it; that every checkpoint is signed by the key in charge at its size; and that each
  * checkpoint extends the one before it, starting from the last checkpoint this witness verified.
  * A rewritten or forked ledger fails that last check. Run it from {@link AuditLedger}.
  */
@@ -46,14 +48,34 @@ public class LedgerAuditor {
      */
     public Report audit(Optional<String> pinnedKey, Optional<WitnessState> previous) throws IOException {
         List<String> lines = new ArrayList<>();
-        String key = get("/api/ledger/key").path("publicKey").asText();
-        Optional<String> expectedKey = pinnedKey.or(() -> previous.map(WitnessState::publicKey));
-        if (expectedKey.isPresent() && !expectedKey.get().equals(key)) {
-            lines.add("FAIL ledger key changed: pinned " + expectedKey.get() + ", server has " + key);
+        JsonNode keyInfo = get("/api/ledger/key");
+        String key = keyInfo.path("publicKey").asText();
+        List<KeyRotation> rotations = new ArrayList<>();
+        for (JsonNode node : keyInfo.path("rotations")) {
+            rotations.add(rotation(node));
+        }
+        // Every key the ledger had, each vouched for by the one before: the first is trusted on first use.
+        List<byte[]> keys = new ArrayList<>();
+        keys.add(rotations.isEmpty() ? Base64Url.decode(key) : rotations.getFirst().oldKey());
+        try {
+            KeyRotation.follow(keys.getFirst(), Base64Url.decode(key), rotations).forEach(r -> keys.add(r.newKey()));
+        } catch (KeyRotation.BrokenChainException e) {
+            lines.add("FAIL " + e.getMessage());
             return new Report(false, lines, null);
         }
+        Optional<String> expectedKey = pinnedKey.or(() -> previous.map(WitnessState::publicKey));
+        int pinned = expectedKey.map(k -> indexOf(keys, Base64Url.decode(k))).orElse(0);
+        if (pinned < 0) {
+            lines.add("FAIL ledger key changed: pinned " + expectedKey.get() + ", server has " + key
+                    + ", and no rotation signed by the pinned key leads to it");
+            return new Report(false, lines, null);
+        }
+        List<KeyRotation> followed = rotations.subList(pinned, rotations.size());
+        for (KeyRotation r : followed) {
+            lines.add("ok   ledger key rotated from " + Base64Url.encode(r.oldKey()) + " to "
+                    + Base64Url.encode(r.newKey()) + " at " + r.size() + " entries");
+        }
         lines.add((expectedKey.isPresent() ? "ok   ledger key " : "ok   ledger key (pinned now) ") + key);
-        byte[] publicKey = Base64Url.decode(key);
 
         // The chain to check: where we left off, every checkpoint published since, and the live one.
         long after = previous.map(WitnessState::size).orElse(0L);
@@ -73,11 +95,16 @@ public class LedgerAuditor {
 
         boolean ok = true;
         for (Checkpoint c : chain) {
-            if (!Ed25519.verify(publicKey, c.signedMessage(), c.signature())) {
+            if (!signedByKeyInCharge(c, keys, rotations)) {
                 lines.add("FAIL checkpoint at size " + c.size() + " is not signed by the ledger key");
                 ok = false;
             }
         }
+        // History must also pass through each checkpoint an old key handed over at.
+        for (KeyRotation r : followed) {
+            chain.add(new Checkpoint(r.size(), r.root(), r.timestampMillis(), r.signature()));
+        }
+        chain.sort(Comparator.comparingLong(Checkpoint::size));
         long prevSize = previous.map(WitnessState::size).orElse(0L);
         byte[] prevRoot = previous.map(s -> Base64Url.decode(s.root())).orElse(null);
         for (Checkpoint c : chain) {
@@ -120,6 +147,37 @@ public class LedgerAuditor {
             proof.add(Base64Url.decode(hash.asText()));
         }
         return MerkleTree.verifyConsistency(from, to, oldRoot, newRoot, proof);
+    }
+
+    /**
+     * True if the key in charge at the checkpoint's size signed it. Key i (with {@code rotations[i-1]}
+     * leading to it) vouches for sizes from that rotation's size up to the next rotation's size.
+     */
+    private static boolean signedByKeyInCharge(Checkpoint c, List<byte[]> keys, List<KeyRotation> rotations) {
+        for (int i = 0; i < keys.size(); i++) {
+            long from = i == 0 ? 0 : rotations.get(i - 1).size();
+            long until = i == rotations.size() ? Long.MAX_VALUE : rotations.get(i).size();
+            if (from <= c.size() && c.size() <= until && Ed25519.verify(keys.get(i), c.signedMessage(), c.signature())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static int indexOf(List<byte[]> keys, byte[] key) {
+        for (int i = 0; i < keys.size(); i++) {
+            if (Arrays.equals(keys.get(i), key)) {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private static KeyRotation rotation(JsonNode node) {
+        return new KeyRotation(Base64Url.decode(node.path("oldKey").asText()),
+                Base64Url.decode(node.path("newKey").asText()), node.path("size").asLong(),
+                Base64Url.decode(node.path("root").asText()), node.path("timestampMillis").asLong(),
+                Base64Url.decode(node.path("signature").asText()));
     }
 
     private static Checkpoint checkpoint(JsonNode node) {

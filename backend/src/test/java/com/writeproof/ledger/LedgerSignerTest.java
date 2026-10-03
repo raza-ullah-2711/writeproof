@@ -20,7 +20,7 @@ class LedgerSignerTest {
             + "5fb8821590a33bacc61e39701cf9b46bd25bf5f0595bbe24655141438e7a100b";
 
     private static LedgerSigner signer(byte[] seed) {
-        return new LedgerSigner(new LedgerProperties(Base64.getEncoder().encodeToString(seed), null, null));
+        return new LedgerSigner(new LedgerProperties(Base64.getEncoder().encodeToString(seed), null, null, null));
     }
 
     @Test

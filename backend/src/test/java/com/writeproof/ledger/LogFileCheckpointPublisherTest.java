@@ -12,7 +12,7 @@ class LogFileCheckpointPublisherTest {
     @Test
     void appendsOneJsonLinePerCheckpoint(@TempDir Path dir) throws Exception {
         Path log = dir.resolve("checkpoints.jsonl");
-        var publisher = new LogFileCheckpointPublisher(new LedgerProperties("unused", null, log.toString()));
+        var publisher = new LogFileCheckpointPublisher(new LedgerProperties("unused", null, log.toString(), null));
 
         publisher.publish(new Checkpoint(1, new byte[32], 1000, new byte[64]));
         publisher.publish(new Checkpoint(2, new byte[32], 2000, new byte[64]));

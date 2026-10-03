@@ -11,7 +11,7 @@ fi
 if [[ -e .env ]]; then
   echo "deploy/.env already exists; refusing to overwrite its secrets." >&2
   echo "Losing HANDWRITING_DATA_KEY makes every stored enrolment unreadable;" >&2
-  echo "changing LEDGER_SIGNING_KEY makes every client and witness distrust the ledger." >&2
+  echo "changing LEDGER_SIGNING_KEY without rotating it (docs/ledger.md) makes clients distrust the ledger." >&2
   exit 1
 fi
 
