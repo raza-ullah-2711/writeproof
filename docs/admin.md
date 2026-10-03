@@ -1,8 +1,7 @@
 # Admin side (Task 13)
 
 The admin side is for running Writeproof: a dashboard, managing accounts and admins, moderating
-open letters, and system controls. It is built in five parts (13a–13e); this document grows with
-each one.
+open letters, and system controls. It was built in five parts (13a–13e).
 
 ## What admins can and can't do
 
@@ -33,8 +32,8 @@ working immediately.
 3. Add it to `ADMIN_PUBLIC_KEYS` in `deploy/.env`. Use commas to separate several addresses.
 4. Run `docker compose -f deploy/compose.yml up -d`.
 
-Addresses listed there are always ADMIN while listed. Other admins and moderators are granted in
-the admin area (13e) and stored in `admin_roles`.
+Addresses listed there are always ADMIN while listed. Other admins and moderators are granted on
+the Admins page (13e) and stored in `admin_roles`.
 
 Access rules (in `SecurityConfig`):
 
@@ -203,3 +202,37 @@ API (ADMIN only):
 - `POST /api/admin/system/ledger/audit`
 
 The admin area is lazy-loaded, so ordinary visitors never download it.
+
+## Admin management (13e)
+
+`/admin/admins` (ADMIN only) lists everyone with a role. For each: their address (linked to their
+account, or marked "no account yet"), their role, and where the role came from, either "set in
+configuration" or granted on a date by an admin.
+
+- **Give a role:** enter a wallet address and choose Moderator or Admin. A role can be given before
+  the account exists; it applies once they sign up.
+- **Change** between Moderator and Admin, or **Remove**. Both ask for confirmation.
+- **Effect is immediate:** roles are looked up on every request.
+
+**Guard rails** (enforced by the server, reflected in the page):
+
+- **Configured admins are read-only here:** admins in `ADMIN_PUBLIC_KEYS` are listed but can't be
+  changed on this page (409). Change them in the server configuration.
+- **Nobody can change or remove their own role** (409), so an admin can't lock themselves out, and
+  at least one admin always remains.
+- **No roles for suspended accounts:** reinstate the account first (409). Likewise, an admin must
+  lose their role before they can be suspended (13b).
+
+| Change            | Audit action         | Details                         |
+| ----------------- | -------------------- | ------------------------------- |
+| Give a role       | `admin.role-granted` | role, whether an account exists |
+| Moderator ↔ Admin | `admin.role-changed` | role, previous role             |
+| Remove            | `admin.role-revoked` | the role removed                |
+
+Giving someone the role they already have is not audited.
+
+API (ADMIN only):
+
+- `GET /api/admin/admins`
+- `PUT /api/admin/admins/{address}` with `{role}`
+- `DELETE /api/admin/admins/{address}`

@@ -89,12 +89,9 @@ sent it can't be edited or unsent — like a sealed letter.
 12. **Deployment packaging** — production images (non-root, layered), Caddy with automatic HTTPS
     and the required headers, health-ordered Compose stack, secrets generator, backup/restore,
     smoke test run in CI. ✅ — see [deployment.md](deployment.md).
-13. **Admin side** — decided: admins sign in with their wallet (allow-listed by address); takedowns
-    remove an open letter's text but keep its hash on the ledger; suspension blocks sending only;
-    roles Admin and Moderator. Admins never see letter content, contacts or handwriting (they are
-    encrypted) and can't rewrite letters or the ledger. 13a **Foundation + dashboard** ✅ — see
-    [admin.md](admin.md). 13b **Accounts** ✅ — search, suspend/reinstate, forced sign-out,
-    clear rate limits. 13c **Moderation** ✅ — reader reports, a review queue, takedowns that
-    delete the text and keep the record. 13d **System controls** ✅ — registration, sending and
-    publishing switches, an announcement, checkpoint and ledger-audit tools. 13e admin management
-    to follow.
+13. **Admin side** ✅ — decided: admins sign in with their wallet (allow-listed by address);
+    takedowns remove an open letter's text but keep its hash on the ledger; suspension blocks
+    sending only; roles Admin and Moderator. Admins never see letter content, contacts or
+    handwriting (they are encrypted) and can't rewrite letters or the ledger; every admin action
+    is in an append-only audit log. 13a dashboard, 13b accounts, 13c moderation, 13d system
+    controls, 13e admin management — see [admin.md](admin.md).

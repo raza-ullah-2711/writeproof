@@ -1,0 +1,88 @@
+.hint,
+.muted {
+  font-size: 0.8125rem;
+  color: #555;
+}
+
+.add {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: flex-end;
+  margin: 0.75rem 0;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    font-size: 0.875rem;
+  }
+
+  label:first-child {
+    flex: 1;
+    max-width: 32rem;
+  }
+
+  input,
+  select {
+    font: inherit;
+    padding: 0.4rem;
+  }
+}
+
+table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8125rem;
+}
+
+th,
+td {
+  text-align: left;
+  padding: 0.4rem 0.75rem 0.4rem 0;
+  border-bottom: 1px solid #eee;
+  vertical-align: middle;
+}
+
+.actions {
+  white-space: nowrap;
+
+  button + button {
+    margin-left: 0.25rem;
+  }
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.05rem 0.45rem;
+  border-radius: 999px;
+  background: #f4f1ea;
+  font-size: 0.75rem;
+
+  &.admin {
+    background: #eef3fb;
+    color: #1d4f8f;
+  }
+
+  &.me {
+    margin-left: 0.25rem;
+    background: #e9f5ec;
+    color: #1b5e20;
+  }
+}
+
+.danger {
+  color: #9b1c1c;
+}
+
+.primary {
+  font-weight: 600;
+}
+
+.notice {
+  color: #1b5e20;
+}
+
+.error {
+  color: #b00020;
+}

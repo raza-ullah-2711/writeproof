@@ -1,0 +1,100 @@
+<p class="hint">
+  Admins can do everything here; moderators only handle reported open letters. A role works from the
+  holder's next request and can be given before they create their account. Admins set in
+  ADMIN_PUBLIC_KEYS are managed in the server configuration, and nobody can change their own role.
+</p>
+
+<form class="add" (ngSubmit)="add()">
+  <label>
+    Wallet address
+    <input
+      name="address"
+      [(ngModel)]="address"
+      autocomplete="off"
+      spellcheck="false"
+      placeholder="Their address (from their Letters page)"
+    />
+  </label>
+  <label>
+    Role
+    <select name="role" [(ngModel)]="role">
+      <option value="MODERATOR">Moderator</option>
+      <option value="ADMIN">Admin</option>
+    </select>
+  </label>
+  <button type="submit" class="primary" [disabled]="busy() || !address.trim()">Give role</button>
+</form>
+
+@if (notice(); as message) {
+  <p class="notice" role="status">{{ message }}</p>
+}
+@if (error(); as message) {
+  <p class="error" role="alert">{{ message }}</p>
+}
+
+@if (members(); as list) {
+  <table>
+    <thead>
+      <tr>
+        <th>Address</th>
+        <th>Role</th>
+        <th>Since</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody>
+      @for (m of list; track m.publicKey) {
+        <tr>
+          <td>
+            @if (m.accountId) {
+              <a [routerLink]="['/admin/accounts', m.accountId]"
+                ><code [title]="m.publicKey">{{ short(m.publicKey) }}</code></a
+              >
+            } @else {
+              <code [title]="m.publicKey">{{ short(m.publicKey) }}</code>
+              <small class="muted">no account yet</small>
+            }
+            @if (isMe(m)) {
+              <span class="badge me">you</span>
+            }
+          </td>
+          <td>
+            <span class="badge" [class.admin]="m.role === 'ADMIN'">{{ label(m.role) }}</span>
+          </td>
+          <td>
+            @if (m.source === 'configuration') {
+              <span class="muted">set in configuration</span>
+            } @else {
+              {{ m.grantedAt | date: 'yyyy-MM-dd' : 'UTC' }}
+              <small class="muted"
+                >by <code [title]="m.grantedBy ?? ''">{{ m.grantedBy?.slice(0, 8) }}…</code></small
+              >
+            }
+          </td>
+          <td class="actions">
+            @if (m.source === 'granted' && !isMe(m)) {
+              @if (pending()?.member?.publicKey === m.publicKey) {
+                {{
+                  pending()?.action === 'revoke'
+                    ? 'Remove their role?'
+                    : 'Make them ' + withArticle(pending()!.role!) + '?'
+                }}
+                <button type="button" class="primary" (click)="confirm()" [disabled]="busy()">
+                  Confirm
+                </button>
+                <button type="button" (click)="pending.set(null)">Cancel</button>
+              } @else {
+                <button type="button" (click)="ask(m, 'change')">
+                  Make {{ m.role === 'ADMIN' ? 'moderator' : 'admin' }}
+                </button>
+                <button type="button" class="danger" (click)="ask(m, 'revoke')">Remove</button>
+              }
+            }
+          </td>
+        </tr>
+      }
+    </tbody>
+  </table>
+} @else if (!error()) {
+  <p>Loading&hellip;</p>
+}
