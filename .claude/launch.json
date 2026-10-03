@@ -1,0 +1,33 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "backend",
+      "runtimeExecutable": "C:\\Program Files\\Git\\bin\\bash.exe",
+      "runtimeArgs": [
+        "-c",
+        "export JAVA_HOME=\"/c/Program Files/Eclipse Adoptium/jdk-21.0.12.101-hotspot\"; export PATH=\"$JAVA_HOME/bin:$PATH\"; cd /d/Projects/writeproof && set -a && . ./.env && set +a && cd backend && ./mvnw -q -DskipTests package && exec java -jar target/writeproof-backend-0.0.1-SNAPSHOT.jar"
+      ],
+      "port": 8080,
+      "url": "http://localhost:8080"
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "C:\\Program Files\\Git\\bin\\bash.exe",
+      "runtimeArgs": ["-c", "cd /d/Projects/writeproof/frontend && exec node node_modules/@angular/cli/bin/ng.js serve frontend"],
+      "port": 4200
+    },
+    {
+      "name": "frontend-prod",
+      "runtimeExecutable": "C:\\Program Files\\Git\\bin\\bash.exe",
+      "runtimeArgs": ["-c", "cd /d/Projects/writeproof/frontend && exec node node_modules/@angular/cli/bin/ng.js serve frontend --configuration production --port 4201"],
+      "port": 4201
+    },
+    {
+      "name": "admin",
+      "runtimeExecutable": "C:\\Program Files\\Git\\bin\\bash.exe",
+      "runtimeArgs": ["-c", "cd /d/Projects/writeproof/frontend && exec node node_modules/@angular/cli/bin/ng.js serve admin"],
+      "port": 4300
+    }
+  ]
+}

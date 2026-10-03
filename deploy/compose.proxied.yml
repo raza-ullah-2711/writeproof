@@ -1,0 +1,90 @@
+# The production stack behind a reverse proxy you already run (e.g. Nginx Proxy Manager) on a
+# shared host. Unlike compose.yml it publishes no ports and builds nothing:
+#   - the proxy terminates TLS and forwards both hosts to writeproof-web:80 over PROXY_NETWORK;
+#   - only writeproof-web joins that network; the API and the database stay on this stack's own;
+#   - every service has a writeproof- name, so nothing collides with other apps' DNS names;
+#   - images are built elsewhere and loaded (docs/deployment.md, "Behind an existing proxy").
+#   docker compose -f deploy/compose.proxied.yml up -d --wait
+name: writeproof
+
+services:
+  writeproof-db:
+    image: postgres:17-alpine
+    container_name: writeproof-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: writeproof
+      POSTGRES_USER: writeproof
+      POSTGRES_PASSWORD: ${DB_PASSWORD:?run deploy/generate-env.sh first}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U writeproof -d writeproof"]
+      interval: 5s
+      timeout: 5s
+      retries: 20
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 1g }
+
+  writeproof-api:
+    image: writeproof-backend:${WRITEPROOF_VERSION:?set WRITEPROOF_VERSION to the loaded image tag}
+    pull_policy: never
+    container_name: writeproof-api
+    restart: unless-stopped
+    depends_on:
+      writeproof-db:
+        condition: service_healthy
+    environment:
+      DB_URL: jdbc:postgresql://writeproof-db:5432/writeproof
+      DB_USERNAME: writeproof
+      DB_PASSWORD: ${DB_PASSWORD:?run deploy/generate-env.sh first}
+      JWT_SECRET: ${JWT_SECRET:?run deploy/generate-env.sh first}
+      HANDWRITING_DATA_KEY: ${HANDWRITING_DATA_KEY:?run deploy/generate-env.sh first}
+      HANDWRITING_PREVIOUS_DATA_KEYS: ${HANDWRITING_PREVIOUS_DATA_KEYS:-}
+      JWT_PREVIOUS_SECRET: ${JWT_PREVIOUS_SECRET:-}
+      LEDGER_SIGNING_KEY: ${LEDGER_SIGNING_KEY:?run deploy/generate-env.sh first}
+      LEDGER_CHECKPOINT_INTERVAL: ${LEDGER_CHECKPOINT_INTERVAL:-PT10M}
+      LEDGER_PREVIOUS_SIGNING_KEY: ${LEDGER_PREVIOUS_SIGNING_KEY:-}
+      LEDGER_REKOR_URL: ${LEDGER_REKOR_URL:-}
+      ADMIN_PUBLIC_KEYS: ${ADMIN_PUBLIC_KEYS:-}
+      LEDGER_CHECKPOINT_LOG: /var/lib/writeproof/checkpoints.jsonl
+      # Trust X-Forwarded-* only from private addresses (writeproof-web), as in compose.yml.
+      SERVER_FORWARD_HEADERS_STRATEGY: native
+    volumes:
+      - ledger_checkpoints:/var/lib/writeproof
+    deploy:
+      resources:
+        limits: { cpus: "1.5", memory: 1536m }
+
+  writeproof-web:
+    image: writeproof-web:${WRITEPROOF_VERSION:?set WRITEPROOF_VERSION to the loaded image tag}
+    pull_policy: never
+    container_name: writeproof-web
+    restart: unless-stopped
+    depends_on:
+      writeproof-api:
+        condition: service_healthy
+    environment:
+      # Plain HTTP: the proxy in front terminates TLS (and redirects HTTP to HTTPS).
+      DOMAIN: http://${DOMAIN:?run deploy/generate-env.sh first}
+      ADMIN_DOMAIN: http://${ADMIN_DOMAIN:?add ADMIN_DOMAIN to deploy/.env}
+      ADMIN_ALLOWED_IPS: ${ADMIN_ALLOWED_IPS:-0.0.0.0/0 ::/0}
+      API_UPSTREAM: writeproof-api:8080
+      # The proxy's addresses, so client addresses come from its X-Forwarded-For.
+      TRUSTED_PROXIES: ${TRUSTED_PROXIES:-private_ranges}
+    networks:
+      - default
+      - proxy
+    deploy:
+      resources:
+        limits: { cpus: "1", memory: 256m }
+
+networks:
+  proxy:
+    name: ${PROXY_NETWORK:-shared}
+    external: true
+
+volumes:
+  pgdata:
+  ledger_checkpoints:
