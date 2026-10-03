@@ -24,18 +24,18 @@ h4 {
   font-size: 0.75rem;
 
   &.suspended {
-    background: #fdecec;
-    color: #9b1c1c;
+    background: var(--critical-bg);
+    color: var(--critical-text);
   }
 
   &.active {
-    background: #e9f5ec;
-    color: #1b5e20;
+    background: var(--good-bg);
+    color: var(--good-text);
   }
 
   &.role {
-    background: #eef3fb;
-    color: #1d4f8f;
+    background: var(--info-bg);
+    color: var(--info-text);
   }
 }
 
@@ -46,7 +46,7 @@ h4 {
   font-size: 0.875rem;
 
   dt {
-    color: #52514e;
+    color: var(--text-secondary);
   }
 
   dd {
@@ -56,7 +56,7 @@ h4 {
 
 .hint {
   font-size: 0.8125rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .actions {
@@ -66,7 +66,7 @@ h4 {
 }
 
 .danger {
-  color: #9b1c1c;
+  color: var(--critical-text);
 }
 
 .primary {
@@ -79,7 +79,7 @@ h4 {
   gap: 0.5rem;
   max-width: 32rem;
   padding: 0.75rem;
-  border: 1px solid #e7e6e1;
+  border: 1px solid var(--border);
   border-radius: 8px;
 
   label {
@@ -108,14 +108,14 @@ h4 {
   td {
     text-align: left;
     padding: 0.3rem 0.75rem 0.3rem 0;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border);
   }
 }
 
 .notice {
-  color: #1b5e20;
+  color: var(--good-text);
 }
 
 .error {
-  color: #b00020;
+  color: var(--critical-text);
 }

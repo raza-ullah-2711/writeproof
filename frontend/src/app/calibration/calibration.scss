@@ -10,13 +10,13 @@
 .hint,
 .counts {
   font-size: 0.875rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .practice-name {
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 1.1rem;
-  color: #1b1f3a;
+  color: var(--ink);
 }
 
 .toolbar {
@@ -34,9 +34,9 @@ app-signature-view {
 }
 
 .danger {
-  color: #cf222e;
+  color: var(--critical-text);
 }
 
 .error {
-  color: #cf222e;
+  color: var(--critical-text);
 }

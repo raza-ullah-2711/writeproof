@@ -3,6 +3,8 @@ import {
   ElementRef,
   OnDestroy,
   afterNextRender,
+  effect,
+  inject,
   computed,
   input,
   output,
@@ -13,8 +15,10 @@ import { HandwritingSample, InputDevice, Stroke } from './handwriting-sample';
 import { drawStrokes } from './ink';
 import { strokesAt } from './replay';
 import { PointerSample, StrokeRecorder } from './stroke-recorder';
+import { ThemeService } from '../theme/theme.service';
 
-const INK = '#1b1f3a';
+/** The ink when the theme's --ink isn't readable (e.g. in tests). */
+const FALLBACK_INK = '#1b1f3a';
 
 /**
  * A canvas that records handwriting as stroke dynamics via Pointer Events:
@@ -62,8 +66,15 @@ export class HandwritingPad implements OnDestroy {
     };
   });
 
+  private readonly theme = inject(ThemeService);
+
   constructor() {
     afterNextRender(() => this.setUpCanvas());
+    // Redraw in the new ink when the theme changes.
+    effect(() => {
+      this.theme.dark();
+      this.redraw(this.recorder.strokes);
+    });
   }
 
   ngOnDestroy(): void {
@@ -198,7 +209,8 @@ export class HandwritingPad implements OnDestroy {
       return;
     }
     this.ctx.clearRect(0, 0, this.width(), this.height());
-    drawStrokes(this.ctx, strokes, this.recorder.device, INK);
+    const ink = getComputedStyle(this.canvas().nativeElement).getPropertyValue('--ink').trim();
+    drawStrokes(this.ctx, strokes, this.recorder.device, ink || FALLBACK_INK);
   }
 
   private stopReplay(): void {

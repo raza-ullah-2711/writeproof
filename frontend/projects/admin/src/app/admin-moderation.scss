@@ -1,6 +1,6 @@
 .hint {
   font-size: 0.8125rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 h3 {
@@ -31,7 +31,7 @@ h3 {
 .case {
   margin-bottom: 0.75rem;
   padding: 0.75rem;
-  border: 1px solid #e7e6e1;
+  border: 1px solid var(--border);
   border-radius: 8px;
 
   header {
@@ -39,15 +39,15 @@ h3 {
     flex-wrap: wrap;
     gap: 0.25rem 1rem;
     font-size: 0.8125rem;
-    color: #52514e;
+    color: var(--text-secondary);
   }
 }
 
 .body {
   margin: 0.5rem 0;
   padding: 0.5rem 0.75rem;
-  background: #fffdf7;
-  border-left: 3px solid #ddd;
+  background: var(--paper);
+  border-left: 3px solid var(--border);
   font-family: Georgia, 'Times New Roman', serif;
   white-space: pre-wrap;
   overflow-wrap: anywhere;
@@ -55,7 +55,7 @@ h3 {
 
 .removed {
   font-size: 0.875rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .counts {
@@ -67,7 +67,7 @@ h3 {
   margin: 0 0.25rem;
   padding: 0.05rem 0.45rem;
   border-radius: 999px;
-  background: #f4f1ea;
+  background: var(--surface-muted);
 }
 
 .reports {
@@ -76,12 +76,12 @@ h3 {
   font-size: 0.8125rem;
 
   .resolved {
-    color: #8a8984;
+    color: var(--text-muted);
   }
 
   q {
     display: block;
-    color: #333;
+    color: var(--text);
   }
 }
 
@@ -111,7 +111,7 @@ h3 {
 }
 
 .danger {
-  color: #9b1c1c;
+  color: var(--critical-text);
 }
 
 .primary {
@@ -119,9 +119,9 @@ h3 {
 }
 
 .notice {
-  color: #1b5e20;
+  color: var(--good-text);
 }
 
 .error {
-  color: #b00020;
+  color: var(--critical-text);
 }

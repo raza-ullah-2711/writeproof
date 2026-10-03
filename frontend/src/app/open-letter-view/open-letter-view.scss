@@ -8,13 +8,13 @@
   font-size: 0.75rem;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .byline,
 .address {
   font-size: 0.875rem;
-  color: #555;
+  color: var(--text-secondary);
 
   code {
     overflow-wrap: anywhere;
@@ -28,8 +28,8 @@
 .body {
   margin: 1rem 0;
   padding: 1rem;
-  background: #fffdf7;
-  border-left: 3px solid #ddd;
+  background: var(--paper);
+  border-left: 3px solid var(--border);
   font-family: Georgia, 'Times New Roman', serif;
   font-size: 1.0625rem;
   line-height: 1.5;
@@ -41,10 +41,10 @@
   list-style: none;
   padding: 0;
   font-size: 0.875rem;
-  color: #b00020;
+  color: var(--critical-text);
 
   .ok {
-    color: #1b5e20;
+    color: var(--good-text);
   }
 
   .problem {
@@ -54,15 +54,15 @@
 }
 
 .error {
-  color: #b00020;
+  color: var(--critical-text);
 }
 
 .removed {
   margin: 1rem 0;
   padding: 0.75rem 1rem;
-  border: 1px solid #e7e6e1;
+  border: 1px solid var(--border);
   border-radius: 6px;
-  background: #f6f5f2;
+  background: var(--surface-muted);
   font-size: 0.9375rem;
 }
 
@@ -74,7 +74,7 @@
     display: flex;
     flex-wrap: wrap;
     gap: 0.25rem 1rem;
-    border: 1px solid #ddd;
+    border: 1px solid var(--border);
     border-radius: 6px;
   }
 
@@ -96,12 +96,12 @@
     background: none;
     border: 0;
     padding: 0;
-    color: #555;
+    color: var(--text-secondary);
     text-decoration: underline;
     cursor: pointer;
   }
 }
 
 .notice {
-  color: #1b5e20;
+  color: var(--good-text);
 }

@@ -6,8 +6,8 @@
   display: block;
   width: 100%;
   height: auto;
-  background: #fffdf7;
-  border: 1px solid #d6d0c4;
+  background: var(--paper);
+  border: 1px solid var(--paper-border);
   border-radius: 6px;
   cursor: crosshair;
   // Pointer events must reach us instead of scrolling or zooming the page.

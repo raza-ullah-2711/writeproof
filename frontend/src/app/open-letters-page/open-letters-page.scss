@@ -7,7 +7,7 @@
 .empty,
 .meta {
   font-size: 0.8125rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .compose {
@@ -69,23 +69,23 @@
     gap: 0.25rem 1rem;
     align-items: center;
     padding: 0.5rem 0;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--border);
   }
 }
 
 .notice {
-  color: #1b5e20;
+  color: var(--good-text);
 }
 
 .error {
-  color: #b00020;
+  color: var(--critical-text);
 }
 
 .paused,
 .closed {
   padding: 0.5rem 0.75rem;
-  border: 1px solid #f0d58a;
+  border: 1px solid var(--warning-border);
   border-radius: 6px;
-  background: #fdf6e3;
+  background: var(--warning-bg);
   font-size: 0.875rem;
 }

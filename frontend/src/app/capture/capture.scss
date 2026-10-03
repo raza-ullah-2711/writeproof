@@ -5,7 +5,7 @@
 .hint,
 .stats {
   font-size: 0.875rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .toolbar {
@@ -18,9 +18,9 @@
 .import {
   position: relative;
   padding: 1px 6px;
-  border: 1px solid #767676;
+  border: 1px solid var(--border-strong);
   border-radius: 3px;
-  background: #efefef;
+  background: var(--surface-muted);
   font-size: 0.8125rem;
   cursor: pointer;
 
@@ -33,5 +33,5 @@
 }
 
 .error {
-  color: #cf222e;
+  color: var(--critical-text);
 }

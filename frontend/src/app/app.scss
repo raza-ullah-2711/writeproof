@@ -7,7 +7,7 @@
 
 .tagline {
   font-style: italic;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .status {
@@ -15,22 +15,29 @@
   font-size: 0.875rem;
 
   &[data-status='up'] {
-    color: #1a7f37;
+    color: var(--good-text);
   }
 
   &[data-status='down'] {
-    color: #cf222e;
+    color: var(--critical-text);
   }
 }
 
 nav {
   display: flex;
-  gap: 1rem;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.25rem 1rem;
   font-family: system-ui, sans-serif;
   font-size: 0.875rem;
 
   a {
-    color: #555;
+    color: var(--text-secondary);
+    white-space: nowrap;
+  }
+
+  .theme {
+    margin-left: auto;
   }
 
   a.active {
@@ -42,18 +49,18 @@ nav {
 
 .suspended {
   padding: 0.6rem 0.75rem;
-  border: 1px solid #f3b4b4;
+  border: 1px solid var(--critical-border);
   border-radius: 6px;
-  background: #fdecec;
-  color: #7a1616;
+  background: var(--critical-bg);
+  color: var(--critical-text);
   font-size: 0.875rem;
 }
 
 .announcement {
   padding: 0.6rem 0.75rem;
-  border: 1px solid #c9d8ef;
+  border: 1px solid var(--info-border);
   border-radius: 6px;
-  background: #eef3fb;
-  color: #1d3f6e;
+  background: var(--info-bg);
+  color: var(--info-text);
   font-size: 0.875rem;
 }

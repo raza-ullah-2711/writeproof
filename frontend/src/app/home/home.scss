@@ -10,7 +10,7 @@ dd {
 }
 
 .error {
-  color: #cf222e;
+  color: var(--critical-text);
 }
 
 .restore {
@@ -38,7 +38,7 @@ dd {
 .backup {
   margin-top: 1.5rem;
   padding-top: 1rem;
-  border-top: 1px solid #e5e0d6;
+  border-top: 1px solid var(--border);
   font-size: 0.875rem;
 
   h3 {
@@ -51,8 +51,8 @@ dd {
   display: block;
   margin: 0.5rem 0;
   padding: 0.75rem;
-  background: #fffdf7;
-  border: 1px dashed #b8ae9c;
+  background: var(--paper);
+  border: 1px dashed var(--paper-border);
   font-family: ui-monospace, monospace;
   font-size: 1.05rem;
   letter-spacing: 0.05em;
@@ -69,22 +69,22 @@ dd {
 }
 
 .ok {
-  color: #1a7f37;
+  color: var(--good-text);
 }
 
 .warn {
-  color: #9a6700;
+  color: var(--warning-text);
 }
 
 .hint {
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .paused,
 .closed {
   padding: 0.5rem 0.75rem;
-  border: 1px solid #f0d58a;
+  border: 1px solid var(--warning-border);
   border-radius: 6px;
-  background: #fdf6e3;
+  background: var(--warning-bg);
   font-size: 0.875rem;
 }

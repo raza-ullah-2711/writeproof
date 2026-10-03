@@ -111,16 +111,15 @@ interface Bar {
   `,
   styles: `
     .viz-root {
-      --surface-1: #fcfcfb;
-      --text-primary: #0b0b0b;
-      --text-secondary: #52514e;
-      --grid: #e7e6e1;
-      --series-1: #2a78d6;
-      --series-2: #eb6834;
+      --surface-1: var(--chart-surface);
+      --text-primary: var(--chart-text);
+      --text-secondary: var(--chart-text-secondary);
+      --grid: var(--chart-grid);
+      // Series colours come from theme.scss: chosen and validated for each mode.
       margin: 0;
       padding: 0.75rem;
       background: var(--surface-1);
-      border: 1px solid #e7e6e1;
+      border: 1px solid var(--border);
       border-radius: 8px;
       color: var(--text-primary);
     }
@@ -167,7 +166,7 @@ interface Bar {
       background: none;
       border: 0;
       padding: 0;
-      color: #1d4f8f;
+      color: var(--link);
       text-decoration: underline;
       cursor: pointer;
     }
@@ -184,7 +183,7 @@ interface Bar {
       stroke-width: 1;
     }
     .axis {
-      stroke: #b9b8b2;
+      stroke: var(--chart-axis);
       stroke-width: 1;
     }
     .tick {
@@ -199,7 +198,7 @@ interface Bar {
     }
     g:hover .hit,
     g:focus .hit {
-      fill: rgba(0, 0, 0, 0.04);
+      fill: var(--hover-wash);
     }
     .tooltip {
       position: absolute;
@@ -209,10 +208,11 @@ interface Bar {
       flex-direction: column;
       gap: 0.1rem;
       padding: 0.4rem 0.5rem;
-      background: #fff;
-      border: 1px solid #ddd;
+      background: var(--chart-surface);
+      color: var(--chart-text);
+      border: 1px solid var(--border);
       border-radius: 6px;
-      box-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      box-shadow: 0 2px 6px var(--shadow);
       font-size: 0.75rem;
       pointer-events: none;
       white-space: nowrap;
@@ -226,7 +226,7 @@ interface Bar {
     td {
       text-align: right;
       padding: 0.15rem 0.5rem;
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid var(--border);
     }
     th:first-child,
     td:first-child {

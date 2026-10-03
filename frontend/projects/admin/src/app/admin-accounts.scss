@@ -21,7 +21,7 @@
 
 .hint {
   font-size: 0.8125rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 table {
@@ -34,7 +34,7 @@ th,
 td {
   text-align: left;
   padding: 0.35rem 0.75rem 0.35rem 0;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border);
 }
 
 .badge {
@@ -45,16 +45,16 @@ td {
   font-size: 0.75rem;
 
   &.suspended {
-    background: #fdecec;
-    color: #9b1c1c;
+    background: var(--critical-bg);
+    color: var(--critical-text);
   }
 
   &.role {
-    background: #eef3fb;
-    color: #1d4f8f;
+    background: var(--info-bg);
+    color: var(--info-text);
   }
 }
 
 .error {
-  color: #b00020;
+  color: var(--critical-text);
 }

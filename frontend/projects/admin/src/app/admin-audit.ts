@@ -55,7 +55,7 @@ import { AdminService, AuditEntry } from './admin.service';
   styles: `
     .hint {
       font-size: 0.8125rem;
-      color: #555;
+      color: var(--text-secondary);
     }
     table {
       width: 100%;
@@ -67,7 +67,7 @@ import { AdminService, AuditEntry } from './admin.service';
       text-align: left;
       vertical-align: top;
       padding: 0.3rem 0.5rem 0.3rem 0;
-      border-bottom: 1px solid #eee;
+      border-bottom: 1px solid var(--border);
     }
     .detail {
       white-space: pre-wrap;
@@ -75,7 +75,7 @@ import { AdminService, AuditEntry } from './admin.service';
       font-size: 0.75rem;
     }
     .error {
-      color: #b00020;
+      color: var(--critical-text);
     }
   `,
 })
