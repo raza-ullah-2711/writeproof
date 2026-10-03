@@ -112,3 +112,51 @@ API (ADMIN only):
 - `POST /api/admin/accounts/{id}/rate-limits/reset`
 
 Users can see their own status at `GET /api/me/status`.
+
+## Moderation (13c)
+
+Open letters are public, so moderation reads them. Sealed letters can't be moderated: nobody but
+their two parties can read them.
+
+**Reporting.** Any reader can report an open letter from its page, signed in or not. A report
+has a category (spam, harassment, illegal content, impersonation, something else) and an optional
+note of up to 500 characters.
+
+- Reports are limited to 20 per hour per IP.
+- A signed-in reader can report each letter once.
+- A removed letter can't be reported (410).
+
+**The queue.** `/admin/moderation` is open to moderators and admins. It lists letters with open
+reports, most reported first. Each entry shows the letter's text, the counts per category, and
+each report with its note and whether it came from a signed-in reader. Any letter can also be
+looked up by pasting its link, to act on letters nobody reported.
+
+| Decision | Effect                                                                                                                                                                             | Audit action           |
+| -------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- |
+| Dismiss  | The letter stays up; its open reports are resolved as dismissed                                                                                                                    | `moderation.dismissed` |
+| Remove   | The text is deleted permanently, and open reports are resolved as removed. The link shows "Removed by Writeproof" with the date and category, plus the ledger check of its record. | `moderation.removed`   |
+
+The audit entry records the decision, the category, the number of reports and an optional note.
+It **never records the removed text**. It also records whether a moderator or an admin decided.
+
+**How a removal works.** `open_letter_removals` (migration V15, append-only) holds the hash, the
+category, when, and who.
+
+The `open_letters` trigger was replaced by `writeproof_open_letter_takedown_only()`. It allows
+exactly one change: setting `body` to NULL, for a letter with a removal record, with every other
+column unchanged. Deletes are still refused.
+
+The ledger is untouched. The letter's hash stays there, so a removal can't be used to rewrite
+history, and anyone can still prove the record existed.
+
+The dashboard shows open reports (highlighted when there are any), how many letters they concern,
+and the number of removals.
+
+API (MODERATOR or ADMIN):
+
+- `GET /api/admin/moderation/queue`
+- `GET /api/admin/moderation/letters/{hash}`
+- `POST /api/admin/moderation/letters/{hash}/dismiss` with `{note?}`
+- `POST /api/admin/moderation/letters/{hash}/remove` with `{category, note?}`
+
+Readers report with `POST /api/open-letters/{hash}/reports`, which is public.

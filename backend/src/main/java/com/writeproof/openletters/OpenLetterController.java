@@ -37,15 +37,21 @@ class OpenLetterController {
         }
     }
 
-    /** The author is identified by their public key only, never by account id. */
+    /**
+     * The author is identified by their public key only, never by account id. After a takedown
+     * {@code body} is null and {@code removed} says when and why; the record itself remains.
+     */
     record OpenLetterResponse(String letterHash, String author, String sentAt, String body, String signature,
-                              String handwritingHash, double handwritingScore, LedgerRef ledger) {
+                              String handwritingHash, double handwritingScore, LedgerRef ledger,
+                              OpenLetter.Removal removed) {
         static OpenLetterResponse of(OpenLetter l) {
             return new OpenLetterResponse(Base64Url.encode(l.letterHash()), Base64Url.encode(l.authorKey()),
                     l.sentAt(), l.body(), Base64Url.encode(l.signature()), Base64Url.encode(l.handwritingHash()),
-                    Math.round(l.handwritingScore() * 1000) / 1000.0, LedgerRef.of(l.ledgerEntry()));
+                    Math.round(l.handwritingScore() * 1000) / 1000.0, LedgerRef.of(l.ledgerEntry()), l.removal());
         }
     }
+
+    record ReportRequest(@NotBlank String category, @Size(max = 500) String note) {}
 
     private final OpenLetterService letters;
 
@@ -69,10 +75,23 @@ class OpenLetterController {
 
     @GetMapping("/api/open-letters/{letterHash}")
     OpenLetterResponse get(@PathVariable String letterHash) {
-        byte[] hash = Base64Url.decode(letterHash);
+        return OpenLetterResponse.of(letters.get(hash32(letterHash)));
+    }
+
+    /** Anyone who can read a letter can report it; signed-in readers are recorded (and counted once). */
+    @PostMapping("/api/open-letters/{letterHash}/reports")
+    ResponseEntity<Void> report(@AuthenticationPrincipal Jwt jwt, @PathVariable String letterHash,
+                                @Valid @RequestBody ReportRequest request) {
+        letters.report(hash32(letterHash), jwt == null ? null : UUID.fromString(jwt.getSubject()),
+                request.category(), request.note());
+        return ResponseEntity.accepted().build();
+    }
+
+    static byte[] hash32(String value) {
+        byte[] hash = Base64Url.decode(value);
         if (hash.length != 32) {
             throw new IllegalArgumentException("A letter hash is 32 bytes");
         }
-        return OpenLetterResponse.of(letters.get(hash));
+        return hash;
     }
 }

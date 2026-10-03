@@ -19,10 +19,12 @@ class OpenLetterRepository {
     private static final String SELECT = """
             SELECT o.letter_hash, o.author_id, a.public_key AS author_key, o.sent_at, o.body, o.signature,
                    o.handwriting_hash, o.handwriting_score,
-                   e.seq, e.prev_hash, e.payload_hash, e.recorded_at, e.entry_hash
+                   e.seq, e.prev_hash, e.payload_hash, e.recorded_at, e.entry_hash,
+                   r.category AS removal_category, r.removed_at
               FROM open_letters o
               JOIN accounts a ON a.id = o.author_id
               JOIN ledger_entries e ON e.seq = o.ledger_seq
+              LEFT JOIN open_letter_removals r ON r.letter_hash = o.letter_hash
             """;
 
     private final JdbcClient jdbc;
@@ -32,6 +34,9 @@ class OpenLetterRepository {
     }
 
     void insert(OpenLetter l, Instant createdAt) {
+        if (l.removed()) {
+            throw new IllegalArgumentException("A new letter can't be removed");
+        }
         jdbc.sql("""
                 INSERT INTO open_letters (letter_hash, author_id, sent_at, body, signature, handwriting_hash,
                                           handwriting_score, ledger_seq, created_at)
@@ -90,6 +95,24 @@ class OpenLetterRepository {
                         rs.getBytes("prev_hash"),
                         rs.getBytes("payload_hash"),
                         rs.getObject("recorded_at", OffsetDateTime.class).toInstant(),
-                        rs.getBytes("entry_hash")));
+                        rs.getBytes("entry_hash")),
+                rs.getString("removal_category") == null ? null : new OpenLetter.Removal(
+                        rs.getString("removal_category"), rs.getObject("removed_at", OffsetDateTime.class).toInstant()));
+    }
+
+    /** @return false if this reader (when signed in) already reported the letter */
+    boolean report(byte[] letterHash, UUID reporterId, String category, String note, Instant at) {
+        try {
+            jdbc.sql("""
+                    INSERT INTO open_letter_reports (letter_hash, reporter_id, category, note, created_at)
+                    VALUES (:hash, :reporter, :category, :note, :at)
+                    """)
+                    .param("hash", letterHash).param("reporter", reporterId).param("category", category)
+                    .param("note", note).param("at", OffsetDateTime.ofInstant(at, ZoneOffset.UTC))
+                    .update();
+            return true;
+        } catch (org.springframework.dao.DuplicateKeyException e) {
+            return false;
+        }
     }
 }

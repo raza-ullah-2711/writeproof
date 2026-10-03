@@ -17,11 +17,22 @@ const LETTER: OpenLetter = {
   handwritingHash: 'hw',
   handwritingScore: 0.874,
   ledger: { seq: 9, prevHash: '', payloadHash: 'hash-1', recordedAtMillis: 0, entryHash: 'e' },
+  removed: null,
 };
+
+/** The radio whose label reads `label` (Angular keeps bound radio values off the DOM). */
+const radio = (el: HTMLElement, label: string) =>
+  [...el.querySelectorAll('fieldset label')]
+    .find((l) => l.textContent?.trim() === label)!
+    .querySelector<HTMLInputElement>('input')!;
 
 describe('OpenLetterView', () => {
   const authenticated = signal(false);
-  let service: { get: ReturnType<typeof vi.fn>; verify: ReturnType<typeof vi.fn> };
+  let service: {
+    get: ReturnType<typeof vi.fn>;
+    verify: ReturnType<typeof vi.fn>;
+    report: ReturnType<typeof vi.fn>;
+  };
   let petnames: Record<string, string>;
 
   beforeEach(async () => {
@@ -35,6 +46,7 @@ describe('OpenLetterView', () => {
         ledgerProblem: null,
         ledgerCheckpointSize: 30,
       }),
+      report: vi.fn().mockResolvedValue(undefined),
     };
     await TestBed.configureTestingModule({
       imports: [OpenLetterView],
@@ -113,5 +125,72 @@ describe('OpenLetterView', () => {
     const el: HTMLElement = (await render()).nativeElement;
 
     expect(el.querySelector('[role=alert]')?.textContent).toContain('no open letter at this link');
+  });
+
+  it('lets any reader report a letter, once', async () => {
+    const fixture = TestBed.createComponent(OpenLetterView);
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      if (!fixture.nativeElement.querySelector('.checks')) throw new Error('not yet');
+    });
+    const el: HTMLElement = fixture.nativeElement;
+    const button = (label: string) =>
+      [...el.querySelectorAll('button')].find((b) => b.textContent?.trim() === label)!;
+
+    button('Report this letter').click();
+    await fixture.whenStable();
+    expect(button('Send report').disabled).toBe(true);
+    radio(el, 'Harassment').click();
+    const note = el.querySelector<HTMLTextAreaElement>('textarea[name=note]')!;
+    note.value = 'Targets a named person';
+    note.dispatchEvent(new Event('input'));
+    await fixture.whenStable();
+    button('Send report').click();
+    await vi.waitFor(() => expect(el.querySelector('.report .notice')).not.toBeNull());
+
+    expect(service.report).toHaveBeenCalledWith('hash-1', 'harassment', 'Targets a named person');
+    expect(el.querySelector('.report .notice')?.textContent).toContain('A moderator will review');
+  });
+
+  it('says when the reader already reported it', async () => {
+    service.report.mockRejectedValue(new HttpErrorResponse({ status: 409 }));
+    const fixture = TestBed.createComponent(OpenLetterView);
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      if (!fixture.nativeElement.querySelector('.checks')) throw new Error('not yet');
+    });
+    const el: HTMLElement = fixture.nativeElement;
+    [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('Report'))!.click();
+    await fixture.whenStable();
+    radio(el, 'Spam').click();
+    await fixture.whenStable();
+    [...el.querySelectorAll('button')].find((b) => b.textContent?.includes('Send report'))!.click();
+
+    await vi.waitFor(() =>
+      expect(el.querySelector('.report .notice')?.textContent).toContain('already reported'),
+    );
+  });
+
+  it('shows a removed letter as removed, with its ledger record and no report button', async () => {
+    service.get.mockResolvedValue({
+      ...LETTER,
+      body: null,
+      removed: { category: 'harassment', at: '2026-10-02T13:00:00Z' },
+    });
+    service.verify.mockResolvedValue({
+      signatureValid: false,
+      ledgerValid: true,
+      ledgerProblem: null,
+      ledgerCheckpointSize: 31,
+    });
+    const el: HTMLElement = (await render()).nativeElement;
+
+    expect(el.querySelector('.removed')?.textContent).toContain('Removed by Writeproof');
+    expect(el.querySelector('.removed')?.textContent).toContain('2026-10-02 (Harassment)');
+    expect(el.querySelector('.body')).toBeNull();
+    expect(el.querySelector('.checks')?.textContent).toContain(
+      '✓ Its record is in the ledger as entry #9',
+    );
+    expect(el.textContent).not.toContain('Report this letter');
   });
 });

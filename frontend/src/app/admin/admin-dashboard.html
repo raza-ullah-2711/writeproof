@@ -83,6 +83,26 @@
       <app-letters-chart [days]="d.letters.last30Days" />
     </section>
 
+    <section aria-labelledby="h-moderation">
+      <h3 id="h-moderation">Moderation</h3>
+      <div class="tiles">
+        <div class="tile" [class.attention]="d.moderation.openReports > 0">
+          <span class="label">Open reports</span
+          ><span class="value">{{ d.moderation.openReports | number }}</span>
+          <span class="sub"
+            >on {{ d.moderation.reportedLetters | number }}
+            {{ d.moderation.reportedLetters === 1 ? 'letter' : 'letters' }} ·
+            <a routerLink="/admin/moderation">Review</a></span
+          >
+        </div>
+        <div class="tile">
+          <span class="label">Letters removed</span
+          ><span class="value">{{ d.moderation.removed | number }}</span>
+          <span class="sub">text deleted, record kept</span>
+        </div>
+      </div>
+    </section>
+
     <section aria-labelledby="h-ledger">
       <h3 id="h-ledger">Ledger</h3>
       <div class="tiles">
