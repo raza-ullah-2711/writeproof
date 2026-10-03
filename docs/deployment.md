@@ -47,6 +47,36 @@ and `INSECURE=1 ./deploy/smoke-test.sh https://localhost`.
 Letters and wallet backups are end-to-end encrypted with users' own keys. The server can't
 decrypt them with or without these secrets.
 
+## Behind an existing proxy
+
+On a host that already runs a reverse proxy on 80/443 for other apps (e.g. Nginx Proxy Manager),
+use `deploy/compose.proxied.yml` instead. It publishes no ports and builds nothing on the host:
+
+- the proxy terminates TLS for both hosts and forwards them to `writeproof-web:80` (plain HTTP)
+  over its Docker network (`PROXY_NETWORK`, default `shared`), with "force HTTPS" on;
+- only `writeproof-web` joins that network; the API and the database stay on the stack's own,
+  and every service and container is named `writeproof-…`, so no other app's DNS name changes;
+- CPU and memory are capped per container;
+- Caddy trusts `X-Forwarded-For` only from `TRUSTED_PROXIES` (default: private addresses, i.e.
+  the proxy network) and reads it right to left, so a client can't fake its address to pass
+  `ADMIN_ALLOWED_IPS` or rate limits (verified: a spoofed allowed address gets 403).
+
+Build the images on another machine (a shared host's CPU belongs to its other apps), from a
+clean checkout, and load them on the host:
+
+```bash
+docker build -t writeproof-backend:<version> backend && docker build -t writeproof-web:<version> frontend
+docker save writeproof-backend:<version> writeproof-web:<version> | gzip > writeproof-images-<version>.tar.gz
+# on the host, in the checkout:
+docker load -i writeproof-images-<version>.tar.gz
+echo "WRITEPROOF_VERSION=<version>" >> deploy/.env     # or edit the existing line when upgrading
+docker compose -f deploy/compose.proxied.yml up -d --wait
+./deploy/smoke-test.sh https://writeproof.example.com
+```
+
+Backups: `WRITEPROOF_COMPOSE=compose.proxied.yml ./deploy/backup.sh`. The restore steps below
+apply with `-f deploy/compose.proxied.yml` and the services `writeproof-db` / `writeproof-api`.
+
 ## Upgrading
 
 ```bash
