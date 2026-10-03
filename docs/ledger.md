@@ -45,8 +45,8 @@ both sides (`LedgerSignerTest`, `checkpoint.spec.ts`).
   triggers reject `UPDATE`, `DELETE` and `TRUNCATE` (migration V9).
 - Publishing logs the checkpoint as JSON. If `LEDGER_CHECKPOINT_LOG` is set, it also appends the
   JSON as one line to that file (in the production stack: the `ledger_checkpoints` volume).
-  `CheckpointPublisher` is the seam for adding more destinations: a transparency log, a
-  timestamping service or a public chain.
+  `CheckpointPublisher` is the seam for adding more destinations. Published checkpoints are also
+  anchored in a public transparency log (see [Anchoring in a public log](#anchoring-in-a-public-log)).
 
 ## API (public: hashes and sizes only)
 
@@ -57,6 +57,8 @@ both sides (`LedgerSignerTest`, `checkpoint.spec.ts`).
 | `GET /api/ledger/checkpoints?after&limit`   | published checkpoints with `size > after`           |
 | `GET /api/ledger/proof/inclusion?seq`       | `{checkpoint, entry, proof}`; 404 if no entry       |
 | `GET /api/ledger/proof/consistency?from&to` | `{from, to, proof}`; 400 unless `1<=from<=to<=size` |
+| `GET /api/ledger/anchors?after&limit`       | where checkpoints are anchored in the public log    |
+| `GET /api/ledger/anchor/latest`             | the latest anchor and its log entry; 404 if none    |
 
 `/entries` and `/verify` (the full chain walk) still need a login. All `GET /api/ledger/**`
 requests share a per-IP limit of 600 per 10 minutes. The mock recomputes the tree for each proof.
@@ -87,7 +89,8 @@ Anyone with the server's URL can audit it. They need no account and only the bac
 ```bash
 java -Dloader.main=com.writeproof.ledger.AuditLedger \
      -cp writeproof-backend.jar org.springframework.boot.loader.launch.PropertiesLauncher \
-     https://writeproof.example --state witness.json [--key BASE64URL]
+     https://writeproof.example --state witness.json [--key BASE64URL] \
+     [--rekor URL | --no-rekor] [--anchor-grace PT6H]
 ```
 
 On each run it:
@@ -96,7 +99,9 @@ On each run it:
   from it;
 - verifies every checkpoint published since its last run, plus the live one, each against the
   key in charge at its size;
-- proves each checkpoint extends the one before it, starting from the checkpoint it last verified.
+- proves each checkpoint extends the one before it, starting from the checkpoint it last verified;
+- holds the ledger to its anchors in the public log (see
+  [Anchoring in a public log](#anchoring-in-a-public-log)).
 
 On success it saves the new state and exits 0. A changed key, a bad signature, a shrunk ledger or
 rewritten history exits 1. Run it on a schedule from machines the operator doesn't control. Each
@@ -144,15 +149,67 @@ key before it, and the chain must end at the server's key. They then prove that 
 extends to each handover checkpoint, and from there to the current one. A changed key with no such
 chain still fails, as before.
 
+## Anchoring in a public log
+
+A dishonest operator could show each user a different, internally consistent ledger. Every
+check above would pass for each of them. To rule that out, every published checkpoint is
+**anchored** in a public, append-only transparency log the operator doesn't run: Sigstore's
+[Rekor](https://rekor.sigstore.dev) (`LEDGER_REKOR_URL`). Then every history the ledger key ever
+vouched for, true or forked, sits in one log everyone can read.
+
+**The entry.** A Rekor v1 `dsse` entry. Its payload is the checkpoint's signed message
+(`writeproof/checkpoint/v1\n…`, payload type `application/vnd.writeproof.checkpoint+text`), signed
+by the ledger key over DSSE's pre-authentication encoding. Rekor keeps only the payload's hash. It
+indexes the entry by that hash and by the SHA-256 of the verifier key exactly as submitted. So the
+key is always written in one canonical form (PEM of its SubjectPublicKeyInfo, one base64 line), and
+clients accept no other. (Rekor's `hashedrekord` type can't be used: it checks Ed25519 only in the
+pre-hashed Ed25519ph form.)
+
+**The server.** `AnchorService` anchors published checkpoints every `LEDGER_ANCHOR_INTERVAL`
+(default 5 minutes), oldest first, and simply retries if the log is unreachable. It records each
+anchor in `ledger_anchors` (append-only, migration V18) and lists them at `GET /api/ledger/anchors`.
+`GET /api/ledger/anchor/latest` relays the latest anchor's log entry for browsers. Browsers may only
+contact this origin, but the relay can't forge anything they check.
+
+**Witnesses** (`AuditLedger`, against Sigstore's log by default, `--rekor URL` or `--no-rekor`):
+
+- pin the log's key on first use, like the ledger key;
+- check each new anchor in the log itself. That means the entry's payload is the published
+  checkpoint and the DSSE signature is the key in charge at that size. The entry hashes to its UUID,
+  its inclusion proof leads to the log's tree head, and the log's key signed that tree head;
+- fail if a published checkpoint stays unanchored longer than `--anchor-grace` (default 6 hours);
+- search the log for **everything** under each ledger key. An entry whose payload matches no
+  checkpoint the server publishes means the key vouched for a history the server hides. That is
+  the evidence of a split view.
+
+**Browsers** (production builds; `PUBLIC_LOG` in `app.config.ts`) close the remaining gap. A server
+could show one user a forked ledger and simply never anchor it. Every browser remembers the oldest
+checkpoint it has seen beyond what it has verified as anchored. After 24 hours, that checkpoint must
+be covered by an anchor the browser verifies itself, against Rekor's pinned key, and the anchored
+ledger must extend it. Otherwise the letter is flagged. So a fork has to be anchored publicly too,
+where witnesses find it next to the real history. Or the user it was shown to is told.
+
+Tests: `RekorTest` and `rekor.spec.ts` verify a real entry from rekor.sigstore.dev (the backend and
+the browser write the key exactly as it was indexed). `AnchorTests` runs the server and a witness
+against a fake log that follows Rekor's API, and catches a never-anchored checkpoint and an anchored
+but hidden fork. `ledger-verifier.spec.ts` covers the browser's 24-hour rule.
+
+Local and CI stacks (`generate-env.sh localhost`) don't anchor, so nothing is written to the public
+log. A production build served by such a stack flags letters after a day, as it should.
+
 ## What this does and doesn't guarantee
 
 - **Rewrites are caught by anyone who saw an earlier checkpoint:** a browser that opened a
   letter, or a witness. The operator can't edit history without either losing the key or being
   unable to prove consistency.
-- **Split views need comparing notes.** A malicious operator could show different users
-  different, internally consistent ledgers. A browser on its own can't tell. Witnesses comparing
-  their checkpoints (or one public anchor everyone checks) can. Gossip between clients, or
-  anchoring checkpoints on a public chain via `CheckpointPublisher`, is the next step.
+- **Split views are caught through the public log.** Every history a browser accepts for more
+  than a day is anchored in Rekor, and witnesses search Rekor for everything under the ledger key.
+  Showing someone a different history is therefore detected within a day: either by that user's
+  browser, or by any witness, as two anchored histories. This needs at least one witness running,
+  and it trusts Rekor not to split its own view (Rekor is witnessed by Sigstore's ecosystem).
+- **The browser checks run in the code the server sends.** Like any web app, an operator who
+  serves modified JavaScript can skip them. They protect against a compromised API or database
+  behind an honest frontend, and they make a dishonest server detectable by anyone who checks.
 - **Trust on first use.** A browser that has never seen the ledger accepts whatever key it's
   given. The key could also be shipped in the app build or published out of band.
 - **Rotation needs the old key.** A planned rotation is signed by the old key, so clients and

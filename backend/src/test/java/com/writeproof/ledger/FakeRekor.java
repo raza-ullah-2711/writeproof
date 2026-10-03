@@ -63,9 +63,13 @@ final class FakeRekor implements AutoCloseable {
             String path = exchange.getRequestURI().getPath();
             byte[] request = exchange.getRequestBody().readAllBytes();
             if (path.equals("/api/v1/log/publicKey")) {
-                respond(exchange, 200, "-----BEGIN PUBLIC KEY-----\n"
+                String pem = "-----BEGIN PUBLIC KEY-----\n"
                         + Base64.getMimeEncoder(64, "\n".getBytes()).encodeToString(key.getPublic().getEncoded())
-                        + "\n-----END PUBLIC KEY-----\n");
+                        + "\n-----END PUBLIC KEY-----\n";
+                // Like Rekor: asked for JSON, it sends the PEM as a quoted JSON string.
+                boolean asJson = exchange.getRequestHeaders().getOrDefault("Accept", List.of()).stream()
+                        .anyMatch(a -> a.contains("application/json"));
+                respond(exchange, 200, asJson ? json.writeValueAsString(pem) : pem);
             } else if (path.equals("/api/v1/log/entries") && exchange.getRequestMethod().equals("POST")) {
                 submit(exchange, json.readTree(request));
             } else if (path.startsWith("/api/v1/log/entries/")) {

@@ -7,6 +7,7 @@ import { KeyRotation, followRotations } from './key-rotation';
 import { LedgerTrustStore } from './ledger-trust';
 import { LedgerEntry, entryHash } from './ledger-verify';
 import { leafHash, verifyConsistency, verifyInclusion } from './merkle';
+import { AnchorProof, PUBLIC_LOG, PublicLog, verifyAnchor } from './rekor';
 
 /** Null `problem` when the proof held; `size` is the signed checkpoint it was proven against. */
 export interface LedgerCheck {
@@ -25,6 +26,7 @@ interface InclusionProof {
 export class LedgerVerifier {
   private readonly http = inject(HttpClient);
   private readonly trust = inject(LedgerTrustStore);
+  private readonly log = inject(PUBLIC_LOG);
 
   /**
    * Proves that `payloadHash` (a letter's hash) is entry `ref.seq` of the ledger without trusting the server or reading the whole ledger:
@@ -92,11 +94,71 @@ export class LedgerVerifier {
           from = next;
         }
       }
+      if (this.log) {
+        const keys = [publicKey, ...rotations.map((r) => r.oldKey)];
+        const problem = await this.checkAnchored(this.log, keys, checkpoint);
+        if (problem) {
+          return fail(problem);
+        }
+      }
       this.trust.remember({ publicKey, size: checkpoint.size, root: checkpoint.root });
       return { problem: null, size: checkpoint.size };
     } catch {
       return fail("The ledger's proofs could not be fetched or read");
     }
+  }
+
+  /**
+   * Null if what this browser has seen is, or may still become, anchored in the public log. A
+   * checkpoint it saw more than `log.graceMillis` ago must by now be covered by an anchor it
+   * verifies itself. A server showing this browser a history nobody else sees must then anchor that
+   * history publicly, where witnesses find it next to the real one (docs/ledger.md).
+   */
+  private async checkAnchored(
+    log: PublicLog,
+    keys: string[],
+    checkpoint: Pick<Checkpoint, 'size' | 'root'>,
+  ): Promise<string | null> {
+    const now = Date.now();
+    const state = this.trust.anchoring();
+    let pending =
+      state.pending ??
+      (checkpoint.size > state.anchoredSize
+        ? { size: checkpoint.size, root: checkpoint.root, firstSeen: now }
+        : null);
+    let anchoredSize = state.anchoredSize;
+    if (pending && now - pending.firstSeen > log.graceMillis) {
+      const stale = `What this browser saw of the ledger on ${new Date(pending.firstSeen).toUTCString()} is still not anchored in the public log, so it can't rule out being shown a different history than everyone else`;
+      let anchor: AnchorProof;
+      try {
+        anchor = await firstValueFrom(this.http.get<AnchorProof>('/api/ledger/anchor/latest'));
+      } catch {
+        return stale;
+      }
+      let problem: string | null = 'The anchor is not signed by any ledger key';
+      for (const key of keys) {
+        problem = await verifyAnchor(anchor, log, key);
+        if (!problem) {
+          break;
+        }
+      }
+      if (problem) {
+        return problem;
+      }
+      if (anchor.checkpoint.size < pending.size) {
+        return stale;
+      }
+      if (await this.checkExtends(pending.size, pending.root, anchor.checkpoint)) {
+        return "The ledger anchored in the public log doesn't contain what this browser was shown: it was shown a different history";
+      }
+      anchoredSize = anchor.checkpoint.size;
+      pending =
+        checkpoint.size > anchoredSize
+          ? { size: checkpoint.size, root: checkpoint.root, firstSeen: now }
+          : null;
+    }
+    this.trust.saveAnchoring({ pending, anchoredSize });
+    return null;
   }
 
   /** Null if `checkpoint` provably extends the ledger at `size` entries with `root`. */

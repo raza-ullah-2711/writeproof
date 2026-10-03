@@ -7,7 +7,11 @@ import { KeyRotation, keyRotationMessage } from './key-rotation';
 import { LedgerTrustStore } from './ledger-trust';
 import { LedgerVerifier } from './ledger-verifier';
 import { GENESIS_PREV_HASH, LedgerEntry, entryHash } from './ledger-verify';
+import { sha256 } from './letter-format';
 import { leafHash, nodeHash } from './merkle';
+import { AnchorProof, PUBLIC_LOG, PublicLog, ledgerKeyPem, pae } from './rekor';
+
+const NOT_FOUND = Symbol('404');
 
 interface TestKey {
   publicKey: string;
@@ -49,6 +53,8 @@ class FakeServer {
   rotations: KeyRotation[] = [];
   /** Signs checkpoints; defaults to `key`. */
   signer?: TestKey;
+  /** What /api/ledger/anchor/latest answers; 404 while null. */
+  anchor: AnchorProof | null = null;
 
   private constructor(
     public key: TestKey,
@@ -101,6 +107,8 @@ class FakeServer {
         const proof = this.size === 1 ? [] : [toBase64Url(this.leaves[2 - seq])];
         return { checkpoint, entry: this.entries[seq - 1], proof };
       }
+      case '/api/ledger/anchor/latest':
+        return this.anchor ?? NOT_FOUND;
       case '/api/ledger/proof/consistency':
         return { from: 1, to: 2, proof: [toBase64Url(this.leaves[1])] };
       default:
@@ -139,7 +147,12 @@ describe('LedgerVerifier and key rotation', () => {
     while (!done) {
       await new Promise((resolve) => setTimeout(resolve, 0));
       for (const req of http.match(() => true)) {
-        req.flush((await server.answer(req.request.urlWithParams)) as object);
+        const body = await server.answer(req.request.urlWithParams);
+        if (body === NOT_FOUND) {
+          req.flush(null, { status: 404, statusText: 'Not Found' });
+        } else {
+          req.flush(body as object);
+        }
       }
     }
     return result;
@@ -176,5 +189,164 @@ describe('LedgerVerifier and key rotation', () => {
     server.signer = a;
 
     expect((await check(1)).problem).toMatch(/not signed by the ledger key/);
+  });
+});
+
+interface TestLog {
+  keys: CryptoKeyPair;
+  config: PublicLog;
+}
+
+async function newLog(): Promise<TestLog> {
+  const keys = (await crypto.subtle.generateKey({ name: 'ECDSA', namedCurve: 'P-256' }, true, [
+    'sign',
+    'verify',
+  ])) as CryptoKeyPair;
+  const spki = new Uint8Array(await crypto.subtle.exportKey('spki', keys.publicKey));
+  return { keys, config: { url: 'https://log.test', key: b64(spki), graceMillis: 60_000 } };
+}
+
+const b64 = (b: Uint8Array) => btoa(String.fromCharCode(...b));
+const hex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('');
+
+/** WebCrypto signs ECDSA as r ‖ s; the log writes DER, as Rekor does. */
+function der(raw: Uint8Array): Uint8Array {
+  const int = (x: Uint8Array) => {
+    let i = 0;
+    while (i < x.length - 1 && x[i] === 0) i++;
+    const v = x[i] & 0x80 ? Uint8Array.of(0, ...x.slice(i)) : x.slice(i);
+    return Uint8Array.of(0x02, v.length, ...v);
+  };
+  const r = int(raw.slice(0, 32));
+  const s = int(raw.slice(32));
+  return Uint8Array.of(0x30, r.length + s.length, ...r, ...s);
+}
+
+/** An anchor of `c` signed by `ledgerKey`, in a one-entry log whose tree head `log` signs. */
+async function anchorFor(
+  log: TestLog,
+  ledgerKey: TestKey,
+  c: Pick<Checkpoint, 'size' | 'root'>,
+): Promise<AnchorProof> {
+  const unsigned = { size: c.size, root: c.root, timestampMillis: 3 };
+  const payload = checkpointMessage(unsigned);
+  const dsse = new Uint8Array(
+    await crypto.subtle.sign(
+      'Ed25519',
+      ledgerKey.privateKey,
+      pae('application/vnd.writeproof.checkpoint+text', payload),
+    ),
+  );
+  const body = {
+    apiVersion: '0.0.1',
+    kind: 'dsse',
+    spec: {
+      payloadHash: { algorithm: 'sha256', value: hex(await sha256(payload)) },
+      signatures: [{ signature: b64(dsse), verifier: btoa(ledgerKeyPem(ledgerKey.publicKey)) }],
+    },
+  };
+  const bodyBytes = new TextEncoder().encode(JSON.stringify(body));
+  const leaf = await leafHash(bodyBytes);
+  const text = `log.test - 1\n1\n${b64(leaf)}\n`;
+  const raw = new Uint8Array(
+    await crypto.subtle.sign(
+      { name: 'ECDSA', hash: 'SHA-256' },
+      log.keys.privateKey,
+      new TextEncoder().encode(text),
+    ),
+  );
+  return {
+    checkpoint: { ...unsigned, signature: await sign(ledgerKey, payload) },
+    logUrl: log.config.url,
+    entry: {
+      uuid: 'ab'.repeat(8) + hex(leaf),
+      logIndex: 0,
+      body: b64(bodyBytes),
+      proof: {
+        logIndex: 0,
+        treeSize: 1,
+        rootHash: hex(leaf),
+        hashes: [],
+        checkpoint: `${text}\n— log.test ${b64(Uint8Array.of(0, 0, 0, 0, ...der(raw)))}\n`,
+      },
+    },
+  };
+}
+
+describe('LedgerVerifier and the public log', () => {
+  let http: HttpTestingController;
+  let verifier: LedgerVerifier;
+  let trust: LedgerTrustStore;
+  let key: TestKey;
+  let log: TestLog;
+  let server: FakeServer;
+  let now: number;
+
+  beforeEach(async () => {
+    localStorage.clear();
+    [key, log] = await Promise.all([newKey(), newLog()]);
+    TestBed.configureTestingModule({
+      providers: [
+        provideHttpClient(),
+        provideHttpClientTesting(),
+        { provide: PUBLIC_LOG, useValue: log.config },
+      ],
+    });
+    http = TestBed.inject(HttpTestingController);
+    verifier = TestBed.inject(LedgerVerifier);
+    trust = TestBed.inject(LedgerTrustStore);
+    server = await FakeServer.create(key);
+    now = 1_767_225_600_000;
+    vi.spyOn(Date, 'now').mockImplementation(() => now);
+  });
+
+  afterEach(() => vi.restoreAllMocks());
+
+  async function check(seq: number) {
+    const e = server.entries[seq - 1];
+    let done = false;
+    const result = verifier
+      .verifyEntry({ seq, entryHash: e.entryHash }, e.payloadHash)
+      .finally(() => (done = true));
+    while (!done) {
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      for (const req of http.match(() => true)) {
+        const body = await server.answer(req.request.urlWithParams);
+        if (body === NOT_FOUND) {
+          req.flush(null, { status: 404, statusText: 'Not Found' });
+        } else {
+          req.flush(body as object);
+        }
+      }
+    }
+    return result;
+  }
+
+  it('accepts a fresh view, then requires it to be anchored once the grace period is over', async () => {
+    expect((await check(1)).problem).toBeNull();
+
+    now += 2 * 60_000;
+    expect((await check(1)).problem).toMatch(/still not anchored in the public log/);
+
+    server.anchor = await anchorFor(log, key, { size: 1, root: await server.root(1) });
+    expect((await check(1)).problem).toBeNull();
+    expect(trust.anchoring()).toEqual({ pending: null, anchoredSize: 1 });
+  });
+
+  it('catches a publicly anchored history that differs from what it was shown', async () => {
+    await check(1);
+    now += 2 * 60_000;
+    const otherRoot = toBase64Url(new Uint8Array(32).fill(9));
+    server.anchor = await anchorFor(log, key, { size: 2, root: otherRoot });
+
+    expect((await check(1)).problem).toMatch(/shown a different history/);
+  });
+
+  it('rejects an anchor that the public log did not sign', async () => {
+    await check(1);
+    now += 2 * 60_000;
+    server.anchor = await anchorFor(await newLog(), key, { size: 1, root: await server.root(1) });
+
+    expect((await check(1)).problem).toMatch(/not signed by the log's key/);
   });
 });

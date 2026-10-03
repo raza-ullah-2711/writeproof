@@ -124,7 +124,9 @@ public final class Rekor {
 
     /** The key the log signs its tree heads with. */
     public PublicKey publicKey() throws IOException {
-        HttpResponse<String> response = send(HttpRequest.newBuilder(base.resolve("api/v1/log/publicKey")).GET());
+        // As PEM: asked for JSON, Rekor answers with the PEM as a quoted JSON string.
+        HttpResponse<String> response = send(HttpRequest.newBuilder(base.resolve("api/v1/log/publicKey")).GET(),
+                "application/x-pem-file");
         if (response.statusCode() != 200) {
             throw new IOException("Rekor public key: HTTP " + response.statusCode());
         }
@@ -132,8 +134,12 @@ public final class Rekor {
     }
 
     private HttpResponse<String> send(HttpRequest.Builder request) throws IOException {
+        return send(request, "application/json");
+    }
+
+    private HttpResponse<String> send(HttpRequest.Builder request, String accept) throws IOException {
         try {
-            return http.send(request.timeout(Duration.ofSeconds(30)).header("Accept", "application/json").build(),
+            return http.send(request.timeout(Duration.ofSeconds(30)).header("Accept", accept).build(),
                     HttpResponse.BodyHandlers.ofString());
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();

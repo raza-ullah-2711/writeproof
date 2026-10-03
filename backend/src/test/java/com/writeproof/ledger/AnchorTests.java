@@ -134,6 +134,31 @@ class AnchorTests {
     }
 
     @Test
+    void browsersGetTheLatestAnchorWithItsLogEntryToVerify() throws Exception {
+        appendSome(2);
+        checkpoints.publishIfGrown();
+        anchors.anchorPending();
+
+        Map<String, Object> body = rest.getForObject("/api/ledger/anchor/latest", Map.class);
+        Map<String, Object> c = (Map<String, Object>) body.get("checkpoint");
+        Map<String, Object> e = (Map<String, Object>) body.get("entry");
+        Map<String, Object> p = (Map<String, Object>) e.get("proof");
+        java.util.HexFormat hex = java.util.HexFormat.of();
+        Rekor.Entry entry = new Rekor.Entry((String) e.get("uuid"), ((Number) e.get("logIndex")).longValue(), 0,
+                java.util.Base64.getDecoder().decode((String) e.get("body")),
+                new Rekor.InclusionProof(((Number) p.get("logIndex")).longValue(), ((Number) p.get("treeSize")).longValue(),
+                        hex.parseHex((String) p.get("rootHash")),
+                        ((List<String>) p.get("hashes")).stream().map(hex::parseHex).toList(), (String) p.get("checkpoint")));
+        byte[] message = Checkpoint.signedMessage(((Number) c.get("size")).longValue(),
+                com.writeproof.common.Base64Url.decode((String) c.get("root")), ((Number) c.get("timestampMillis")).longValue());
+
+        assertThat(body).containsEntry("logUrl", LOG.url());
+        assertThat(((Number) c.get("size")).longValue()).isEqualTo(ledger.size());
+        Rekor.verify(entry, new Rekor(HttpClient.newHttpClient(), URI.create(LOG.url()), json).publicKey(), message,
+                signer.publicKey(), json);
+    }
+
+    @Test
     void aWitnessPinsThePublicLogsKey() throws Exception {
         appendSome(1);
         checkpoints.publishIfGrown();

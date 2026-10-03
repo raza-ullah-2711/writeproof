@@ -11,6 +11,7 @@ import java.time.Clock;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
 import java.util.List;
+import java.util.Optional;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.jdbc.core.simple.JdbcClient;
@@ -94,12 +95,34 @@ public class AnchorService {
         return anchored;
     }
 
+    /** The latest anchor, its checkpoint, and its entry as the log returns it: for browsers to check. */
+    public record AnchorProof(Anchor anchor, Checkpoint checkpoint, Rekor.Entry entry) {}
+
+    /**
+     * The latest anchor with what a browser needs to verify it against the log's key (browsers can
+     * only reach this origin, so the server relays the log's answer; it can't forge it). Empty if
+     * nothing is anchored yet.
+     */
+    public Optional<AnchorProof> latestProof() throws IOException {
+        Optional<Anchor> latest = jdbc.sql("SELECT * FROM ledger_anchors ORDER BY size DESC LIMIT 1")
+                .query(AnchorService::anchor).optional();
+        if (latest.isEmpty() || rekor == null || !latest.get().logUrl().equals(rekor.url())) {
+            return Optional.empty();
+        }
+        Checkpoint checkpoint = jdbc.sql("SELECT * FROM ledger_checkpoints WHERE size = :size")
+                .param("size", latest.get().size()).query(AnchorService::checkpoint).single();
+        return Optional.of(new AnchorProof(latest.get(), checkpoint, rekor.entry(latest.get().uuid())));
+    }
+
     public List<Anchor> anchors(long afterSize, int limit) {
         return jdbc.sql("SELECT * FROM ledger_anchors WHERE size > :after ORDER BY size LIMIT :limit")
                 .param("after", afterSize).param("limit", limit)
-                .query((rs, row) -> new Anchor(rs.getLong("size"), rs.getString("log_url"), rs.getLong("log_index"),
-                        rs.getString("entry_uuid"), rs.getLong("integrated_time")))
-                .list();
+                .query(AnchorService::anchor).list();
+    }
+
+    private static Anchor anchor(ResultSet rs, int row) throws SQLException {
+        return new Anchor(rs.getLong("size"), rs.getString("log_url"), rs.getLong("log_index"),
+                rs.getString("entry_uuid"), rs.getLong("integrated_time"));
     }
 
     private static Checkpoint checkpoint(ResultSet rs, int row) throws SQLException {
