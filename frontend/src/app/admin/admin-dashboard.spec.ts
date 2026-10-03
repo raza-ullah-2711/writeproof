@@ -1,4 +1,5 @@
 import { TestBed } from '@angular/core/testing';
+import { provideRouter } from '@angular/router';
 import { AdminDashboard } from './admin-dashboard';
 import { AdminService, Dashboard } from './admin.service';
 
@@ -47,6 +48,7 @@ export const DASHBOARD: Dashboard = {
     uptimeSeconds: 93_784,
     databaseBytes: 15_400_000,
   },
+  moderation: { openReports: 4, reportedLetters: 2, removed: 1 },
 };
 
 describe('AdminDashboard', () => {
@@ -56,7 +58,7 @@ describe('AdminDashboard', () => {
     dashboard = vi.fn().mockResolvedValue(DASHBOARD);
     await TestBed.configureTestingModule({
       imports: [AdminDashboard],
-      providers: [{ provide: AdminService, useValue: { dashboard } }],
+      providers: [provideRouter([]), { provide: AdminService, useValue: { dashboard } }],
     }).compileComponents();
   });
 
@@ -78,6 +80,8 @@ describe('AdminDashboard', () => {
     const el = await render();
 
     expect(tile(el, 'Accounts').querySelector('.value')?.textContent).toBe('200');
+    expect(tile(el, 'Open reports').classList).toContain('attention');
+    expect(tile(el, 'Open reports').querySelector('.sub')?.textContent).toContain('on 2 letters');
     expect(tile(el, 'Accounts').querySelector('.sub')?.textContent).toContain('+12 this week');
     expect(tile(el, 'Handwriting enrolled').querySelector('.sub')?.textContent).toContain(
       '75% of accounts',

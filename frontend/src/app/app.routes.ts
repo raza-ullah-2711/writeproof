@@ -3,6 +3,8 @@ import { AdminAccount } from './admin/admin-account';
 import { AdminAccounts } from './admin/admin-accounts';
 import { AdminAudit } from './admin/admin-audit';
 import { AdminDashboard } from './admin/admin-dashboard';
+import { AdminModeration } from './admin/admin-moderation';
+import { adminOnlyGuard } from './admin/admin-only.guard';
 import { adminGuard } from './admin/admin.guard';
 import { AdminShell } from './admin/admin-shell';
 import { Calibration } from './calibration/calibration';
@@ -27,10 +29,31 @@ export const routes: Routes = [
     component: AdminShell,
     canMatch: [adminGuard],
     children: [
-      { path: '', component: AdminDashboard, title: 'Dashboard · Admin · Writeproof' },
-      { path: 'accounts', component: AdminAccounts, title: 'Accounts · Admin · Writeproof' },
-      { path: 'accounts/:id', component: AdminAccount, title: 'Account · Admin · Writeproof' },
-      { path: 'audit', component: AdminAudit, title: 'Audit log · Admin · Writeproof' },
+      {
+        path: '',
+        component: AdminDashboard,
+        canActivate: [adminOnlyGuard],
+        title: 'Dashboard · Admin · Writeproof',
+      },
+      {
+        path: 'accounts',
+        component: AdminAccounts,
+        canActivate: [adminOnlyGuard],
+        title: 'Accounts · Admin · Writeproof',
+      },
+      {
+        path: 'accounts/:id',
+        component: AdminAccount,
+        canActivate: [adminOnlyGuard],
+        title: 'Account · Admin · Writeproof',
+      },
+      { path: 'moderation', component: AdminModeration, title: 'Moderation · Admin · Writeproof' },
+      {
+        path: 'audit',
+        component: AdminAudit,
+        canActivate: [adminOnlyGuard],
+        title: 'Audit log · Admin · Writeproof',
+      },
     ],
   },
   { path: 'calibration', component: Calibration, title: 'Help improve verification · Writeproof' },

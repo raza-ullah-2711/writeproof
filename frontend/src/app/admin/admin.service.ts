@@ -48,6 +48,7 @@ export interface Dashboard {
   };
   rateLimits: { rejections: Record<string, number> };
   system: { version: string; startedAt: string; uptimeSeconds: number; databaseBytes: number };
+  moderation: { openReports: number; reportedLetters: number; removed: number };
 }
 
 export interface AuditEntry {

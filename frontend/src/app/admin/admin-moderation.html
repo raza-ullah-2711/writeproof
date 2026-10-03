@@ -1,0 +1,119 @@
+<p class="hint">
+  Open letters are public, so you can read them here. Removing one deletes its text permanently; its
+  record stays on the ledger and its link says it was removed. Every decision is recorded in the
+  audit log, without the removed text.
+</p>
+
+<form class="lookup" (ngSubmit)="find()">
+  <label>
+    Look up any open letter
+    <input
+      name="lookup"
+      [(ngModel)]="lookup"
+      placeholder="Paste its link or hash"
+      autocomplete="off"
+    />
+  </label>
+  <button type="submit" [disabled]="busy() || !lookup.trim()">Look up</button>
+</form>
+
+@if (notice(); as message) {
+  <p class="notice" role="status">{{ message }}</p>
+}
+@if (error(); as message) {
+  <p class="error" role="alert">{{ message }}</p>
+}
+
+<ng-template #caseCard let-c>
+  <article class="case">
+    <header>
+      <span
+        >By <code [title]="c.author">{{ short(c.author) }}</code></span
+      >
+      <span>{{ c.sentAt | date: 'yyyy-MM-dd HH:mm' : 'UTC' }}</span>
+      <span>ledger #{{ c.ledgerSeq }}</span>
+      <a [routerLink]="['/open', c.letterHash]" target="_blank">Public page</a>
+    </header>
+    @if (c.removal; as r) {
+      <p class="removed">
+        Removed {{ r.at | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} ({{ label(r.category) }}).
+      </p>
+    } @else {
+      <div class="body">{{ c.body }}</div>
+    }
+    @if (c.openReports > 0) {
+      <p class="counts">
+        {{ c.openReports }} open {{ c.openReports === 1 ? 'report' : 'reports' }}:
+        @for (entry of categoriesOf(c); track entry[0]) {
+          <span class="chip">{{ label(entry[0]) }} × {{ entry[1] }}</span>
+        }
+      </p>
+    }
+    @if (c.reports.length > 0) {
+      <ul class="reports">
+        @for (r of c.reports; track r.id) {
+          <li [class.resolved]="r.resolution">
+            {{ r.createdAt | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} · {{ label(r.category) }} ·
+            {{ r.fromAccount ? 'signed-in reader' : 'anonymous reader' }}
+            @if (r.resolution) {
+              · {{ r.resolution }}
+            }
+            @if (r.note) {
+              <q>{{ r.note }}</q>
+            }
+          </li>
+        }
+      </ul>
+    }
+    @if (!c.removal) {
+      @if (deciding()?.hash === c.letterHash) {
+        <form class="decide" (ngSubmit)="confirm()">
+          @if (deciding()?.action === 'remove') {
+            <label>
+              Reason category (shown on the public page)
+              <select name="category" [(ngModel)]="category">
+                @for (cat of categories; track cat.value) {
+                  <option [value]="cat.value">{{ cat.label }}</option>
+                }
+              </select>
+            </label>
+          }
+          <label>
+            Note for the audit log (optional)
+            <input name="note" [(ngModel)]="note" maxlength="500" />
+          </label>
+          <div class="actions">
+            <button type="submit" class="primary" [disabled]="busy()">
+              {{ deciding()?.action === 'remove' ? 'Remove permanently' : 'Dismiss reports' }}
+            </button>
+            <button type="button" (click)="deciding.set(null)">Cancel</button>
+          </div>
+        </form>
+      } @else {
+        <div class="actions">
+          @if (c.openReports > 0) {
+            <button type="button" (click)="decide(c, 'dismiss')">Dismiss</button>
+          }
+          <button type="button" class="danger" (click)="decide(c, 'remove')">Remove</button>
+        </div>
+      }
+    }
+  </article>
+</ng-template>
+
+@if (looked(); as c) {
+  <h3>Looked-up letter</h3>
+  <ng-container *ngTemplateOutlet="caseCard; context: { $implicit: c }" />
+}
+
+<h3>Reported letters</h3>
+@if (queue(); as list) {
+  @if (list.length === 0) {
+    <p class="hint">Nothing to review. Reported letters appear here.</p>
+  }
+  @for (c of list; track c.letterHash) {
+    <ng-container *ngTemplateOutlet="caseCard; context: { $implicit: c }" />
+  }
+} @else if (!error()) {
+  <p>Loading&hellip;</p>
+}

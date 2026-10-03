@@ -17,8 +17,8 @@ import { AdminService } from './admin.service';
         and can't be read here, and nothing can rewrite a letter or the ledger. Every admin action
         is recorded permanently.
       </p>
-      @if (admin.role() === 'ADMIN') {
-        <nav class="admin-nav">
+      <nav class="admin-nav">
+        @if (admin.role() === 'ADMIN') {
           <a
             routerLink="/admin"
             routerLinkActive="active"
@@ -26,12 +26,13 @@ import { AdminService } from './admin.service';
             >Dashboard</a
           >
           <a routerLink="/admin/accounts" routerLinkActive="active">Accounts</a>
+        }
+        <a routerLink="/admin/moderation" routerLinkActive="active">Moderation</a>
+        @if (admin.role() === 'ADMIN') {
           <a routerLink="/admin/audit" routerLinkActive="active">Audit log</a>
-        </nav>
-        <router-outlet />
-      } @else {
-        <p class="empty">Moderation tools will appear here.</p>
-      }
+        }
+      </nav>
+      <router-outlet />
     </section>
   `,
   styles: `

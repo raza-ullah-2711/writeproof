@@ -9,6 +9,7 @@ import { LedgerVerifier } from '../letters/ledger-verifier';
 import { LedgerEntry } from '../letters/ledger-verify';
 import { WalletService } from '../wallet/wallet.service';
 import { openLetterHash } from './open-letter-format';
+import { ReportCategory } from './report-categories';
 
 /** An open letter as the server returns it. Nothing here is trusted until `verify`. */
 export interface OpenLetter {
@@ -16,13 +17,16 @@ export interface OpenLetter {
   /** The author's address (public key). */
   author: string;
   sentAt: string;
-  body: string;
+  /** Null once Writeproof took the letter down (see `removed`). */
+  body: string | null;
   signature: string;
   /** Hash of the handwritten signature; the strokes themselves are never published. */
   handwritingHash: string;
   /** Similarity Writeproof measured when it was published. */
   handwritingScore: number;
   ledger: LedgerEntry;
+  /** Set when a moderator removed the text; the record and its ledger entry remain. */
+  removed: { category: string; at: string } | null;
 }
 
 /** What the reader's own browser established. */
@@ -78,6 +82,16 @@ export class OpenLettersService {
     );
   }
 
+  /** Reports a letter to the moderators; works signed out too. */
+  report(letterHash: string, category: ReportCategory, note: string): Promise<void> {
+    return firstValueFrom(
+      this.http.post<void>(`/api/open-letters/${encodeURIComponent(letterHash)}/reports`, {
+        category,
+        ...(note.trim() ? { note: note.trim() } : {}),
+      }),
+    );
+  }
+
   mine(): Promise<OpenLetter[]> {
     return firstValueFrom(this.http.get<OpenLetter[]>('/api/me/open-letters'));
   }
@@ -88,6 +102,17 @@ export class OpenLettersService {
    * the ledger. `expectedHash` is the hash from the link, so a server can't swap in another letter.
    */
   async verify(letter: OpenLetter, expectedHash: string): Promise<VerifiedOpenLetter> {
+    if (letter.body === null) {
+      // Removed: the text can't be checked any more, but the record is still provably on the
+      // ledger under the hash in the link.
+      const ledger = await this.ledger.verifyEntry(letter.ledger, expectedHash);
+      return {
+        signatureValid: false,
+        ledgerValid: ledger.problem === null,
+        ledgerProblem: ledger.problem,
+        ledgerCheckpointSize: ledger.problem === null ? ledger.size : null,
+      };
+    }
     const hash = toBase64Url(
       await openLetterHash(letter.author, letter.sentAt, letter.handwritingHash, letter.body),
     );

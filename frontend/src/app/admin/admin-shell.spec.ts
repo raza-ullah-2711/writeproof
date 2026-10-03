@@ -24,18 +24,21 @@ describe('AdminShell', () => {
     expect([...el.querySelectorAll('.admin-nav a')].map((a) => a.textContent?.trim())).toEqual([
       'Dashboard',
       'Accounts',
+      'Moderation',
       'Audit log',
     ]);
     expect(el.querySelector('.limits')?.textContent).toContain("can't be read here");
   });
 
-  it('shows moderators no admin-only pages', async () => {
+  it('gives moderators moderation only', async () => {
     role.set('MODERATOR');
     const fixture = TestBed.createComponent(AdminShell);
     await fixture.whenStable();
     const el: HTMLElement = fixture.nativeElement;
 
     expect(el.querySelector('.role')?.textContent).toBe('Moderator');
-    expect(el.querySelector('.admin-nav')).toBeNull();
+    expect([...el.querySelectorAll('.admin-nav a')].map((a) => a.textContent?.trim())).toEqual([
+      'Moderation',
+    ]);
   });
 });

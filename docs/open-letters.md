@@ -42,9 +42,15 @@ signed     = "writeproof/letter-signature/v1\n" b64url(letterHash)     (same mes
 There is no edit or delete endpoint, and the publish form makes you confirm that the letter is
 public, signed and permanent.
 
-**Open question for operators:** a public host may be legally required to take content down.
-Removing the body while keeping the hash on the ledger would preserve the record that something
-was published. Nothing supports that yet, and it needs a policy decision before launch.
+**Takedowns (Task 13c).** Readers can report a letter, and a moderator can remove it.
+
+- **What a removal does:**
+  - deletes the text for good;
+  - keeps the hash on the ledger and keeps the record: author, time, signature, ledger entry;
+  - makes the link say "Removed by Writeproof" with the reason category.
+- **The only exception to append-only:** the database's single permitted change to
+  `open_letters` is blanking the body of a letter that has a removal record (see
+  [admin.md](admin.md#moderation-13c)).
 
 ## API
 

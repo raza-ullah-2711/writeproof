@@ -85,7 +85,7 @@ public class OpenLetterService {
 
         LedgerEntry entry = ledger.append(hash);
         OpenLetter letter = new OpenLetter(hash, author.id(), author.publicKey(), sentAt, body, signature,
-                handwritingHash, verification.score(), entry);
+                handwritingHash, verification.score(), entry, null);
         letters.insert(letter, now);
         handwritingService.recordLetterSignature(author.id(), handwriting);
         return letter;
@@ -94,6 +94,31 @@ public class OpenLetterService {
     public OpenLetter get(byte[] letterHash) {
         return letters.find(letterHash)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No such open letter"));
+    }
+
+    /** Report categories, shared with moderation (and the open_letter_reports check constraint). */
+    public static final List<String> REPORT_CATEGORIES = List.of("spam", "harassment", "illegal", "impersonation",
+            "other");
+
+    /**
+     * Files a reader's report. {@code reporterId} is null for readers without an account; a
+     * signed-in reader can report each letter once.
+     */
+    public void report(byte[] letterHash, UUID reporterId, String category, String note) {
+        if (!REPORT_CATEGORIES.contains(category)) {
+            throw new IllegalArgumentException("category must be one of " + REPORT_CATEGORIES);
+        }
+        String trimmed = note == null || note.isBlank() ? null : note.trim();
+        if (trimmed != null && trimmed.length() > 500) {
+            throw new IllegalArgumentException("A note can be at most 500 characters");
+        }
+        OpenLetter letter = get(letterHash);
+        if (letter.removed()) {
+            throw new ResponseStatusException(HttpStatus.GONE, "This letter was already removed");
+        }
+        if (!letters.report(letterHash, reporterId, category, trimmed, clock.instant())) {
+            throw new ResponseStatusException(HttpStatus.CONFLICT, "You already reported this letter");
+        }
     }
 
     public List<OpenLetter> byAuthor(UUID authorId) {

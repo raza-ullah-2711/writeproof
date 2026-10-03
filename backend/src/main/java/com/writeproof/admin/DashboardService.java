@@ -25,7 +25,11 @@ import org.springframework.stereotype.Service;
 public class DashboardService {
 
     public record Dashboard(Instant generatedAt, Accounts accounts, Letters letters, Ledger ledger,
-                            Handwriting handwriting, RateLimits rateLimits, SystemInfo system) {}
+                            Handwriting handwriting, RateLimits rateLimits, SystemInfo system,
+                            Moderation moderation) {}
+
+    /** Open reports awaiting a moderator, letters they concern, and takedowns so far. */
+    public record Moderation(long openReports, long reportedLetters, long removed) {}
 
     public record Accounts(long total, long new7d, long new30d, long enrolled, long canReceiveLetters,
                            long backedUp, long withContacts, long calibrationContributors) {}
@@ -63,7 +67,19 @@ public class DashboardService {
 
     public Dashboard dashboard() {
         Instant now = clock.instant();
-        return new Dashboard(now, accounts(), letters(now), ledger(), handwriting(), rateLimits(), system(now));
+        return new Dashboard(now, accounts(), letters(now), ledger(), handwriting(), rateLimits(), system(now),
+                moderation());
+    }
+
+    private Moderation moderation() {
+        return jdbc.sql("""
+                SELECT (SELECT count(*) FROM open_letter_reports WHERE resolved_at IS NULL) AS open_reports,
+                       (SELECT count(DISTINCT letter_hash) FROM open_letter_reports WHERE resolved_at IS NULL) AS letters,
+                       (SELECT count(*) FROM open_letter_removals) AS removed
+                """)
+                .query((rs, row) -> new Moderation(rs.getLong("open_reports"), rs.getLong("letters"),
+                        rs.getLong("removed")))
+                .single();
     }
 
     private Accounts accounts() {

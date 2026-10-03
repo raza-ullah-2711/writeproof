@@ -16,6 +16,7 @@ const PUBLISHED: OpenLetter = {
   handwritingHash: 'hw',
   handwritingScore: 0.9,
   ledger: { seq: 7, prevHash: '', payloadHash: 'hash-1', recordedAtMillis: 0, entryHash: 'e' },
+  removed: null,
 };
 
 describe('OpenLettersPage', () => {

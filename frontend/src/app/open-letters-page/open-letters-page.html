@@ -73,7 +73,13 @@
       <ul class="list">
         @for (letter of letters; track letter.letterHash) {
           <li>
-            <a [routerLink]="['/open', letter.letterHash]">{{ letter.body.slice(0, 80) }}</a>
+            @if (letter.removed; as r) {
+              <a [routerLink]="['/open', letter.letterHash]" class="removed"
+                >Removed by Writeproof ({{ label(r.category) }})</a
+              >
+            } @else {
+              <a [routerLink]="['/open', letter.letterHash]">{{ letter.body?.slice(0, 80) }}</a>
+            }
             <span class="meta">{{ letter.sentAt }} · ledger #{{ letter.ledger.seq }}</span>
             <button type="button" (click)="copy(letter)">
               {{ copied() === letter.letterHash ? 'Copied' : 'Copy link' }}

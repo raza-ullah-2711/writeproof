@@ -94,4 +94,5 @@ sent it can't be edited or unsent — like a sealed letter.
     roles Admin and Moderator. Admins never see letter content, contacts or handwriting (they are
     encrypted) and can't rewrite letters or the ledger. 13a **Foundation + dashboard** ✅ — see
     [admin.md](admin.md). 13b **Accounts** ✅ — search, suspend/reinstate, forced sign-out,
-    clear rate limits. 13c moderation, 13d system controls, 13e admin management to follow.
+    clear rate limits. 13c **Moderation** ✅ — reader reports, a review queue, takedowns that
+    delete the text and keep the record. 13d system controls, 13e admin management to follow.

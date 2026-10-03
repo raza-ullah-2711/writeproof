@@ -17,34 +17,85 @@
       }
       · {{ l.sentAt }}
     </p>
-    <div class="body">{{ l.body }}</div>
 
-    @if (checks(); as c) {
-      <ul class="checks">
-        <li [class.ok]="c.signatureValid">
-          {{ c.signatureValid ? '✓' : '✗' }} Signed by the author's wallet: exactly this text, at
-          this time
-        </li>
-        <li [class.ok]="c.signatureValid">
-          {{ c.signatureValid ? '✓' : '✗' }} Signed by hand (similarity
-          {{ l.handwritingScore.toFixed(2) }}, verified by Writeproof at publishing; the strokes are
-          not published)
-        </li>
-        <li [class.ok]="c.ledgerValid">
-          {{ c.ledgerValid ? '✓' : '✗' }} In the ledger as entry #{{ l.ledger.seq }}
-          @if (c.ledgerCheckpointSize !== null) {
-            (proven against a signed checkpoint of {{ c.ledgerCheckpointSize }} entries)
-          }
-          @if (c.ledgerProblem) {
-            <span class="problem">{{ c.ledgerProblem }}</span>
-          }
-        </li>
-      </ul>
-      <p class="address">
-        Author's address: <code>{{ l.author }}</code>
-      </p>
+    @if (l.removed; as r) {
+      <div class="removed" role="note">
+        <strong>Removed by Writeproof</strong> on {{ r.at | date: 'yyyy-MM-dd' : 'UTC' }} ({{
+          label(r.category)
+        }}). The text is gone for good; the letter's record remains on the ledger, so it can't be
+        quietly rewritten or replaced.
+      </div>
+      @if (checks(); as c) {
+        <ul class="checks">
+          <li [class.ok]="c.ledgerValid">
+            {{ c.ledgerValid ? '✓' : '✗' }} Its record is in the ledger as entry #{{ l.ledger.seq }}
+            @if (c.ledgerProblem) {
+              <span class="problem">{{ c.ledgerProblem }}</span>
+            }
+          </li>
+        </ul>
+      }
     } @else {
-      <p>Verifying&hellip;</p>
+      <div class="body">{{ l.body }}</div>
+
+      @if (checks(); as c) {
+        <ul class="checks">
+          <li [class.ok]="c.signatureValid">
+            {{ c.signatureValid ? '✓' : '✗' }} Signed by the author's wallet: exactly this text, at
+            this time
+          </li>
+          <li [class.ok]="c.signatureValid">
+            {{ c.signatureValid ? '✓' : '✗' }} Signed by hand (similarity
+            {{ l.handwritingScore.toFixed(2) }}, verified by Writeproof at publishing; the strokes
+            are not published)
+          </li>
+          <li [class.ok]="c.ledgerValid">
+            {{ c.ledgerValid ? '✓' : '✗' }} In the ledger as entry #{{ l.ledger.seq }}
+            @if (c.ledgerCheckpointSize !== null) {
+              (proven against a signed checkpoint of {{ c.ledgerCheckpointSize }} entries)
+            }
+            @if (c.ledgerProblem) {
+              <span class="problem">{{ c.ledgerProblem }}</span>
+            }
+          </li>
+        </ul>
+        <p class="address">
+          Author's address: <code>{{ l.author }}</code>
+        </p>
+      } @else {
+        <p>Verifying&hellip;</p>
+      }
+
+      <div class="report">
+        @if (reported(); as message) {
+          <p class="notice" role="status">{{ message }}</p>
+        } @else if (reporting()) {
+          <form (ngSubmit)="report()">
+            <fieldset>
+              <legend>What's wrong with this letter?</legend>
+              @for (c of categories; track c.value) {
+                <label>
+                  <input type="radio" name="category" [value]="c.value" [(ngModel)]="category" />
+                  {{ c.label }}
+                </label>
+              }
+            </fieldset>
+            <label class="note">
+              Anything a moderator should know (optional)
+              <textarea name="note" [(ngModel)]="note" rows="2" maxlength="500"></textarea>
+            </label>
+            @if (reportError(); as message) {
+              <p class="error" role="alert">{{ message }}</p>
+            }
+            <button type="submit" [disabled]="!category">Send report</button>
+            <button type="button" (click)="reporting.set(false)">Cancel</button>
+          </form>
+        } @else {
+          <button type="button" class="link" (click)="reporting.set(true)">
+            Report this letter
+          </button>
+        }
+      </div>
     }
   } @else {
     <p>Loading&hellip;</p>

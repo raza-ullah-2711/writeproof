@@ -14,6 +14,7 @@ import {
   OpenLetter,
   OpenLettersService,
 } from '../open-letters/open-letters.service';
+import { categoryLabel } from '../open-letters/report-categories';
 
 @Component({
   selector: 'app-open-letters-page',
@@ -34,6 +35,7 @@ export class OpenLettersPage {
   protected readonly published = signal<OpenLetter | null>(null);
   protected readonly copied = signal<string | null>(null);
   protected readonly maxLength = MAX_OPEN_LETTER_LENGTH;
+  protected readonly label = categoryLabel;
   /** Publishing is permanent and public, so it takes an explicit confirmation. */
   protected understood = false;
   protected body = '';

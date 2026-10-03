@@ -56,3 +56,52 @@
 .error {
   color: #b00020;
 }
+
+.removed {
+  margin: 1rem 0;
+  padding: 0.75rem 1rem;
+  border: 1px solid #e7e6e1;
+  border-radius: 6px;
+  background: #f6f5f2;
+  font-size: 0.9375rem;
+}
+
+.report {
+  margin-top: 1.5rem;
+  font-size: 0.875rem;
+
+  fieldset {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 0.25rem 1rem;
+    border: 1px solid #ddd;
+    border-radius: 6px;
+  }
+
+  .note {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin: 0.5rem 0;
+    max-width: 32rem;
+  }
+
+  textarea {
+    font: inherit;
+    padding: 0.4rem;
+  }
+
+  .link {
+    font: inherit;
+    background: none;
+    border: 0;
+    padding: 0;
+    color: #555;
+    text-decoration: underline;
+    cursor: pointer;
+  }
+}
+
+.notice {
+  color: #1b5e20;
+}

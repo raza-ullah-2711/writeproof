@@ -67,6 +67,7 @@ describe('OpenLettersService', () => {
       handwritingHash: hw,
       handwritingScore: 0.87,
       ledger: { seq: 4, prevHash: '', payloadHash: hash, recordedAtMillis: 0, entryHash: 'e4' },
+      removed: null,
     };
     post.flush(stored);
     await publishing;
@@ -135,5 +136,36 @@ describe('OpenLettersService', () => {
     (await nextRequest(http, '/api/me/open-letters')).flush({ letterHash: 'something-else' });
 
     await expect(publishing).rejects.toThrow(/different letter hash/);
+  });
+
+  it('checks only the ledger record of a removed letter', async () => {
+    const letter = await publish('Taken down later');
+
+    const checked = await service.verify(
+      { ...letter, body: null, removed: { category: 'spam', at: '' } },
+      letter.letterHash,
+    );
+
+    expect(checked).toEqual({
+      signatureValid: false,
+      ledgerValid: true,
+      ledgerProblem: null,
+      ledgerCheckpointSize: 12,
+    });
+    expect(verifyEntry).toHaveBeenCalledWith(letter.ledger, letter.letterHash);
+  });
+
+  it('files a report, with or without a note', async () => {
+    const first = service.report('hash/1', 'spam', '  ');
+    const req = http.expectOne('/api/open-letters/hash%2F1/reports');
+    expect(req.request.body).toEqual({ category: 'spam' });
+    req.flush(null, { status: 202, statusText: 'Accepted' });
+    await first;
+
+    const second = service.report('h2', 'other', ' Looks fake ');
+    expect(http.expectOne('/api/open-letters/h2/reports').request.body).toEqual({
+      category: 'other',
+      note: 'Looks fake',
+    });
   });
 });

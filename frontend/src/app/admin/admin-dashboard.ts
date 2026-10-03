@@ -1,12 +1,13 @@
 import { DatePipe, DecimalPipe } from '@angular/common';
 import { Component, OnInit, computed, inject, signal } from '@angular/core';
+import { RouterLink } from '@angular/router';
 import { AdminService, Dashboard } from './admin.service';
 import { LettersChart } from './letters-chart';
 
 /** Everything the server can count, on one page. */
 @Component({
   selector: 'app-admin-dashboard',
-  imports: [DatePipe, DecimalPipe, LettersChart],
+  imports: [DatePipe, DecimalPipe, LettersChart, RouterLink],
   templateUrl: './admin-dashboard.html',
   styleUrl: './admin-dashboard.scss',
 })
