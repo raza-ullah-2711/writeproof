@@ -158,7 +158,12 @@ domains.
 
 ## Still open
 
-- Shared rate-limit store for multiple instances, and per-IP limits behind proxies.
+- **Shared rate-limit store: not needed while there is one API instance** (decided October 2026).
+  The buckets are in memory, per process. Per-IP limits already see the real client behind the
+  proxy (`SERVER_FORWARD_HEADERS_STRATEGY=native`, see [deployment.md](deployment.md)). Before running
+  a second instance, move the buckets to a shared store (Postgres or Redis). Otherwise each
+  instance allows the full limit.
 - Account deletion as a whole (letters are immutable by design; what deletion means for them
   needs a product decision).
-- An external security review / penetration test before launch.
+- An external security review / penetration test before launch. The brief for testers, with
+  scope, priorities, test setup and known limitations, is [security-review.md](security-review.md).
