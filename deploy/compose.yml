@@ -36,6 +36,8 @@ services:
       LEDGER_SIGNING_KEY: ${LEDGER_SIGNING_KEY:?run deploy/generate-env.sh first (or add LEDGER_SIGNING_KEY to deploy/.env)}
       LEDGER_CHECKPOINT_INTERVAL: ${LEDGER_CHECKPOINT_INTERVAL:-PT10M}
       LEDGER_PREVIOUS_SIGNING_KEY: ${LEDGER_PREVIOUS_SIGNING_KEY:-}
+      # Public log checkpoints are anchored in (generate-env.sh sets it for real domains).
+      LEDGER_REKOR_URL: ${LEDGER_REKOR_URL:-}
       # Wallet addresses that are always admins (docs/admin.md). Not secret.
       ADMIN_PUBLIC_KEYS: ${ADMIN_PUBLIC_KEYS:-}
       # Published checkpoints, one JSON per line, for shipping to outside witnesses (docs/ledger.md).

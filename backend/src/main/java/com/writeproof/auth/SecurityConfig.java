@@ -54,7 +54,7 @@ class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/backups/*").permitAll()
                         // Anyone may verify the ledger: key, checkpoints and proofs are public.
                         .requestMatchers(HttpMethod.GET, "/api/ledger/key", "/api/ledger/checkpoint",
-                                "/api/ledger/checkpoints", "/api/ledger/proof/**").permitAll()
+                                "/api/ledger/checkpoints", "/api/ledger/anchors", "/api/ledger/proof/**").permitAll()
                         // Open letters are public to anyone with the link.
                         .requestMatchers(HttpMethod.GET, "/api/open-letters/*", "/api/system/status").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/open-letters/*/reports").permitAll()

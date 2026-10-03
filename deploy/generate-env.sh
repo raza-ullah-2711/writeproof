@@ -24,5 +24,9 @@ JWT_SECRET=$(openssl rand -base64 32)
 HANDWRITING_DATA_KEY=$(openssl rand -base64 32)
 LEDGER_SIGNING_KEY=$(openssl rand -base64 32)
 ENV
+# Anchor checkpoints in Sigstore's public log (docs/ledger.md), but never from a local trial run.
+if [[ "$1" != "localhost" && "$1" != *.localhost ]]; then
+  echo "LEDGER_REKOR_URL=https://rekor.sigstore.dev" >> .env
+fi
 echo "Wrote deploy/.env (mode 600). Back it up somewhere safe and separate from the database backups."
 echo "Point DNS for $1 and admin.$1 (the admin app, see docs/admin.md) at this server."

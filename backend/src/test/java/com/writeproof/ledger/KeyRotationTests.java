@@ -92,7 +92,7 @@ class KeyRotationTests {
     }
 
     private static int audit(ConfigurableApplicationContext app, Path state) {
-        return AuditLedger.run(new String[] {url(app), "--state", state.toString()});
+        return AuditLedger.run(new String[] {url(app), "--state", state.toString(), "--no-rekor"});
     }
 
     @Test
