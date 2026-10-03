@@ -15,6 +15,7 @@ import {
   OpenLettersService,
 } from '../open-letters/open-letters.service';
 import { categoryLabel } from '../open-letters/report-categories';
+import { SystemStatusService } from '../system/system-status.service';
 
 @Component({
   selector: 'app-open-letters-page',
@@ -26,6 +27,7 @@ export class OpenLettersPage {
   protected readonly auth = inject(AuthService);
   private readonly openLetters = inject(OpenLettersService);
   private readonly handwriting = inject(HandwritingApi);
+  protected readonly system = inject(SystemStatusService);
 
   protected readonly pad = viewChild(HandwritingPad);
   protected readonly enrolled = signal<boolean | null>(null);

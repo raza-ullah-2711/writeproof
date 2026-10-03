@@ -5,6 +5,7 @@ import { IDBFactory } from 'fake-indexeddb';
 import { nextRequest } from '../../testing/http';
 import { toBase64Url } from '../crypto/base64url';
 import { authInterceptor } from '../auth/auth.interceptor';
+import { SystemStatusService } from '../system/system-status.service';
 import { Home } from './home';
 import { BackupService } from '../wallet/backup.service';
 import { WalletService } from '../wallet/wallet.service';
@@ -39,6 +40,21 @@ describe('Home', () => {
   it('offers to create a wallet when none exists', async () => {
     const { el } = await render();
     expect(el.querySelector('button')?.textContent).toContain('Create wallet');
+  });
+
+  it('explains that registration is closed, and still offers restoring', async () => {
+    const system = TestBed.inject(SystemStatusService);
+    (system as unknown as { _status: { set(v: unknown): void } })._status.set({
+      registrationOpen: false,
+      sendingEnabled: true,
+      openLettersEnabled: true,
+      announcement: '',
+    });
+    const { el } = await render();
+
+    expect(el.textContent).not.toContain('Create wallet');
+    expect(el.querySelector('.closed')?.textContent).toContain("isn't accepting new accounts");
+    expect(el.querySelector('form.restore')).not.toBeNull();
   });
 
   it('creates, registers and signs in a new wallet', async () => {

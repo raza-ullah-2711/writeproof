@@ -21,6 +21,12 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     http.expectOne('/actuator/health').flush({ status: 'UP' });
+    http.expectOne('/api/system/status').flush({
+      registrationOpen: true,
+      sendingEnabled: true,
+      openLettersEnabled: true,
+      announcement: '',
+    });
 
     const compiled = fixture.nativeElement as HTMLElement;
     expect(compiled.querySelector('h1')?.textContent).toContain('Writeproof');
@@ -30,6 +36,12 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     http.expectOne('/actuator/health').flush({ status: 'UP' });
+    http.expectOne('/api/system/status').flush({
+      registrationOpen: true,
+      sendingEnabled: true,
+      openLettersEnabled: true,
+      announcement: '',
+    });
     await fixture.whenStable();
 
     const status = (fixture.nativeElement as HTMLElement).querySelector('.status');
@@ -42,6 +54,12 @@ describe('App', () => {
     const fixture = TestBed.createComponent(App);
     await fixture.whenStable();
     http.expectOne('/actuator/health').flush({ status: 'UP' });
+    http.expectOne('/api/system/status').flush({
+      registrationOpen: true,
+      sendingEnabled: true,
+      openLettersEnabled: true,
+      announcement: '',
+    });
     // Set after start-up, which (signed out) clears it.
     (
       TestBed.inject(AccountStatusService) as unknown as { _suspension: { set(v: unknown): void } }
@@ -54,5 +72,23 @@ describe('App', () => {
     const banner = (fixture.nativeElement as HTMLElement).querySelector('.suspended');
     expect(banner?.textContent).toContain('Repeated spam reports');
     expect(banner?.textContent).toContain('You can still sign in, read your letters');
+  });
+
+  it('shows the announcement to everyone', async () => {
+    const fixture = TestBed.createComponent(App);
+    await fixture.whenStable();
+    http.expectOne('/actuator/health').flush({ status: 'UP' });
+    http.expectOne('/api/system/status').flush({
+      registrationOpen: true,
+      sendingEnabled: true,
+      openLettersEnabled: true,
+      announcement: 'Maintenance tonight at 22:00 UTC',
+    });
+    await vi.waitFor(async () => {
+      await fixture.whenStable();
+      expect(
+        (fixture.nativeElement as HTMLElement).querySelector('.announcement')?.textContent,
+      ).toContain('Maintenance tonight');
+    });
   });
 });

@@ -8,6 +8,7 @@ import { ContactsService } from '../contacts/contacts.service';
 import { HandwritingApi } from '../handwriting/handwriting-api';
 import { HandwritingSample } from '../handwriting/handwriting-sample';
 import { Letter, LettersService, OpenedLetter } from '../letters/letters.service';
+import { SystemStatusService } from '../system/system-status.service';
 import { WalletService } from '../wallet/wallet.service';
 import { LettersPage } from './letters-page';
 
@@ -297,6 +298,22 @@ describe('LettersPage', () => {
     const [to, text, , parent] = service.send.mock.calls[0];
     expect([to, text, parent]).toEqual([BOB, 'Thank you, Bob', incoming]);
     expect(el.querySelector('.replying')).toBeNull();
+  });
+
+  it('explains that sending is paused and disables it', async () => {
+    const system = TestBed.inject(SystemStatusService);
+    (system as unknown as { _status: { set(v: unknown): void } })._status.set({
+      registrationOpen: true,
+      sendingEnabled: false,
+      openLettersEnabled: true,
+      announcement: '',
+    });
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+    await compose(fixture);
+
+    expect(el.querySelector('.paused')?.textContent).toContain('Sending letters is paused');
+    expect(button(el, 'Seal and send').disabled).toBe(true);
   });
 
   it('asks to enrol handwriting before letters can be sent', async () => {

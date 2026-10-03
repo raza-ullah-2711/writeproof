@@ -56,7 +56,7 @@ class SecurityConfig {
                         .requestMatchers(HttpMethod.GET, "/api/ledger/key", "/api/ledger/checkpoint",
                                 "/api/ledger/checkpoints", "/api/ledger/proof/**").permitAll()
                         // Open letters are public to anyone with the link.
-                        .requestMatchers(HttpMethod.GET, "/api/open-letters/*").permitAll()
+                        .requestMatchers(HttpMethod.GET, "/api/open-letters/*", "/api/system/status").permitAll()
                         .requestMatchers(HttpMethod.POST, "/api/open-letters/*/reports").permitAll()
                         // Admin area: any signed-in account may ask whether it is an admin;
                         // moderation is open to moderators; everything else needs ADMIN.

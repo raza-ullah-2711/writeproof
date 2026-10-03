@@ -11,6 +11,7 @@ import com.writeproof.identity.AccountStatus;
 import com.writeproof.identity.Ed25519;
 import com.writeproof.ledger.LedgerEntry;
 import com.writeproof.ledger.LedgerService;
+import com.writeproof.system.SystemSettings;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -41,11 +42,13 @@ public class LetterService {
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final AccountStatus accountStatus;
+    private final SystemSettings settings;
 
     LetterService(AccountRepository accounts, LetterRepository letters, LedgerService ledger,
                   HandwritingService handwritingService, ObjectMapper objectMapper, Clock clock,
-                  AccountStatus accountStatus) {
+                  AccountStatus accountStatus, SystemSettings settings) {
         this.accountStatus = accountStatus;
+        this.settings = settings;
         this.accounts = accounts;
         this.letters = letters;
         this.ledger = ledger;
@@ -72,6 +75,7 @@ public class LetterService {
     @Transactional
     public Letter send(UUID senderId, byte[] recipientKey, String sentAt, LetterEnvelope envelope, byte[] signature,
                        String handwritingJson, byte[] inReplyTo) {
+        settings.requireSendingEnabled();
         envelope.validate();
         HandwritingSample handwriting = parseHandwriting(handwritingJson);
         byte[] handwritingHash = LetterHashing.handwritingHash(handwritingJson);

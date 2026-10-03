@@ -13,6 +13,7 @@ import com.writeproof.ledger.LedgerEntry;
 import com.writeproof.ledger.LedgerService;
 import com.writeproof.letters.LetterHashing;
 import com.writeproof.letters.LetterService;
+import com.writeproof.system.SystemSettings;
 import java.time.Clock;
 import java.time.Instant;
 import java.util.List;
@@ -38,11 +39,13 @@ public class OpenLetterService {
     private final ObjectMapper objectMapper;
     private final Clock clock;
     private final AccountStatus accountStatus;
+    private final SystemSettings settings;
 
     OpenLetterService(AccountRepository accounts, OpenLetterRepository letters, LedgerService ledger,
                       HandwritingService handwritingService, ObjectMapper objectMapper, Clock clock,
-                      AccountStatus accountStatus) {
+                      AccountStatus accountStatus, SystemSettings settings) {
         this.accountStatus = accountStatus;
+        this.settings = settings;
         this.accounts = accounts;
         this.letters = letters;
         this.ledger = ledger;
@@ -53,6 +56,7 @@ public class OpenLetterService {
 
     @Transactional
     public OpenLetter publish(UUID authorId, String sentAt, String body, byte[] signature, String handwritingJson) {
+        settings.requireOpenLettersEnabled();
         if (body.isBlank() || body.codePointCount(0, body.length()) > MAX_BODY_LENGTH) {
             throw new IllegalArgumentException("An open letter needs 1 to " + MAX_BODY_LENGTH + " characters");
         }

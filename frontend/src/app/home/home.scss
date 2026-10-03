@@ -79,3 +79,12 @@ dd {
 .hint {
   color: #555;
 }
+
+.paused,
+.closed {
+  padding: 0.5rem 0.75rem;
+  border: 1px solid #f0d58a;
+  border-radius: 6px;
+  background: #fdf6e3;
+  font-size: 0.875rem;
+}

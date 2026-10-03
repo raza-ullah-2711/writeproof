@@ -21,6 +21,7 @@ import {
   ThreadSummary,
   checkThread,
 } from '../letters/letters.service';
+import { SystemStatusService } from '../system/system-status.service';
 import { WalletService } from '../wallet/wallet.service';
 
 type Box = 'inbox' | 'sent' | 'threads';
@@ -45,6 +46,7 @@ export class LettersPage {
   private readonly letters = inject(LettersService);
   private readonly handwriting = inject(HandwritingApi);
   protected readonly contacts = inject(ContactsService);
+  protected readonly system = inject(SystemStatusService);
 
   protected readonly pad = viewChild(HandwritingPad);
   /** Null while unknown; sending needs enrolled handwriting. */
