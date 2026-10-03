@@ -138,7 +138,9 @@
             }
           </ul>
           @if (c.letters.at(-1); as last) {
-            <button type="button" class="primary" (click)="startReply(last)">Reply</button>
+            @if (!isDeleted(c.counterpart)) {
+              <button type="button" class="primary" (click)="startReply(last)">Reply</button>
+            }
           }
         </div>
       } @else if (threadList(); as threads) {
@@ -186,6 +188,9 @@
   } @else {
     <code>{{ short(address) }}</code>
   }
+  @if (isDeleted(address)) {
+    <span class="deleted-account">(this account was deleted)</span>
+  }
 </ng-template>
 
 <ng-template #card let-letter>
@@ -196,7 +201,7 @@
         @let party = mine ? letter.recipient : letter.sender;
         {{ mine ? 'To' : 'From' }}
         <ng-container *ngTemplateOutlet="who; context: { $implicit: party.publicKey }" />
-        @if (!petname(party.publicKey)) {
+        @if (!petname(party.publicKey) && !party.deleted) {
           <a class="add-contact" routerLink="/contacts" [queryParams]="{ add: party.publicKey }"
             >Add to contacts</a
           >
@@ -251,7 +256,9 @@
       </ul>
       @if (o.decrypted && o.signatureValid) {
         <div class="letter-actions">
-          <button type="button" (click)="startReply(letter)">Reply</button>
+          @if (!isDeleted(otherParty(letter))) {
+            <button type="button" (click)="startReply(letter)">Reply</button>
+          }
           @if (box() !== 'threads') {
             <button type="button" (click)="openThread(letter.threadId, otherParty(letter))">
               Show conversation

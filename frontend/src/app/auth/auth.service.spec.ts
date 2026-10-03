@@ -7,6 +7,7 @@ import { fromBase64Url, toBase64Url } from '../crypto/base64url';
 import { WalletService } from '../wallet/wallet.service';
 import { authInterceptor } from './auth.interceptor';
 import { AuthService } from './auth.service';
+import { deletionMessage } from './deletion-message';
 import { loginMessage } from './login-message';
 import { verifyEd25519 } from '../crypto/ed25519';
 import { encryptionKeyBinding } from '../letters/letter-format';
@@ -104,6 +105,42 @@ describe('AuthService', () => {
     await expect(loggedIn).resolves.toMatchObject({ accountId: 'a1' });
     expect(auth.authenticated()).toBe(true);
     expect(auth.account()?.accountId).toBe('a1');
+  });
+
+  it('deletes the account with a request the wallet signs, then forgets the wallet', async () => {
+    const challengeId = '3f1c2b9e-6a1d-4b8e-9c3f-2d7e5a4b1c0d';
+    const loggedIn = auth.login();
+    (await nextRequest(http, '/api/auth/challenge')).flush({
+      challengeId,
+      nonce: toBase64Url(crypto.getRandomValues(new Uint8Array(32))),
+      expiresAt: '',
+    });
+    (await nextRequest(http, '/api/auth/verify')).flush({ token: 'jwt-token', expiresAt: '' });
+    (await nextRequest(http, '/api/me')).flush(
+      account({ encryptionKey: wallet.encryptionPublicKey() }),
+    );
+    await loggedIn;
+    const publicKey = wallet.publicKey()!;
+
+    const deleted = auth.deleteAccount();
+    const req = await nextRequest(http, '/api/me/deletion');
+    expect(req.request.method).toBe('POST');
+    expect(req.request.headers.get('Authorization')).toBe('Bearer jwt-token');
+    const { requestedAt, signature } = req.request.body as {
+      requestedAt: string;
+      signature: string;
+    };
+    expect(await verifyEd25519(publicKey, deletionMessage('a1', requestedAt), signature)).toBe(
+      true,
+    );
+    req.flush(null, { status: 204, statusText: 'No Content' });
+    await deleted;
+
+    expect(auth.authenticated()).toBe(false);
+    expect(wallet.state()).toBe('none');
+    expect(wallet.publicKey()).toBeNull();
+    await wallet.load();
+    expect(wallet.state()).toBe('none');
   });
 
   it('rejects a challenge with a malformed nonce without signing anything', async () => {

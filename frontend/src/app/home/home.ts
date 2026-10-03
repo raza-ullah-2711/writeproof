@@ -27,6 +27,11 @@ export class Home implements OnInit {
   protected readonly newCode = signal<string | null>(null);
   protected readonly copied = signal(false);
   protected recoveryCode = '';
+  /** Account deletion: the confirmation form is open, and what must be typed to confirm. */
+  protected readonly deleting = signal(false);
+  protected readonly deleted = signal(false);
+  protected readonly confirmPhrase = 'delete my account';
+  protected deleteConfirmation = '';
 
   constructor() {
     effect(() => {
@@ -72,6 +77,15 @@ export class Home implements OnInit {
   protected async copyCode(code: string): Promise<void> {
     await navigator.clipboard?.writeText(code);
     this.copied.set(true);
+  }
+
+  protected deleteAccount(): Promise<void> {
+    return this.run(async () => {
+      await this.auth.deleteAccount();
+      this.deleting.set(false);
+      this.deleteConfirmation = '';
+      this.deleted.set(true);
+    });
   }
 
   protected signIn(): Promise<void> {

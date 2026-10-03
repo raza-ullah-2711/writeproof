@@ -7,6 +7,7 @@ import com.writeproof.handwriting.HandwritingSample;
 import com.writeproof.handwriting.HandwritingService;
 import com.writeproof.identity.Account;
 import com.writeproof.identity.AccountRepository;
+import com.writeproof.identity.AccountService;
 import com.writeproof.identity.AccountStatus;
 import com.writeproof.identity.Ed25519;
 import com.writeproof.ledger.LedgerEntry;
@@ -85,6 +86,9 @@ public class LetterService {
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.UNAUTHORIZED, "Account no longer exists"));
         Account recipient = accounts.findByPublicKey(recipientKey)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account with this address"));
+        if (recipient.deleted()) {
+            throw AccountService.gone();
+        }
         accountStatus.requireCanSend(sender.id());
         if (!sender.canReceiveLetters() || !recipient.canReceiveLetters()) {
             throw unprocessable("Both sender and recipient need a registered encryption key");

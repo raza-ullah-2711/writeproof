@@ -154,6 +154,16 @@ export class WalletService {
     await this.unlock(stored, stored.encryption!);
   }
 
+  /** Removes the wallet from this browser and memory: only after its account was deleted. */
+  async forget(): Promise<void> {
+    await this.store.clear();
+    this.signingKey = null;
+    this.agreementKey = null;
+    this._publicKey.set(null);
+    this._encryptionPublicKey.set(null);
+    this._state.set('none');
+  }
+
   async sign(message: Uint8Array<ArrayBuffer>): Promise<Uint8Array<ArrayBuffer>> {
     if (!this.signingKey) {
       throw new Error('Wallet is not unlocked');

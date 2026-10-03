@@ -23,6 +23,8 @@ import {
 export interface Party {
   accountId: string;
   publicKey: string;
+  /** The account was deleted: its side of past letters can't be opened, and it can't be written to. */
+  deleted?: boolean;
 }
 
 export interface Letter {

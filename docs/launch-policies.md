@@ -1,9 +1,27 @@
 # Launch policies (Task 7)
 
-Two policies Writeproof needs before launch: **takedowns** and **account deletion**. Decided so
-far (October 2026): the operator and most users are in the **US**, with a GDPR-style baseline in
-case EU users join, and deletion means **"close and forget"**. Everything else below is a
-recommendation waiting for a decision. Each one is marked **Decide:**.
+Two policies Writeproof needs before launch: **takedowns** and **account deletion**. The operator
+and most users are in the **US**, with a GDPR-style baseline in case EU users join. Deletion means
+**"close and forget"**. Every other recommendation below was **accepted as written** (October
+2026):
+
+| # | Decision |
+| --- | --- |
+| T1 | Remove: illegal content, child sexual abuse or exploitation (preserved 1 year and reported to NCMEC first), harassment or threats, impersonation, spam, copyright infringement via DMCA notices. "Something else" reports are reviewed and removed only if they fit one of these. |
+| T2 | Report button, plus a legal-notices email address and a registered DMCA agent (address to be set by the operator) |
+| T3 | Child abuse: immediately, reported the same day. Legal notices and intimate-image requests: within 48 hours. Other reports: within 3 days. |
+| T4 | Removals are hidden, then deleted after 14 days unless appealed; appeals are answered within 7 days. Child-abuse removals are never restored. |
+| T5 | Sealed letters: the recipient can block a sender, or report one by disclosing the decrypted letter; moderators can suspend the sender |
+| T6 | Suspension after 3 upheld removals in 90 days, or at once for child abuse, credible threats or impersonation |
+| T7 | Valid legal process only; tell the user unless forbidden; transparency report twice a year |
+| T8 | Users must be 13 or older |
+| D1 | Deletion needs a wallet signature and a typed confirmation |
+| D2 | No undo window: deletion is immediate and final |
+| D3 | Correspondents see "This account was deleted"; new letters to it are refused |
+| D4 | A deleted wallet key can't register again |
+| D5 | Database backups are kept at most 30 days |
+
+The sections below explain each choice.
 
 > **This is not legal advice.** It is an engineering draft that lays out what the system can and
 > can't do, so a US lawyer can turn it into a Terms of Service, a Privacy Policy and an internal
@@ -70,14 +88,14 @@ What exists today ([admin.md](admin.md), "Moderation"):
 Recommended grounds: content that is illegal where you operate; child sexual abuse or
 exploitation; harassment or threats; impersonation; spam; copyright infringement (through
 DMCA notices).
-**Decide:** the list, and whether "something else" can lead to removal.
+**Decided** (see the table): the list, and whether "something else" can lead to removal.
 *Needs code:* for the child-abuse category, the removal must first copy the text and its
 metadata to a restricted, encrypted preservation store kept for 1 year, then blank the public
 text. NCMEC reporting is a manual step in the procedure.
 
 **T2. How people can ask.** Recommended: the report button for users. Add a legal-notices
 email address (copyright notices, legal requests, image requests under the TAKE IT DOWN Act) and
-a registered DMCA agent. **Decide:** the address and who reads it. *Needs code:* add "copyright"
+a registered DMCA agent. **Decided** (see the table): the address and who reads it. *Needs code:* add "copyright"
 as a report category, or route it to the email.
 
 **T3. Response times.** Recommended:
@@ -85,11 +103,11 @@ as a report category, or route it to the email.
 - valid legal notices and intimate-image requests: within 48 hours;
 - other reports: within 3 days.
 
-**Decide:** the targets, and who is on call.
+**Decided** (see the table): the targets, and who is on call.
 
 **T4. Telling the author, and appeals.** The author already sees the removal and its category.
 Recommended: an appeal route (an email, or a sealed letter to an official account), answered
-within 7 days. **Decide:** whether removals stay permanent, or become "hidden, then deleted after
+within 7 days. **Decided** (see the table): whether removals stay permanent, or become "hidden, then deleted after
 14 days unless appealed" so an appeal can restore the text. The second is fairer but *needs code*:
 today the text is gone at once. Child-abuse removals are never restored.
 
@@ -99,12 +117,12 @@ today the text is gone at once. Child-abuse removals are never restored.
   recipient is the only one who can;
 - moderators can suspend the sender.
 
-**Decide:** whether that is the policy. *Needs code:* blocking and recipient-disclosed reports
+**Decided** (see the table): whether that is the policy. *Needs code:* blocking and recipient-disclosed reports
 don't exist yet.
 
 **T6. Repeat offenders.** Recommended: suspension after 3 upheld removals in 90 days, or at once
 for child abuse, credible threats or impersonation. DMCA requires a repeat-infringer policy.
-**Decide:** the thresholds.
+**Decided** (see the table): the thresholds.
 
 **T7. Law-enforcement and legal requests.** What exists to hand over: account public key and
 creation time, letter metadata (who, to whom, when), open letters, and moderation records.
@@ -114,10 +132,10 @@ What doesn't: sealed contents, IP addresses, and names (there are none). Recomme
 - publish a transparency report twice a year (counts of requests, removals by category, NCMEC
   reports).
 
-**Decide:** whether to commit to the transparency report.
+**Decided** (see the table): whether to commit to the transparency report.
 
 **T8. Minimum age.** COPPA covers under-13s. Recommended: 13+ (or 18+, which is simpler). There
-is no age check: wallets have no identity. **Decide:** the age, and state it in the Terms.
+is no age check: wallets have no identity. **Decided** (see the table): the age, and state it in the Terms.
 
 ## 2. Account deletion: "close and forget" (decided)
 
@@ -159,10 +177,17 @@ it can't reappear as if it were the same person with no history. Use a new walle
 data until they age out. Recommended: keep backups at most 30 days, and say so in the Privacy
 Policy. **Decide** the retention period.
 
-*Needs code:* a signed `DELETE /api/me` endpoint and the steps above. That means
-an "author-withdrawn" kind of open-letter removal, a deleted status that blocks sign-in,
-registration and new letters, the correspondent-facing label, and a Wallet-page button with a
-clear warning.
+**Built (Task 7a).** The steps above run in `AccountDeletionService` in one transaction, behind
+`POST /api/me/deletion`. The request is `{requestedAt, signature}`: the wallet's Ed25519 signature
+over `writeproof/delete-account/v1
+<accountId>
+<requestedAt>`, within 5 minutes of the server's
+clock. The account row keeps a `deleted_at` marker (migration V19). Sign-in, registering the key
+again, looking the address up and writing to it then answer `410 Gone`. Withdrawn open letters
+are recorded as removals of category `withdrawn`, by the author's own key. Letter responses mark
+a deleted party (`deleted: true`), and the app labels it and offers no reply. The Wallet page has
+the button, with the full warning and a typed confirmation, and removes the wallet from the
+browser afterwards.
 
 ## What to do next
 
@@ -170,9 +195,9 @@ clear warning.
    moderation procedure, and have them confirm every *confirm* above.
 2. Register a DMCA agent, set up a legal-notices address, and sign up as an NCMEC CyberTipline
    reporter.
-3. Make the decisions marked **Decide:**.
+3. Make the decisions marked **Decided** (see the table):.
 4. Build the code they need. Two pieces should land before launch:
-   - **Task 7a, account deletion:** "close and forget" as above.
+   - **Task 7a, account deletion:** "close and forget" as above. *Done.*
    - **Task 7b, moderation compliance:** preservation before removing child-abuse content, a
      copyright route, and appeals with hide-then-delete. Blocking and recipient-disclosed
      reports for sealed letters can follow.

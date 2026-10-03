@@ -1,6 +1,6 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { NgTemplateOutlet } from '@angular/common';
-import { Component, effect, inject, signal, viewChild } from '@angular/core';
+import { Component, computed, effect, inject, signal, viewChild } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import { AuthService } from '../auth/auth.service';
@@ -97,6 +97,29 @@ export class LettersPage {
   }
 
   /** Your name for an address, if it is a contact. */
+  /** Addresses of deleted accounts, as the server marked them in what's loaded. */
+  private readonly deletedAddresses = computed(() => {
+    const deleted = new Set<string>();
+    for (const l of [...(this.list() ?? []), ...(this.conversation()?.letters ?? [])]) {
+      for (const p of [l.sender, l.recipient]) {
+        if (p.deleted) {
+          deleted.add(p.publicKey);
+        }
+      }
+    }
+    for (const t of this.threadList() ?? []) {
+      if (t.counterpart.deleted) {
+        deleted.add(t.counterpart.publicKey);
+      }
+    }
+    return deleted;
+  });
+
+  /** A deleted account can't be written to; its side of past letters can't be opened. */
+  protected isDeleted(address: string): boolean {
+    return this.deletedAddresses().has(address);
+  }
+
   protected petname(address: string): string | null {
     return this.contacts.petname(address.trim());
   }

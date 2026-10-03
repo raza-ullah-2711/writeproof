@@ -75,6 +75,55 @@
             }
           }
         </section>
+
+        <section class="delete-account">
+          <h3>Delete account</h3>
+          @if (!deleting()) {
+            <button type="button" class="danger" (click)="deleting.set(true)">
+              Delete my account&hellip;
+            </button>
+          } @else {
+            <p class="warn"><strong>This can't be undone.</strong> Deleting your account:</p>
+            <ul>
+              <li>
+                deletes your handwriting, your recovery-code backup, your contacts and any
+                calibration samples;
+              </li>
+              <li>
+                withdraws your open letters: their text is deleted, their records stay on the
+                ledger;
+              </li>
+              <li>
+                makes your sealed letters unreadable to you for good. The people you wrote to keep
+                their copies, which show your account as deleted;
+              </li>
+              <li>removes this wallet from this browser. It can't be used to sign up again.</li>
+            </ul>
+            <form (ngSubmit)="deleteAccount()">
+              <label>
+                Type <code>{{ confirmPhrase }}</code> to confirm
+                <input
+                  name="deleteConfirmation"
+                  [(ngModel)]="deleteConfirmation"
+                  autocomplete="off"
+                  spellcheck="false"
+                />
+              </label>
+              <div class="actions">
+                <button
+                  type="submit"
+                  class="danger"
+                  [disabled]="busy() || deleteConfirmation.trim().toLowerCase() !== confirmPhrase"
+                >
+                  Delete my account
+                </button>
+                <button type="button" (click)="deleting.set(false)" [disabled]="busy()">
+                  Cancel
+                </button>
+              </div>
+            </form>
+          }
+        </section>
       } @else {
         <p>A wallet is saved in this browser.</p>
         <button type="button" (click)="signIn()" [disabled]="busy()">Sign in</button>
@@ -82,6 +131,11 @@
     }
   }
 
+  @if (deleted()) {
+    <p class="ok" role="status">
+      Your account was deleted, and its wallet was removed from this browser.
+    </p>
+  }
   @if (error(); as message) {
     <p class="error" role="alert">{{ message }}</p>
   }

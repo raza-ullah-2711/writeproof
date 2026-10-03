@@ -3,6 +3,7 @@ package com.writeproof.auth;
 import com.writeproof.admin.AdminRoles;
 import com.writeproof.identity.Account;
 import com.writeproof.identity.AccountRepository;
+import com.writeproof.identity.AccountService;
 import com.writeproof.identity.Ed25519;
 import java.security.SecureRandom;
 import java.time.Clock;
@@ -49,6 +50,9 @@ class ChallengeService {
     IssuedChallenge issue(byte[] publicKey) {
         Account account = accounts.findByPublicKey(publicKey)
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account for this public key"));
+        if (account.deleted()) {
+            throw AccountService.gone();
+        }
         byte[] nonce = new byte[NONCE_LENGTH];
         random.nextBytes(nonce);
         Instant now = clock.instant().truncatedTo(ChronoUnit.MICROS);
