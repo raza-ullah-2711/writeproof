@@ -163,7 +163,8 @@ domains.
   proxy (`SERVER_FORWARD_HEADERS_STRATEGY=native`, see [deployment.md](deployment.md)). Before running
   a second instance, move the buckets to a shared store (Postgres or Redis). Otherwise each
   instance allows the full limit.
-- Account deletion as a whole (letters are immutable by design; what deletion means for them
-  needs a product decision).
+- Account deletion as a whole. Decided: "close and forget" (delete everything deletable, keep
+  immutable letters unreadable to the deleted user). The design and the open decisions are in
+  [launch-policies.md](launch-policies.md); the endpoint isn't built yet.
 - An external security review / penetration test before launch. The brief for testers, with
   scope, priorities, test setup and known limitations, is [security-review.md](security-review.md).
