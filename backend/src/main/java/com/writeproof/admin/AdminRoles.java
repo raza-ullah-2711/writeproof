@@ -23,6 +23,15 @@ public class AdminRoles {
         this.bootstrap = properties.bootstrapKeys().stream().map(AdminRoles::key).toList();
     }
 
+    /** True if this key is listed in ADMIN_PUBLIC_KEYS (always ADMIN; managed in configuration). */
+    public boolean isBootstrap(byte[] publicKey) {
+        return bootstrap.stream().anyMatch(k -> Arrays.equals(k, publicKey));
+    }
+
+    public List<byte[]> bootstrapKeys() {
+        return bootstrap.stream().map(byte[]::clone).toList();
+    }
+
     public Optional<AdminRole> roleOf(UUID accountId) {
         return jdbc.sql("""
                 SELECT a.public_key, r.role

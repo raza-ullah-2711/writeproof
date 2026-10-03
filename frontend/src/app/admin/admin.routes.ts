@@ -1,6 +1,7 @@
 import { Routes } from '@angular/router';
 import { AdminAccount } from './admin-account';
 import { AdminAccounts } from './admin-accounts';
+import { AdminAdmins } from './admin-admins';
 import { AdminAudit } from './admin-audit';
 import { AdminDashboard } from './admin-dashboard';
 import { AdminModeration } from './admin-moderation';
@@ -38,6 +39,12 @@ export const ADMIN_ROUTES: Routes = [
         component: AdminSystem,
         canActivate: [adminOnlyGuard],
         title: 'System · Admin · Writeproof',
+      },
+      {
+        path: 'admins',
+        component: AdminAdmins,
+        canActivate: [adminOnlyGuard],
+        title: 'Admins · Admin · Writeproof',
       },
       {
         path: 'audit',

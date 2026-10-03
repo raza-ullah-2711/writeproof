@@ -26,6 +26,7 @@ describe('AdminShell', () => {
       'Accounts',
       'Moderation',
       'System',
+      'Admins',
       'Audit log',
     ]);
     expect(el.querySelector('.limits')?.textContent).toContain("can't be read here");
