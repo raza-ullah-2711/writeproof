@@ -31,6 +31,7 @@ import { AdminService } from './admin.service';
         @if (admin.role() === 'ADMIN') {
           <a routerLink="/admin/system" routerLinkActive="active">System</a>
           <a routerLink="/admin/admins" routerLinkActive="active">Admins</a>
+          <a routerLink="/admin/preserved" routerLinkActive="active">Preserved</a>
           <a routerLink="/admin/audit" routerLinkActive="active">Audit log</a>
         }
       </nav>
@@ -60,13 +61,15 @@ import { AdminService } from './admin.service';
     }
     .admin-nav {
       display: flex;
-      gap: 1rem;
+      flex-wrap: wrap;
+      gap: 0.25rem 1rem;
       border-bottom: 1px solid var(--border);
       padding-bottom: 0.5rem;
       margin-bottom: 1rem;
     }
     .admin-nav a {
       color: var(--text);
+      white-space: nowrap;
     }
     .admin-nav a.active {
       font-weight: 600;

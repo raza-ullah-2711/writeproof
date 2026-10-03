@@ -1,7 +1,9 @@
 <p class="hint">
-  Open letters are public, so you can read them here. Removing one deletes its text permanently; its
-  record stays on the ledger and its link says it was removed. Every decision is recorded in the
-  audit log, without the removed text.
+  Open letters are public, so you can read them here. Removing one hides it at once; its text is
+  deleted after 14 days unless the author appeals and you restore it. Child sexual abuse or
+  exploitation is removed at once, preserved for law enforcement, and its author suspended. A
+  letter's record always stays on the ledger, and every decision is recorded in the audit log,
+  without the text.
 </p>
 
 <form class="lookup" (ngSubmit)="find()">
@@ -39,6 +41,18 @@
         Removed {{ r.at | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} ({{ label(r.category) }}).
       </p>
     } @else {
+      @if (c.hold; as h) {
+        <p class="removed">
+          Hidden since {{ h.heldAt | date: 'yyyy-MM-dd HH:mm' : 'UTC' }} ({{ label(h.category) }}).
+          @if (h.appeal) {
+            Appealed {{ h.appealedAt | date: 'yyyy-MM-dd' : 'UTC' }}:
+            <q>{{ h.appeal }}</q>
+          } @else {
+            The text is deleted after {{ h.deleteAfter | date: 'yyyy-MM-dd' : 'UTC' }} unless
+            appealed.
+          }
+        </p>
+      }
       <div class="body">{{ c.body }}</div>
     }
     @if (c.openReports > 0) {
@@ -77,6 +91,13 @@
                 }
               </select>
             </label>
+            @if (category === 'child_safety') {
+              <p class="warn" role="alert">
+                This removes the text at once with no appeal, preserves a copy for law enforcement
+                for one year, and suspends the author. The law requires reporting it to NCMEC
+                (CyberTipline) the same day.
+              </p>
+            }
           }
           <label>
             Note for the audit log (optional)
@@ -84,17 +105,35 @@
           </label>
           <div class="actions">
             <button type="submit" class="primary" [disabled]="busy()">
-              {{ deciding()?.action === 'remove' ? 'Remove permanently' : 'Dismiss reports' }}
+              @switch (deciding()?.action) {
+                @case ('remove') {
+                  {{ category === 'child_safety' ? 'Remove and preserve' : 'Remove' }}
+                }
+                @case ('restore') {
+                  Restore the letter
+                }
+                @case ('uphold') {
+                  Delete the text now
+                }
+                @default {
+                  Dismiss reports
+                }
+              }
             </button>
             <button type="button" (click)="deciding.set(null)">Cancel</button>
           </div>
         </form>
       } @else {
         <div class="actions">
-          @if (c.openReports > 0) {
-            <button type="button" (click)="decide(c, 'dismiss')">Dismiss</button>
+          @if (c.hold) {
+            <button type="button" (click)="decide(c, 'restore')">Restore</button>
+            <button type="button" class="danger" (click)="decide(c, 'uphold')">Uphold</button>
+          } @else {
+            @if (c.openReports > 0) {
+              <button type="button" (click)="decide(c, 'dismiss')">Dismiss</button>
+            }
+            <button type="button" class="danger" (click)="decide(c, 'remove')">Remove</button>
           }
-          <button type="button" class="danger" (click)="decide(c, 'remove')">Remove</button>
         </div>
       }
     }
@@ -104,6 +143,14 @@
 @if (looked(); as c) {
   <h3>Looked-up letter</h3>
   <ng-container *ngTemplateOutlet="caseCard; context: { $implicit: c }" />
+}
+
+@if (appeals().length > 0) {
+  <h3>Appeals ({{ appeals().length }})</h3>
+  <p class="hint">Answer within 7 days. Restore the letter, or uphold the takedown.</p>
+  @for (c of appeals(); track c.letterHash) {
+    <ng-container *ngTemplateOutlet="caseCard; context: { $implicit: c }" />
+  }
 }
 
 <h3>Reported letters</h3>

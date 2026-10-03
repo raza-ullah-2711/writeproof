@@ -30,6 +30,23 @@ public class AuditLog {
         this.clock = clock;
     }
 
+    /**
+     * An action the system took on its own (an expired hold, an automatic suspension), recorded
+     * with role SYSTEM on behalf of the admin or moderator whose decision set it in motion.
+     */
+    public void recordAutomatic(byte[] onBehalfOfKey, String action, String target, Map<String, ?> detail) {
+        jdbc.sql("""
+                INSERT INTO admin_audit_log (at, actor_key, actor_role, action, target, detail)
+                VALUES (:at, :key, 'SYSTEM', :action, :target, CAST(:detail AS jsonb))
+                """)
+                .param("at", OffsetDateTime.ofInstant(clock.instant(), ZoneOffset.UTC))
+                .param("key", onBehalfOfKey)
+                .param("action", action)
+                .param("target", target)
+                .param("detail", write(detail))
+                .update();
+    }
+
     public void record(UUID actorAccount, AdminRole role, String action, String target, Map<String, ?> detail) {
         jdbc.sql("""
                 INSERT INTO admin_audit_log (at, actor_key, actor_role, action, target, detail)

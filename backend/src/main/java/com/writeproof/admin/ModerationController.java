@@ -36,6 +36,12 @@ class ModerationController {
         return moderation.queue(Math.clamp(limit, 1, 200));
     }
 
+    /** Takedowns the authors appealed, oldest first: answer within 7 days (docs/launch-policies.md, T4). */
+    @GetMapping("/appeals")
+    List<ModerationService.Case> appeals(@RequestParam(defaultValue = "50") int limit) {
+        return moderation.appeals(Math.clamp(limit, 1, 200));
+    }
+
     @GetMapping("/letters/{letterHash}")
     ModerationService.Case letter(@PathVariable String letterHash) {
         return moderation.letter(hash32(letterHash));
@@ -55,6 +61,26 @@ class ModerationController {
         UUID actor = UUID.fromString(jwt.getSubject());
         byte[] hash = hash32(letterHash);
         moderation.remove(actor, role(actor), hash, request.category(), request.note());
+        return moderation.letter(hash);
+    }
+
+    /** Reverses a takedown that is still a hold (grants an appeal): the letter is public again. */
+    @PostMapping("/letters/{letterHash}/restore")
+    ModerationService.Case restore(@AuthenticationPrincipal Jwt jwt, @PathVariable String letterHash,
+                                   @RequestBody(required = false) DismissRequest request) {
+        UUID actor = UUID.fromString(jwt.getSubject());
+        byte[] hash = hash32(letterHash);
+        moderation.restore(actor, role(actor), hash, request == null ? null : request.note());
+        return moderation.letter(hash);
+    }
+
+    /** Confirms a takedown that is still a hold (rejects an appeal): the text is deleted now. */
+    @PostMapping("/letters/{letterHash}/uphold")
+    ModerationService.Case uphold(@AuthenticationPrincipal Jwt jwt, @PathVariable String letterHash,
+                                  @RequestBody(required = false) DismissRequest request) {
+        UUID actor = UUID.fromString(jwt.getSubject());
+        byte[] hash = hash32(letterHash);
+        moderation.uphold(actor, role(actor), hash, request == null ? null : request.note());
         return moderation.letter(hash);
     }
 

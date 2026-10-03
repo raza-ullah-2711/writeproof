@@ -149,6 +149,11 @@ public class BiometricCipher {
         return "calibration:" + contributorId;
     }
 
+    /** Content preserved for law enforcement (moderation): the same at-rest protection. */
+    public static String preservationContext(UUID authorId) {
+        return "preservation:" + authorId;
+    }
+
     private static byte[] aad(String context) {
         return ("writeproof/biometric/v1\n" + context).getBytes(StandardCharsets.UTF_8);
     }

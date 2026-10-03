@@ -50,6 +50,9 @@ class ModerationApiTests {
     @Autowired
     private ObjectMapper json;
 
+    @Autowired
+    private ModerationService moderation;
+
     private final SyntheticSignatures.Writer hand = new SyntheticSignatures.Writer(4004);
     private TestWallet author;
     private TestWallet moderator;
@@ -152,7 +155,7 @@ class ModerationApiTests {
     }
 
     @Test
-    void removalDeletesTheTextButKeepsTheRecordAndTheLedgerEntry() throws Exception {
+    void aRemovalHidesTheLetterAndUpholdingItDeletesTheTextButKeepsTheRecord() throws Exception {
         String text = "Here is someone's home address: 1 Example Street";
         String hash = publish(text);
         report(null, hash, "harassment", null);
@@ -162,12 +165,23 @@ class ModerationApiTests {
         ResponseEntity<Map> removed = call(moderator, HttpMethod.POST,
                 "/api/admin/moderation/letters/" + hash + "/remove", Map.of("category", "harassment"));
         assertThat(removed.getStatusCode()).isEqualTo(HttpStatus.OK);
-        assertThat(removed.getBody()).containsEntry("body", null).containsEntry("openReports", 0);
+        // A hold: moderators still see the text (to decide an appeal); readers don't.
+        assertThat(removed.getBody()).containsEntry("body", text).containsEntry("openReports", 0);
+        assertThat((Map<String, Object>) removed.getBody().get("hold")).containsEntry("category", "harassment");
 
         Map<String, Object> publicView = rest.getForEntity("/api/open-letters/" + hash, Map.class).getBody();
         assertThat(publicView).containsEntry("body", null).containsEntry("letterHash", hash)
                 .containsKeys("signature", "author", "ledger");
-        assertThat((Map<String, Object>) publicView.get("removed")).containsEntry("category", "harassment");
+        assertThat((Map<String, Object>) publicView.get("removed")).containsEntry("category", "harassment")
+                .containsKey("appealUntil");
+        // Upholding deletes the text for good; the record and the ledger entry stay.
+        ResponseEntity<Map> upheld = call(moderator, HttpMethod.POST, "/api/admin/moderation/letters/" + hash + "/uphold",
+                Map.of());
+        assertThat(upheld.getBody()).containsEntry("body", null).containsEntry("hold", null);
+        assertThat(jdbc.sql("SELECT body FROM open_letters WHERE letter_hash = :h").param("h", Base64Url.decode(hash))
+                .query(String.class).optional().orElse(null)).isNull();
+        assertThat((Map<String, Object>) rest.getForEntity("/api/open-letters/" + hash, Map.class).getBody()
+                .get("removed")).containsEntry("appealUntil", null);
         assertThat(jdbc.sql("SELECT payload_hash FROM ledger_entries WHERE seq = :s").param("s", seq)
                 .query(byte[].class).single()).isEqualTo(Base64Url.decode(hash));
         assertThat(report(null, hash, "spam", null).getStatusCode()).isEqualTo(HttpStatus.GONE);
@@ -213,5 +227,119 @@ class ModerationApiTests {
                 .hasMessageContaining("append-only");
         assertThatThrownBy(() -> jdbc.sql("DELETE FROM open_letter_removals WHERE letter_hash = :h").param("h", raw)
                 .update()).hasMessageContaining("append-only");
+    }
+private ResponseEntity<Map> appeal(TestWallet as, String hash, String text) {
+        return call(as, HttpMethod.POST, "/api/me/open-letters/" + hash + "/appeal", Map.of("text", text));
+    }
+
+    private Map<String, Object> mine(String hash) {
+        List<Map<String, Object>> mine = rest.exchange("/api/me/open-letters", HttpMethod.GET,
+                new HttpEntity<>(author.headers()), List.class).getBody();
+        return mine.stream().filter(l -> hash.equals(l.get("letterHash"))).findFirst().orElseThrow();
+    }
+
+    @Test
+    void theAuthorCanAppealAndAModeratorCanRestoreOrUphold() throws Exception {
+        String restoredHash = publish("Satire, not impersonation");
+        String upheldHash = publish("Really is spam");
+        call(moderator, HttpMethod.POST, "/api/admin/moderation/letters/" + restoredHash + "/remove",
+                Map.of("category", "impersonation"));
+        call(moderator, HttpMethod.POST, "/api/admin/moderation/letters/" + upheldHash + "/remove",
+                Map.of("category", "spam"));
+        assertThat((Map<String, Object>) mine(restoredHash).get("removed")).containsEntry("appealed", false)
+                .containsKey("appealUntil");
+
+        // Only the author, once, while the text still exists.
+        assertThat(appeal(TestWallet.create(rest), restoredHash, "Not mine").getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+        assertThat(appeal(author, restoredHash, "It's satire; read the last line").getStatusCode())
+                .isEqualTo(HttpStatus.ACCEPTED);
+        assertThat(appeal(author, restoredHash, "Again").getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(appeal(author, upheldHash, "Please").getStatusCode()).isEqualTo(HttpStatus.ACCEPTED);
+        assertThat((Map<String, Object>) mine(restoredHash).get("removed")).containsEntry("appealed", true);
+
+        List<Map<String, Object>> appeals = rest.exchange("/api/admin/moderation/appeals", HttpMethod.GET,
+                new HttpEntity<>(moderator.headers()), List.class).getBody();
+        assertThat(appeals).anySatisfy(c -> assertThat((Map<String, Object>) c.get("hold"))
+                .containsEntry("appeal", "It's satire; read the last line"));
+
+        assertThat(call(moderator, HttpMethod.POST, "/api/admin/moderation/letters/" + restoredHash + "/restore",
+                Map.of()).getStatusCode()).isEqualTo(HttpStatus.OK);
+        Map<String, Object> restored = rest.getForEntity("/api/open-letters/" + restoredHash, Map.class).getBody();
+        assertThat(restored).containsEntry("body", "Satire, not impersonation").containsEntry("removed", null);
+
+        call(moderator, HttpMethod.POST, "/api/admin/moderation/letters/" + upheldHash + "/uphold", Map.of());
+        assertThat(rest.getForEntity("/api/open-letters/" + upheldHash, Map.class).getBody()).containsEntry("body", null);
+        assertThat(jdbc.sql("SELECT action FROM admin_audit_log WHERE target IN (:a, :b) ORDER BY id")
+                .param("a", restoredHash).param("b", upheldHash).query(String.class).list())
+                .contains("moderation.restored", "moderation.upheld");
+    }
+
+    @Test
+    void anUnappealedHoldIsDeletedWhenItsWindowEnds() throws Exception {
+        String hash = publish("Gone in two weeks");
+        call(moderator, HttpMethod.POST, "/api/admin/moderation/letters/" + hash + "/remove", Map.of("category", "spam"));
+        assertThat(moderation.expireHolds()).isZero();
+
+        jdbc.sql("UPDATE open_letter_holds SET delete_after = now() - interval '1 minute' WHERE letter_hash = :h")
+                .param("h", Base64Url.decode(hash)).update();
+        assertThat(moderation.expireHolds()).isOne();
+
+        assertThat(jdbc.sql("SELECT category FROM open_letter_removals WHERE letter_hash = :h")
+                .param("h", Base64Url.decode(hash)).query(String.class).single()).isEqualTo("spam");
+        assertThat(appeal(author, hash, "Too late").getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        assertThat(jdbc.sql("SELECT actor_role FROM admin_audit_log WHERE target = :t AND action = 'moderation.hold-expired'")
+                .param("t", hash).query(String.class).single()).isEqualTo("SYSTEM");
+    }
+
+    @Test
+    void childSafetyRemovalsArePreservedForLawEnforcementAndSuspendTheAuthor() throws Exception {
+        String text = "[test stand-in for content that must be preserved]";
+        String hash = publish(text);
+
+        call(moderator, HttpMethod.POST, "/api/admin/moderation/letters/" + hash + "/remove",
+                Map.of("category", "child_safety"));
+
+        // Never held: gone from the letter at once, and no appeal.
+        assertThat(rest.getForEntity("/api/open-letters/" + hash, Map.class).getBody()).containsEntry("body", null);
+        assertThat(jdbc.sql("SELECT body FROM open_letters WHERE letter_hash = :h").param("h", Base64Url.decode(hash))
+                .query(String.class).optional().orElse(null)).isNull();
+        assertThat(appeal(author, hash, "Please").getStatusCode()).isEqualTo(HttpStatus.CONFLICT);
+        // Preserved, encrypted at rest.
+        byte[] stored = jdbc.sql("SELECT body_encrypted FROM preserved_content WHERE letter_hash = :h")
+                .param("h", Base64Url.decode(hash)).query(byte[].class).single();
+        assertThat(new String(stored, java.nio.charset.StandardCharsets.ISO_8859_1)).doesNotContain("stand-in");
+        // The author is suspended.
+        assertThat(jdbc.sql("SELECT suspended_at IS NOT NULL FROM account_status a JOIN accounts c ON c.id = a.account_id"
+                + " WHERE c.public_key = :k").param("k", author.publicKey).query(Boolean.class).single()).isTrue();
+
+        // Admins only, and every read is audited.
+        assertThat(call(moderator, HttpMethod.GET, "/api/admin/preserved/" + hash, null).getStatusCode())
+                .isEqualTo(HttpStatus.FORBIDDEN);
+        List<Map<String, Object>> list = rest.exchange("/api/admin/preserved", HttpMethod.GET,
+                new HttpEntity<>(admin.headers()), List.class).getBody();
+        assertThat(list).anySatisfy(p -> assertThat(p).containsEntry("letterHash", hash).doesNotContainKey("body"));
+        Map<String, Object> copy = call(admin, HttpMethod.GET, "/api/admin/preserved/" + hash, null).getBody();
+        assertThat(copy).containsEntry("body", text);
+        assertThat(call(admin, HttpMethod.POST, "/api/admin/preserved/" + hash + "/report",
+                Map.of("reportId", "CT-12345")).getBody()).containsEntry("reportId", "CT-12345");
+        assertThat(jdbc.sql("SELECT action FROM admin_audit_log WHERE target = :t ORDER BY id").param("t", hash)
+                .query(String.class).list()).contains("moderation.removed", "preserved.read", "preserved.reported");
+    }
+
+    @Test
+    void threeRemovalsIn90DaysSuspendTheAuthor() throws Exception {
+        for (int i = 0; i < 3; i++) {
+            String hash = publish("Spam number " + i);
+            call(moderator, HttpMethod.POST, "/api/admin/moderation/letters/" + hash + "/remove",
+                    Map.of("category", "spam"));
+            assertThat(jdbc.sql("SELECT count(*) FROM account_status a JOIN accounts c ON c.id = a.account_id"
+                    + " WHERE c.public_key = :k AND a.suspended_at IS NOT NULL").param("k", author.publicKey)
+                    .query(Long.class).single()).as("after %d", i).isZero();
+            call(moderator, HttpMethod.POST, "/api/admin/moderation/letters/" + hash + "/uphold", Map.of());
+        }
+        assertThat(jdbc.sql("SELECT suspension_reason FROM account_status a JOIN accounts c ON c.id = a.account_id"
+                + " WHERE c.public_key = :k").param("k", author.publicKey).query(String.class).single())
+                .contains("3 letters removed");
     }
 }

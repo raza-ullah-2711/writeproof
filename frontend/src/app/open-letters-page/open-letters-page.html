@@ -84,9 +84,40 @@
         @for (letter of letters; track letter.letterHash) {
           <li>
             @if (letter.removed; as r) {
-              <a [routerLink]="['/open', letter.letterHash]" class="removed"
-                >Removed by Writeproof ({{ label(r.category) }})</a
-              >
+              <a [routerLink]="['/open', letter.letterHash]" class="removed">{{
+                r.category === 'withdrawn'
+                  ? 'Withdrawn'
+                  : 'Removed by Writeproof (' + label(r.category) + ')'
+              }}</a>
+              @if (r.appealUntil) {
+                <div class="appeal">
+                  @if (r.appealed) {
+                    <p>Appeal sent. A moderator will answer within 7 days.</p>
+                  } @else {
+                    <p>
+                      It's hidden, and its text will be deleted after
+                      {{ r.appealUntil | date: 'yyyy-MM-dd' : 'UTC' }} unless you appeal and a
+                      moderator restores it.
+                    </p>
+                    <label>
+                      Why should it be restored?
+                      <textarea
+                        rows="3"
+                        maxlength="1000"
+                        [value]="appealText()[letter.letterHash] ?? ''"
+                        (input)="setAppealText(letter.letterHash, $any($event.target).value)"
+                      ></textarea>
+                    </label>
+                    <button
+                      type="button"
+                      (click)="sendAppeal(letter.letterHash)"
+                      [disabled]="busy() || !(appealText()[letter.letterHash] ?? '').trim()"
+                    >
+                      Appeal
+                    </button>
+                  }
+                </div>
+              }
             } @else {
               <a [routerLink]="['/open', letter.letterHash]">{{ letter.body?.slice(0, 80) }}</a>
             }
