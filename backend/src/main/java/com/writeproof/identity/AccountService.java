@@ -21,13 +21,23 @@ public class AccountService {
         this.clock = clock;
     }
 
+    /** 410 for a deleted account: it can't sign in, register again or receive letters. */
+    public static ResponseStatusException gone() {
+        return new ResponseStatusException(HttpStatus.GONE,
+                "This account was deleted. To use Writeproof again, create a new wallet.");
+    }
+
     /** Registers a wallet's public key as a new account. */
     public Account register(byte[] publicKey) {
         settings.requireRegistrationOpen();
         Ed25519.decodePublicKey(publicKey); // rejects malformed keys with IllegalArgumentException
         Account account = new Account(
-                UUID.randomUUID(), publicKey, clock.instant().truncatedTo(ChronoUnit.MICROS), null, null);
+                UUID.randomUUID(), publicKey, clock.instant().truncatedTo(ChronoUnit.MICROS), null, null, null);
         if (!accounts.insertIfAbsent(account)) {
+            // A deleted wallet can't come back as if it were the same person with no history.
+            if (accounts.findByPublicKey(publicKey).map(Account::deleted).orElse(false)) {
+                throw gone();
+            }
             throw new ResponseStatusException(HttpStatus.CONFLICT, "Public key is already registered");
         }
         return account;

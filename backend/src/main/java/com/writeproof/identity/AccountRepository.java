@@ -12,7 +12,7 @@ import org.springframework.stereotype.Repository;
 @Repository
 public class AccountRepository {
 
-    private static final String COLUMNS = "id, public_key, created_at, encryption_key, encryption_key_signature";
+    private static final String COLUMNS = "id, public_key, created_at, encryption_key, encryption_key_signature, deleted_at";
 
     private final JdbcClient jdbc;
 
@@ -66,6 +66,17 @@ public class AccountRepository {
                 rs.getBytes("public_key"),
                 rs.getObject("created_at", OffsetDateTime.class).toInstant(),
                 rs.getBytes("encryption_key"),
-                rs.getBytes("encryption_key_signature"));
+                rs.getBytes("encryption_key_signature"),
+                rs.getObject("deleted_at", OffsetDateTime.class) == null ? null
+                        : rs.getObject("deleted_at", OffsetDateTime.class).toInstant());
+    }
+
+    /** The deleted accounts among {@code ids}, in one query (to label correspondents). */
+    public java.util.Set<UUID> deletedAmong(java.util.Collection<UUID> ids) {
+        if (ids.isEmpty()) {
+            return java.util.Set.of();
+        }
+        return java.util.Set.copyOf(jdbc.sql("SELECT id FROM accounts WHERE deleted_at IS NOT NULL AND id IN (:ids)")
+                .param("ids", ids).query(UUID.class).list());
     }
 }

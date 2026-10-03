@@ -88,3 +88,40 @@ dd {
   background: var(--warning-bg);
   font-size: 0.875rem;
 }
+
+.delete-account {
+  margin-top: 1.5rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: 0.875rem;
+
+  h3 {
+    margin: 0 0 0.5rem;
+    font-size: 1rem;
+  }
+
+  ul {
+    padding-left: 1.25rem;
+  }
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 0.25rem;
+    margin-bottom: 0.5rem;
+  }
+
+  input {
+    font: inherit;
+    padding: 0.4rem;
+  }
+
+  .actions {
+    display: flex;
+    gap: 0.5rem;
+  }
+}
+
+.danger {
+  color: var(--critical-text);
+}

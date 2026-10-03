@@ -67,6 +67,16 @@ export class KeyStore {
     }
   }
 
+  /** Removes the wallet from this browser: only after its account was deleted on the server. */
+  async clear(): Promise<void> {
+    const db = await this.open();
+    try {
+      await request(db.transaction(STORE, 'readwrite').objectStore(STORE).delete(RECORD_KEY));
+    } finally {
+      db.close();
+    }
+  }
+
   private open(): Promise<IDBDatabase> {
     const open = indexedDB.open(DB_NAME, 1);
     open.onupgradeneeded = () => open.result.createObjectStore(STORE);

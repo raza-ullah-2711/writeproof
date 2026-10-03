@@ -161,8 +161,9 @@ aren't new findings on their own.
   key. The matching threshold isn't yet calibrated on real people.
 - **Single API instance.** Rate limits are in memory, per process. That is deliberate while there
   is one server ([security.md](security.md), "Still open").
-- **Account deletion** isn't defined yet, because letters are immutable. It needs a product
-  decision.
+- **Account deletion keeps immutable letters.** "Close and forget" deletes everything deletable,
+  but sealed letters and their metadata stay for the other party, and become unreadable to the
+  deleted user ([launch-policies.md](launch-policies.md)).
 - **A stolen ledger key can sign a key rotation**; witnesses comparing notes would see it
   ([ledger.md](ledger.md)).
 - **Split-view detection needs at least one independent witness**, and it trusts Rekor not to
@@ -197,6 +198,7 @@ paths are only routed on the admin host.
 | `GET /api/ledger/entries`, `GET /api/ledger/verify` | user |
 | `GET /api/accounts/by-key/{publicKey}` | user |
 | `GET /api/me`, `GET /api/me/status`, `PUT /api/me/encryption-key` | user |
+| `POST /api/me/deletion` | user, plus a fresh wallet signature ([launch-policies.md](launch-policies.md)) |
 | `GET`/`PUT /api/me/backup`, `GET`/`PUT /api/me/contacts` | user |
 | `GET`/`POST /api/me/open-letters` | user |
 | `POST /api/letters`, `GET /api/letters/{id}`, `/inbox`, `/sent`, `/threads`, `/threads/{threadId}` | user |

@@ -7,8 +7,11 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import java.net.URI;
+import com.writeproof.identity.AccountRepository;
 import java.util.List;
+import java.util.Set;
 import java.util.UUID;
+import java.util.stream.Stream;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.security.oauth2.jwt.Jwt;
@@ -36,7 +39,8 @@ class LetterController {
 
     static final int MAX_HANDWRITING_JSON = 500_000;
 
-    record Party(UUID accountId, String publicKey) {}
+    /** {@code deleted}: the account was deleted; its side of past letters can't be opened any more. */
+    record Party(UUID accountId, String publicKey, boolean deleted) {}
 
     record LedgerRef(long seq, String prevHash, String payloadHash, long recordedAtMillis, String entryHash) {
         static LedgerRef of(LedgerEntry e) {
@@ -53,11 +57,11 @@ class LetterController {
     record LetterResponse(UUID letterId, Party sender, Party recipient, String sentAt, LetterEnvelope envelope,
                           String signature, String letterHash, LedgerRef ledger, String handwritingHash,
                           Double handwritingScore, String inReplyTo, String threadId) {
-        static LetterResponse of(Letter l) {
+        static LetterResponse of(Letter l, Set<UUID> deleted) {
             return new LetterResponse(
                     l.id(),
-                    new Party(l.senderId(), Base64Url.encode(l.senderKey())),
-                    new Party(l.recipientId(), Base64Url.encode(l.recipientKey())),
+                    new Party(l.senderId(), Base64Url.encode(l.senderKey()), deleted.contains(l.senderId())),
+                    new Party(l.recipientId(), Base64Url.encode(l.recipientKey()), deleted.contains(l.recipientId())),
                     l.sentAt(),
                     l.envelope(),
                     Base64Url.encode(l.signature()),
@@ -71,17 +75,27 @@ class LetterController {
     }
 
     record ThreadResponse(String threadId, Party counterpart, int letters, long latestSeq, String latestSentAt) {
-        static ThreadResponse of(LetterRepository.ThreadSummary t) {
+        static ThreadResponse of(LetterRepository.ThreadSummary t, Set<UUID> deleted) {
             return new ThreadResponse(Base64Url.encode(t.threadId()),
-                    new Party(t.counterpartId(), Base64Url.encode(t.counterpartKey())), t.letterCount(), t.latestSeq(),
+                    new Party(t.counterpartId(), Base64Url.encode(t.counterpartKey()), deleted.contains(t.counterpartId())),
+                    t.letterCount(), t.latestSeq(),
                     t.latestSentAt());
         }
     }
 
     private final LetterService letters;
+    private final AccountRepository accounts;
 
-    LetterController(LetterService letters) {
+    LetterController(LetterService letters, AccountRepository accounts) {
         this.letters = letters;
+        this.accounts = accounts;
+    }
+
+    /** Letters with each party marked if its account was deleted, looked up in one query. */
+    private List<LetterResponse> responses(List<Letter> list) {
+        Set<UUID> deleted = accounts.deletedAmong(list.stream()
+                .flatMap(l -> Stream.of(l.senderId(), l.recipientId())).distinct().toList());
+        return list.stream().map(l -> LetterResponse.of(l, deleted)).toList();
     }
 
     @PostMapping
@@ -94,27 +108,29 @@ class LetterController {
                 Base64Url.decode(request.signature()),
                 request.handwriting(),
                 request.inReplyTo() == null ? null : hash32(request.inReplyTo()));
-        return ResponseEntity.created(URI.create("/api/letters/" + letter.id())).body(LetterResponse.of(letter));
+        return ResponseEntity.created(URI.create("/api/letters/" + letter.id())).body(LetterResponse.of(letter, Set.of()));
     }
 
     @GetMapping("/inbox")
     List<LetterResponse> inbox(@AuthenticationPrincipal Jwt jwt) {
-        return letters.inbox(accountId(jwt)).stream().map(LetterResponse::of).toList();
+        return responses(letters.inbox(accountId(jwt)));
     }
 
     @GetMapping("/sent")
     List<LetterResponse> sent(@AuthenticationPrincipal Jwt jwt) {
-        return letters.sent(accountId(jwt)).stream().map(LetterResponse::of).toList();
+        return responses(letters.sent(accountId(jwt)));
     }
 
     @GetMapping("/threads")
     List<ThreadResponse> threads(@AuthenticationPrincipal Jwt jwt) {
-        return letters.threads(accountId(jwt)).stream().map(ThreadResponse::of).toList();
+        List<LetterRepository.ThreadSummary> threads = letters.threads(accountId(jwt));
+        Set<UUID> deleted = accounts.deletedAmong(threads.stream().map(LetterRepository.ThreadSummary::counterpartId).toList());
+        return threads.stream().map(t -> ThreadResponse.of(t, deleted)).toList();
     }
 
     @GetMapping("/threads/{threadId}")
     List<LetterResponse> thread(@AuthenticationPrincipal Jwt jwt, @PathVariable String threadId) {
-        return letters.thread(accountId(jwt), hash32(threadId)).stream().map(LetterResponse::of).toList();
+        return responses(letters.thread(accountId(jwt), hash32(threadId)));
     }
 
     private static byte[] hash32(String value) {
@@ -127,7 +143,7 @@ class LetterController {
 
     @GetMapping("/{id}")
     LetterResponse get(@AuthenticationPrincipal Jwt jwt, @PathVariable UUID id) {
-        return LetterResponse.of(letters.get(accountId(jwt), id));
+        return responses(List.of(letters.get(accountId(jwt), id))).getFirst();
     }
 
     private static UUID accountId(Jwt jwt) {

@@ -4,6 +4,7 @@ import { firstValueFrom } from 'rxjs';
 import { fromBase64Url, toBase64Url } from '../crypto/base64url';
 import { WalletService } from '../wallet/wallet.service';
 import { encryptionKeyBinding } from '../letters/letter-format';
+import { deletionMessage } from './deletion-message';
 import { loginMessage } from './login-message';
 
 export interface Account {
@@ -88,6 +89,24 @@ export class AuthService {
         signature: toBase64Url(signature),
       }),
     );
+  }
+
+  /**
+   * Deletes this account for good (docs/launch-policies.md): the wallet signs the request, the
+   * server forgets everything it can, and then the wallet is removed from this browser too.
+   */
+  async deleteAccount(): Promise<void> {
+    const account = this._account();
+    if (!account) {
+      throw new Error('Sign in first');
+    }
+    const requestedAt = new Date().toISOString();
+    const signature = toBase64Url(
+      await this.wallet.sign(deletionMessage(account.accountId, requestedAt)),
+    );
+    await firstValueFrom(this.http.post<void>('/api/me/deletion', { requestedAt, signature }));
+    this.logout();
+    await this.wallet.forget();
   }
 
   logout(): void {

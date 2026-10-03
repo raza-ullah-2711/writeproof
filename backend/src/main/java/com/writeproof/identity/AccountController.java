@@ -39,17 +39,23 @@ class AccountController {
 
     record EncryptionKeyRequest(@NotBlank String encryptionKey, @NotBlank String signature) {}
 
+    /** {@code signature}: the wallet's over {@link DeletionMessage} for this account and {@code requestedAt}. */
+    record DeletionRequest(@NotBlank String requestedAt, @NotBlank String signature) {}
+
     /** {@code suspension} is null unless an admin suspended the account. */
     record StatusResponse(AccountStatus.Suspension suspension) {}
 
     private final AccountService accountService;
     private final AccountRepository accounts;
     private final AccountStatus status;
+    private final AccountDeletionService deletion;
 
-    AccountController(AccountService accountService, AccountRepository accounts, AccountStatus status) {
+    AccountController(AccountService accountService, AccountRepository accounts, AccountStatus status,
+                      AccountDeletionService deletion) {
         this.accountService = accountService;
         this.accounts = accounts;
         this.status = status;
+        this.deletion = deletion;
     }
 
     @GetMapping("/me/status")
@@ -75,8 +81,20 @@ class AccountController {
     @GetMapping("/accounts/by-key/{publicKey}")
     AccountResponse byKey(@PathVariable String publicKey) {
         return accounts.findByPublicKey(Base64Url.decode(publicKey))
-                .map(AccountResponse::of)
+                .map(a -> {
+                    if (a.deleted()) {
+                        throw AccountService.gone();
+                    }
+                    return AccountResponse.of(a);
+                })
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No account with this address"));
+    }
+
+    /** Deletes this account for good (docs/launch-policies.md, "Account deletion"). */
+    @PostMapping("/me/deletion")
+    ResponseEntity<Void> delete(@AuthenticationPrincipal Jwt jwt, @Valid @RequestBody DeletionRequest request) {
+        deletion.delete(UUID.fromString(jwt.getSubject()), request.requestedAt(), Base64Url.decode(request.signature()));
+        return ResponseEntity.noContent().build();
     }
 
     @GetMapping("/me")
