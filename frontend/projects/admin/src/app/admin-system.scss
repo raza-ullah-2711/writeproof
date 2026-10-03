@@ -18,7 +18,7 @@ h3 {
     align-items: center;
     gap: 0.5rem 1rem;
     padding: 0.5rem 0;
-    border-bottom: 1px solid #eee;
+    border-bottom: 1px solid var(--border);
     font-size: 0.875rem;
   }
 
@@ -30,18 +30,18 @@ h3 {
   .state {
     padding: 0.05rem 0.5rem;
     border-radius: 999px;
-    background: #e9f5ec;
-    color: #1b5e20;
+    background: var(--good-bg);
+    color: var(--good-text);
     font-size: 0.75rem;
 
     &.off {
-      background: #fdf6e3;
-      color: #7a5b00;
+      background: var(--warning-bg);
+      color: var(--warning-text);
     }
   }
 
   .when {
-    color: #6b6a65;
+    color: var(--text-muted);
     font-size: 0.75rem;
   }
 
@@ -79,7 +79,7 @@ h3 {
 
 .hint {
   font-size: 0.8125rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .actions {
@@ -92,13 +92,13 @@ h3 {
   margin-top: 0.5rem;
   padding: 0.5rem 0.75rem;
   border-radius: 6px;
-  background: #e9f5ec;
-  color: #1b5e20;
+  background: var(--good-bg);
+  color: var(--good-text);
   font-size: 0.875rem;
 
   &.bad {
-    background: #fdecec;
-    color: #7a1616;
+    background: var(--critical-bg);
+    color: var(--critical-text);
   }
 }
 
@@ -112,11 +112,11 @@ th,
 td {
   text-align: left;
   padding: 0.3rem 0.75rem 0.3rem 0;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border);
 }
 
 .danger {
-  color: #9b1c1c;
+  color: var(--critical-text);
 }
 
 .primary {
@@ -124,9 +124,9 @@ td {
 }
 
 .notice {
-  color: #1b5e20;
+  color: var(--good-text);
 }
 
 .error {
-  color: #b00020;
+  color: var(--critical-text);
 }

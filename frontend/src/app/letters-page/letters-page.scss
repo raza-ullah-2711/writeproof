@@ -60,7 +60,7 @@
 .seal-note,
 .empty {
   font-size: 0.8125rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .primary {
@@ -84,7 +84,7 @@
 
 .letter {
   padding: 0.75rem 0;
-  border-bottom: 1px solid #e5e0d6;
+  border-bottom: 1px solid var(--border);
 }
 
 .meta {
@@ -92,15 +92,15 @@
   flex-wrap: wrap;
   gap: 0.75rem;
   font-size: 0.8125rem;
-  color: #555;
+  color: var(--text-secondary);
   margin-bottom: 0.5rem;
 }
 
 .body {
   margin: 0.5rem 0;
   padding: 0.75rem;
-  background: #fffdf7;
-  border-left: 3px solid #d6d0c4;
+  background: var(--paper);
+  border-left: 3px solid var(--paper-border);
   font-family: Georgia, 'Times New Roman', serif;
   white-space: pre-wrap;
 }
@@ -110,14 +110,14 @@
   padding: 0;
   margin: 0;
   font-size: 0.8125rem;
-  color: #cf222e;
+  color: var(--critical-text);
 
   .ok {
-    color: #1a7f37;
+    color: var(--good-text);
   }
 
   .legacy {
-    color: #555;
+    color: var(--text-secondary);
   }
 }
 
@@ -127,17 +127,17 @@
 }
 
 .notice {
-  color: #1a7f37;
+  color: var(--good-text);
 }
 
 .error {
-  color: #cf222e;
+  color: var(--critical-text);
 }
 
 .recipient-name {
   margin: 0;
   font-size: 0.8125rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .add-contact {
@@ -146,13 +146,13 @@
 }
 
 .reply-mark {
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .replying {
   margin: 0;
   padding: 0.5rem;
-  background: #f4f1ea;
+  background: var(--surface-muted);
   font-size: 0.875rem;
 }
 
@@ -176,7 +176,7 @@
     font: inherit;
     background: none;
     border: 0;
-    border-bottom: 1px solid #ddd;
+    border-bottom: 1px solid var(--border);
     cursor: pointer;
   }
 }
@@ -193,18 +193,18 @@
 
 .thread-check {
   font-size: 0.875rem;
-  color: #b00020;
+  color: var(--critical-text);
 
   &.ok {
-    color: #1b5e20;
+    color: var(--good-text);
   }
 }
 
 .paused,
 .closed {
   padding: 0.5rem 0.75rem;
-  border: 1px solid #f0d58a;
+  border: 1px solid var(--warning-border);
   border-radius: 6px;
-  background: #fdf6e3;
+  background: var(--warning-bg);
   font-size: 0.875rem;
 }

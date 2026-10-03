@@ -1,18 +1,22 @@
 import { Component, inject } from '@angular/core';
 import { Router, RouterOutlet } from '@angular/router';
+import { ThemeSwitch } from '@app/theme/theme-switch';
 import { AdminAuth } from './admin-auth.service';
 
 /** The admin app's root: its own origin, its own sign-in, nothing from the public app's pages. */
 @Component({
   selector: 'app-root',
-  imports: [RouterOutlet],
+  imports: [RouterOutlet, ThemeSwitch],
   template: `
     <main class="shell">
       <header>
         <h1>Writeproof <span>admin</span></h1>
-        @if (auth.authenticated()) {
-          <button type="button" (click)="signOut()">Sign out</button>
-        }
+        <span class="actions">
+          <app-theme-switch />
+          @if (auth.authenticated()) {
+            <button type="button" (click)="signOut()">Sign out</button>
+          }
+        </span>
       </header>
       <router-outlet />
     </main>
@@ -29,6 +33,11 @@ import { AdminAuth } from './admin-auth.service';
       align-items: baseline;
       justify-content: space-between;
     }
+    .actions {
+      display: flex;
+      gap: 1rem;
+      align-items: center;
+    }
     h1 {
       font-family: Georgia, 'Times New Roman', serif;
     }
@@ -36,7 +45,7 @@ import { AdminAuth } from './admin-auth.service';
       font-family: system-ui, sans-serif;
       font-size: 0.875rem;
       font-weight: normal;
-      color: #555;
+      color: var(--text-secondary);
     }
   `,
 })

@@ -5,7 +5,7 @@
 .hint,
 .progress {
   font-size: 0.875rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .toolbar {
@@ -25,29 +25,29 @@
   gap: 0.25rem;
   margin-top: 1rem;
   padding: 0.75rem;
-  border-left: 4px solid #cf222e;
-  background: #fff5f5;
+  border-left: 4px solid var(--critical);
+  background: var(--critical-bg);
 
   &.ok {
-    border-left-color: #1a7f37;
-    background: #f3fbf5;
+    border-left-color: var(--good-text);
+    background: var(--good-bg);
   }
 }
 
 .score {
   font-size: 0.8125rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .flag {
   font-size: 0.8125rem;
-  color: #cf222e;
+  color: var(--critical-text);
 }
 
 .error {
-  color: #cf222e;
+  color: var(--critical-text);
 }
 
 .danger {
-  color: #cf222e;
+  color: var(--critical-text);
 }

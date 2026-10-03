@@ -50,23 +50,23 @@ import { AdminService } from './admin.service';
       font-size: 0.75rem;
       padding: 0.1rem 0.5rem;
       border-radius: 999px;
-      background: #eef3fb;
-      color: #1d4f8f;
+      background: var(--info-bg);
+      color: var(--info-text);
     }
     .limits,
     .empty {
       font-size: 0.8125rem;
-      color: #555;
+      color: var(--text-secondary);
     }
     .admin-nav {
       display: flex;
       gap: 1rem;
-      border-bottom: 1px solid #ddd;
+      border-bottom: 1px solid var(--border);
       padding-bottom: 0.5rem;
       margin-bottom: 1rem;
     }
     .admin-nav a {
-      color: #333;
+      color: var(--text);
     }
     .admin-nav a.active {
       font-weight: 600;

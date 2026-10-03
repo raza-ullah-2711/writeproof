@@ -15,3 +15,14 @@ npm run format:check
 ```
 
 Requires Node `^22.22.3` or `>=24.15`.
+
+## Colours and themes
+
+Both apps share the colour tokens in `src/theme.scss`: light and dark values for each role
+(`--text`, `--surface`, `--critical-text`, `--series-1`, …). Components use the roles, never raw
+colours, so dark mode needs no per-component work. Dark values are chosen for the dark surface,
+not inverted, and every text/background pair clears WCAG AA (4.5:1) in both modes; chart colours
+follow the dataviz palette and pass its validator in both. The theme follows the OS unless the
+reader picks one (`ThemeService`, the Theme switch in each header). Canvases read their colours
+from the tokens too (the handwriting ink), except the QR code, which stays dark-on-white for
+scanners.

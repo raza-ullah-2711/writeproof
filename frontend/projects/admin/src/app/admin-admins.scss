@@ -1,7 +1,7 @@
 .hint,
 .muted {
   font-size: 0.8125rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .add {
@@ -40,7 +40,7 @@ th,
 td {
   text-align: left;
   padding: 0.4rem 0.75rem 0.4rem 0;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border);
   vertical-align: middle;
 }
 
@@ -56,23 +56,23 @@ td {
   display: inline-block;
   padding: 0.05rem 0.45rem;
   border-radius: 999px;
-  background: #f4f1ea;
+  background: var(--surface-muted);
   font-size: 0.75rem;
 
   &.admin {
-    background: #eef3fb;
-    color: #1d4f8f;
+    background: var(--info-bg);
+    color: var(--info-text);
   }
 
   &.me {
     margin-left: 0.25rem;
-    background: #e9f5ec;
-    color: #1b5e20;
+    background: var(--good-bg);
+    color: var(--good-text);
   }
 }
 
 .danger {
-  color: #9b1c1c;
+  color: var(--critical-text);
 }
 
 .primary {
@@ -80,9 +80,9 @@ td {
 }
 
 .notice {
-  color: #1b5e20;
+  color: var(--good-text);
 }
 
 .error {
-  color: #b00020;
+  color: var(--critical-text);
 }

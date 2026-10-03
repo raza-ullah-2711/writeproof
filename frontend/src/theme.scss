@@ -1,0 +1,127 @@
+// Colour tokens for both apps (public and admin). Components use these roles, never raw colours.
+// Light keeps the original look; dark values are chosen for the dark surface, not inverted, and
+// every text/background pair clears WCAG AA (4.5:1) in both modes. Chart roles follow the dataviz
+// reference palette (validated light and dark). An explicit choice (ThemeService, data-theme on
+// <html>) wins over the OS setting either way.
+
+@mixin light {
+  color-scheme: light;
+  --page: #ffffff;
+  --surface: #fcfcfb;
+  --surface-muted: #f4f1ea;
+  --paper: #fffdf7;
+  --paper-border: #d6d0c4;
+  --text: #0b0b0b;
+  --text-secondary: #555555;
+  --text-muted: #6b6a65;
+  --border: #e5e3dd;
+  --border-strong: #767676;
+  --link: #1d4f8f;
+  --info-bg: #eef3fb;
+  --info-border: #c9d8ef;
+  --info-text: #1d4f8f;
+  --good-bg: #e9f5ec;
+  --good-text: #1a7f37;
+  --warning: #eda100;
+  --warning-bg: #fdf6e3;
+  --warning-border: #f0d58a;
+  --warning-text: #8a5d00;
+  --critical: #cf222e;
+  --critical-bg: #fdecec;
+  --critical-border: #f3b4b4;
+  --critical-text: #b42318;
+  --ink: #1b1f3a;
+  --hover-wash: rgba(0, 0, 0, 0.04);
+  --button-bg: #efefef;
+  --button-hover: #e3e2dd;
+  --shadow: rgba(0, 0, 0, 0.08);
+  // Charts (dataviz reference palette).
+  --chart-surface: #fcfcfb;
+  --chart-text: #0b0b0b;
+  --chart-text-secondary: #52514e;
+  --chart-grid: #e1e0d9;
+  --chart-axis: #c3c2b7;
+  --series-1: #2a78d6;
+  --series-2: #eb6834;
+}
+
+@mixin dark {
+  color-scheme: dark;
+  --page: #0d0d0d;
+  --surface: #1a1a19;
+  --surface-muted: #2a2a27;
+  --paper: #1f1e1a;
+  --paper-border: #4a463d;
+  --text: #ecebe6;
+  --text-secondary: #c3c2b7;
+  --text-muted: #a3a29b;
+  --border: #34332f;
+  --border-strong: #6b6a65;
+  --link: #86b6ef;
+  --info-bg: #15263b;
+  --info-border: #2a4a73;
+  --info-text: #9ec5f4;
+  --good-bg: #11281a;
+  --good-text: #4ac26b;
+  --warning: #c98500;
+  --warning-bg: #2e2610;
+  --warning-border: #6b5418;
+  --warning-text: #e3b341;
+  --critical: #e66767;
+  --critical-bg: #3a1717;
+  --critical-border: #6e2b2b;
+  --critical-text: #ff8a80;
+  --ink: #e6e8f5;
+  --hover-wash: rgba(255, 255, 255, 0.06);
+  --button-bg: #2a2a27;
+  --button-hover: #34332f;
+  --shadow: rgba(0, 0, 0, 0.5);
+  --chart-surface: #1a1a19;
+  --chart-text: #ffffff;
+  --chart-text-secondary: #c3c2b7;
+  --chart-grid: #2c2c2a;
+  --chart-axis: #383835;
+  --series-1: #3987e5;
+  --series-2: #d95926;
+}
+
+:root {
+  @include light;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:where(:not([data-theme='light'])) {
+    @include dark;
+  }
+}
+
+:root[data-theme='dark'] {
+  @include dark;
+}
+
+body {
+  background: var(--page);
+  color: var(--text);
+}
+
+a {
+  color: var(--link);
+}
+
+// Buttons get theme colours rather than the browser's: a native dark button is mid-grey, which
+// coloured (e.g. danger) text can't clear 4.5:1 on. Classes that restyle a button still win.
+button {
+  color: var(--text);
+  background: var(--button-bg);
+  border: 1px solid var(--border-strong);
+  border-radius: 3px;
+
+  &:hover:not(:disabled) {
+    background: var(--button-hover);
+  }
+
+  &:disabled {
+    color: var(--text-muted);
+    opacity: 0.7;
+  }
+}

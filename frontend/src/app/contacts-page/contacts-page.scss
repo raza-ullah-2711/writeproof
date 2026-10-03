@@ -6,7 +6,7 @@
 .hint,
 .empty {
   font-size: 0.8125rem;
-  color: #555;
+  color: var(--text-secondary);
 }
 
 .share {
@@ -82,7 +82,7 @@
   align-items: center;
   gap: 0.5rem 1rem;
   padding: 0.5rem 0;
-  border-bottom: 1px solid #ddd;
+  border-bottom: 1px solid var(--border);
 
   .petname {
     font-weight: 600;
@@ -91,7 +91,7 @@
 
   code {
     font-size: 0.8125rem;
-    color: #555;
+    color: var(--text-secondary);
   }
 
   .actions {
@@ -109,9 +109,9 @@
 }
 
 .notice {
-  color: #1b5e20;
+  color: var(--good-text);
 }
 
 .error {
-  color: #b00020;
+  color: var(--critical-text);
 }
