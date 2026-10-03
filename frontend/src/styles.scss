@@ -1,3 +1,4 @@
 @use 'theme';
+@use 'design';
 
-/* Global styles; components style themselves with the colour tokens in theme.scss. */
+/* Global styles live in theme.scss (tokens) and design.scss (elements). */

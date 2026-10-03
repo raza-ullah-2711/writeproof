@@ -1,10 +1,49 @@
 .wallet {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
+}
+
+.hero {
+  margin: 0.25rem 0 2rem;
+
+  .eyebrow {
+    margin: 0 0 0.75rem;
+    font-size: 0.75rem;
+    font-weight: 600;
+    letter-spacing: 0.14em;
+    text-transform: uppercase;
+    color: var(--seal);
+  }
+
+  h2 {
+    margin: 0 0 1rem;
+    font-size: clamp(2.3rem, 7vw, 3.6rem);
+    font-weight: 500;
+    line-height: 1.02;
+    letter-spacing: -0.025em;
+    color: var(--ink);
+    font-variation-settings:
+      'SOFT' 100,
+      'WONK' 1;
+  }
+
+  em {
+    font-style: italic;
+    color: var(--seal);
+  }
+
+  .lede {
+    max-width: 34rem;
+    margin: 0;
+    font-family: var(--font-display);
+    font-size: 1.2rem;
+    line-height: 1.55;
+    color: var(--text-secondary);
+  }
 }
 
 dd {
   margin: 0 0 0.5rem;
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 0.8125rem;
   overflow-wrap: anywhere;
 }
@@ -30,7 +69,7 @@ dd {
 
   input {
     font: inherit;
-    font-family: ui-monospace, monospace;
+    font-family: var(--font-mono);
     padding: 0.4rem;
   }
 }
@@ -53,7 +92,7 @@ dd {
   padding: 0.75rem;
   background: var(--paper);
   border: 1px dashed var(--paper-border);
-  font-family: ui-monospace, monospace;
+  font-family: var(--font-mono);
   font-size: 1.05rem;
   letter-spacing: 0.05em;
   overflow-wrap: anywhere;

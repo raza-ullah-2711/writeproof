@@ -24,7 +24,7 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
     :host {
       display: inline-block;
       color: var(--ink);
-      font-family: Georgia, 'Times New Roman', serif;
+      font-family: var(--font-display);
       line-height: 1;
     }
     .mark {
@@ -49,7 +49,10 @@ import { ChangeDetectionStrategy, Component } from '@angular/core';
     }
     .rest {
       font-style: italic;
-      font-weight: normal;
+      font-weight: 400;
+      font-variation-settings:
+        'SOFT' 100,
+        'WONK' 1;
       padding-bottom: 0.06em;
     }
     .flourish {

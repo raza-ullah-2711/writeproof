@@ -27,7 +27,7 @@ import { AdminAuth } from './admin-auth.service';
       max-width: 60rem;
       margin: 2rem auto;
       padding: 0 1rem;
-      font-family: system-ui, sans-serif;
+      font-family: var(--font-ui);
     }
     header {
       display: flex;
@@ -40,11 +40,11 @@ import { AdminAuth } from './admin-auth.service';
       align-items: center;
     }
     h1 {
-      font-family: Georgia, 'Times New Roman', serif;
+      font-family: var(--font-display);
     }
     h1 span {
       margin-left: 0.5rem;
-      font-family: system-ui, sans-serif;
+      font-family: var(--font-ui);
       font-size: 0.875rem;
       font-weight: normal;
       color: var(--text-secondary);

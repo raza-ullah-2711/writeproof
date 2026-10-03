@@ -1,21 +1,47 @@
-<main class="shell">
-  <h1><app-logo /></h1>
-  <p class="tagline">Every word, provably human.</p>
-  <nav>
-    <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
-      >Wallet</a
-    >
-    <a routerLink="/letters" routerLinkActive="active">Letters</a>
-    <a routerLink="/contacts" routerLinkActive="active">Contacts</a>
-    <a routerLink="/open" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
-      >Open letters</a
-    >
-    <a routerLink="/handwriting" routerLinkActive="active">Handwriting</a>
-    <a routerLink="/capture" routerLinkActive="active">Capture playground</a>
+<header class="masthead">
+  <div class="bar">
+    <h1 class="brand">
+      <a routerLink="/" aria-label="Writeproof, home"><app-logo /></a>
+    </h1>
+    <nav class="tabs" aria-label="Main">
+      <a routerLink="/" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+        >Wallet</a
+      >
+      <a routerLink="/letters" routerLinkActive="active">Letters</a>
+      <a routerLink="/contacts" routerLinkActive="active">Contacts</a>
+      <a routerLink="/open" routerLinkActive="active" [routerLinkActiveOptions]="{ exact: true }"
+        >Open letters</a
+      >
+      <a routerLink="/handwriting" routerLinkActive="active">Handwriting</a>
+      <a routerLink="/capture" routerLinkActive="active">Capture playground</a>
+    </nav>
     <app-theme-switch class="theme" />
-  </nav>
+  </div>
+</header>
 
+<main class="shell">
+  @if (system.status().announcement; as announcement) {
+    <p class="announcement" role="status">{{ announcement }}</p>
+  }
+  @if (status.suspension(); as s) {
+    <p class="suspended" role="alert">
+      <strong>Your account is suspended</strong> and can't send letters or publish open letters:
+      {{ s.reason }}. You can still sign in, read your letters and back up your wallet.
+    </p>
+  }
+
+  <div class="desk">
+    <div class="sheet">
+      <router-outlet />
+    </div>
+  </div>
+</main>
+
+<footer class="colophon">
+  <img class="seal" src="brand/logo-mark.svg" alt="" width="28" height="28" />
+  <p class="motto">Written by hand. Sealed for good.</p>
   <p class="status" [attr.data-status]="health.status()">
+    <span class="dot" aria-hidden="true"></span>
     @switch (health.status()) {
       @case ('up') {
         Backend online
@@ -28,16 +54,4 @@
       }
     }
   </p>
-
-  @if (system.status().announcement; as announcement) {
-    <p class="announcement" role="status">{{ announcement }}</p>
-  }
-  @if (status.suspension(); as s) {
-    <p class="suspended" role="alert">
-      <strong>Your account is suspended</strong> and can't send letters or publish open letters:
-      {{ s.reason }}. You can still sign in, read your letters and back up your wallet.
-    </p>
-  }
-
-  <router-outlet />
-</main>
+</footer>

@@ -1,5 +1,5 @@
 .open-letters {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
 }
 
 .intro,
@@ -21,12 +21,6 @@
     flex-direction: column;
     gap: 0.25rem;
     font-size: 0.875rem;
-  }
-
-  textarea {
-    font: inherit;
-    font-family: Georgia, 'Times New Roman', serif;
-    padding: 0.4rem;
   }
 
   .confirm {

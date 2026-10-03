@@ -40,7 +40,7 @@ import { AdminService } from './admin.service';
   `,
   styles: `
     .admin {
-      font-family: system-ui, sans-serif;
+      font-family: var(--font-ui);
     }
     header {
       display: flex;
@@ -62,17 +62,31 @@ import { AdminService } from './admin.service';
     .admin-nav {
       display: flex;
       flex-wrap: wrap;
-      gap: 0.25rem 1rem;
-      border-bottom: 1px solid var(--border);
-      padding-bottom: 0.5rem;
-      margin-bottom: 1rem;
+      gap: 0.3rem;
+      padding: 0.3rem;
+      margin-bottom: 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: 20px;
+      background: var(--surface-muted);
+      font-size: 0.875rem;
     }
     .admin-nav a {
-      color: var(--text);
+      padding: 0.35rem 0.85rem;
+      border-radius: 999px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      text-decoration: none;
       white-space: nowrap;
+      transition: background-color 0.18s var(--ease);
+    }
+    .admin-nav a:hover {
+      color: var(--text);
+      background: var(--hover-wash);
     }
     .admin-nav a.active {
-      font-weight: 600;
+      color: var(--text);
+      background: var(--surface);
+      box-shadow: var(--shadow-sm);
     }
   `,
 })

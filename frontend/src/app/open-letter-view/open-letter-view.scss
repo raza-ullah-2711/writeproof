@@ -1,14 +1,15 @@
 .open-letter {
-  font-family: system-ui, sans-serif;
+  font-family: var(--font-ui);
   max-width: 40rem;
 }
 
 .kicker {
-  margin: 1rem 0 0;
+  margin: 0;
   font-size: 0.75rem;
-  letter-spacing: 0.08em;
+  font-weight: 600;
+  letter-spacing: 0.14em;
   text-transform: uppercase;
-  color: var(--text-secondary);
+  color: var(--seal);
 }
 
 .byline,
@@ -25,21 +26,35 @@
   margin-left: 0.5rem;
 }
 
+// Set like a printed letter: the sheet is the paper, opened by a seal-red quotation mark.
 .body {
-  margin: 1rem 0;
-  padding: 1rem;
-  background: var(--paper);
-  border-left: 3px solid var(--border);
-  font-family: Georgia, 'Times New Roman', serif;
-  font-size: 1.0625rem;
-  line-height: 1.5;
+  margin: 1.5rem 0 2rem;
+  font-family: var(--font-display);
+  font-size: 1.25rem;
+  line-height: 1.75;
+  color: var(--text);
   white-space: pre-wrap;
   overflow-wrap: anywhere;
+
+  &::before {
+    content: '\201C';
+    display: block;
+    height: 0.55em;
+    font-size: 4.5rem;
+    line-height: 1;
+    color: var(--seal);
+  }
 }
 
 .checks {
   list-style: none;
-  padding: 0;
+  margin: 0;
+  padding: 1rem 1.25rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--surface);
+  box-shadow: var(--shadow-sm);
+  line-height: 1.8;
   font-size: 0.875rem;
   color: var(--critical-text);
 

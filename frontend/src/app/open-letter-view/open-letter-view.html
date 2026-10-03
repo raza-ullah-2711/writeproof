@@ -15,7 +15,10 @@
           >
         }
       }
-      · {{ l.sentAt }}
+      ·
+      <time [attr.datetime]="l.sentAt" [title]="l.sentAt"
+        >{{ l.sentAt | date: 'd MMMM y, HH:mm' : 'UTC' }} UTC</time
+      >
     </p>
 
     @if (l.removed; as r) {
