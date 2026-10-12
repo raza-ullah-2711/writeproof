@@ -2,8 +2,11 @@
   #canvas
   class="pad"
   [class.readonly]="readonly()"
+  [class.ruled]="ruled()"
   [style.aspect-ratio]="width() + ' / ' + height()"
-  aria-label="Handwriting pad. Write or sign here."
+  [attr.aria-label]="
+    ruled() ? 'Handwritten page. Write here.' : 'Handwriting pad. Write or sign here.'
+  "
   role="img"
   (pointerdown)="onPointerDown($event)"
   (pointermove)="onPointerMove($event)"

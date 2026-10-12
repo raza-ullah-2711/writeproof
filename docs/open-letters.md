@@ -27,7 +27,10 @@ signed     = "writeproof/letter-signature/v1\n" b64url(letterHash)     (same mes
   - the handwriting hash;
   - the similarity score Writeproof measured;
   - the ledger entry.
-- **Not public: the handwritten strokes.** Publishing exact signature strokes would give forgers
+- **Handwritten pages are public** (Task 14, [handwritten-pages.md](handwritten-pages.md)). A v2
+  letter carries up to 4 pages, and anyone can check their ink against the signed letter. Their
+  timing (the writer's rhythm) is public only if the author opted in to replay.
+- **Not public: the signature strokes.** Publishing exact signature strokes would give forgers
   training material. As with sealed letters, the server verifies the strokes (match, liveness,
   freshness, not a replay), keeps only their hash, and records the signature in the bounded
   replay history. Readers therefore rely on Writeproof for "signed by hand". They can check that

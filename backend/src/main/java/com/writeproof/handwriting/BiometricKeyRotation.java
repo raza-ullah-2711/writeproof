@@ -34,7 +34,10 @@ public class BiometricKeyRotation implements InitializingBean {
             new Column("calibration_samples", "id", "contributor_id", "sample_encrypted",
                     BiometricCipher::calibrationContext),
             new Column("preserved_content", "letter_hash", "author_id", "body_encrypted",
-                    BiometricCipher::preservationContext));
+                    BiometricCipher::preservationContext),
+            // Null when the letter had no pages: such rows never match and are skipped.
+            new Column("preserved_content", "letter_hash", "author_id", "pages_encrypted",
+                    BiometricCipher::preservationPagesContext));
 
     private final BiometricCipher cipher;
     private final JdbcClient jdbc;

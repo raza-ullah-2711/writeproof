@@ -193,4 +193,34 @@ describe('OpenLetterView', () => {
     );
     expect(el.textContent).not.toContain('Report this letter');
   });
+
+  it('shows handwritten pages, the transcript apart from them, and what was checked', async () => {
+    service.get.mockResolvedValue({
+      ...LETTER,
+      body: 'Dear Grandma',
+      version: 2,
+      replay: false,
+      pages: [
+        {
+          format: 'writeproof.page',
+          version: 1,
+          device: 'pen',
+          pen: { nib: 'fountain', ink: 'sepia' },
+          ink: [[1000, 2000, 128, 50, -30, 2]],
+          timingHash: 'th',
+        },
+      ],
+    });
+    const el: HTMLElement = (await render()).nativeElement;
+
+    expect(el.querySelectorAll('app-page-view')).toHaveLength(1);
+    expect(el.querySelector('app-page-view canvas')?.getAttribute('aria-label')).toContain(
+      'Dear Grandma',
+    );
+    expect(el.querySelector('.transcript')?.textContent).toBe('Dear Grandma');
+    expect(el.querySelector('.body')).toBeNull();
+    const checks = [...el.querySelectorAll('.checks li')].map((li) => li.textContent?.trim());
+    expect(checks[0]).toMatch(/exactly\s+these pages and this transcript/);
+    expect(checks[1]).toContain('Written live by a hand');
+  });
 });

@@ -106,4 +106,20 @@ describe('StrokeRecorder', () => {
     expect(recorder.strokes).toEqual([stroke]);
     expect(recorder.down(1, 'pen', at(5, 5, 0))).toBe(false);
   });
+
+  it('undoes the last finished stroke, and starts afresh once nothing is left', () => {
+    recorder.down(1, 'pen', at(10, 20, 1000, 0.3));
+    recorder.up(1, at(16, 26, 1020, 0));
+    recorder.down(1, 'pen', at(30, 20, 1100, 0.3));
+    recorder.up(1, at(36, 26, 1130, 0));
+
+    recorder.undo();
+    expect(recorder.strokes).toHaveLength(1);
+    recorder.undo();
+    expect(recorder.strokes).toHaveLength(0);
+    expect(recorder.device).toBeNull();
+
+    recorder.down(1, 'touch', at(5, 5, 5000, 0.5));
+    expect(recorder.strokes[0][0].t).toBe(0);
+  });
 });

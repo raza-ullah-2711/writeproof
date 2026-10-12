@@ -1,4 +1,5 @@
 import { DatePipe } from '@angular/common';
+import { PageView } from '../pages/page-view';
 import { HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
@@ -19,7 +20,7 @@ import {
 /** The public page for one open letter. Works without an account; verifies in this browser. */
 @Component({
   selector: 'app-open-letter-view',
-  imports: [DatePipe, FormsModule, RouterLink],
+  imports: [DatePipe, FormsModule, RouterLink, PageView],
   templateUrl: './open-letter-view.html',
   styleUrl: './open-letter-view.scss',
 })
@@ -87,5 +88,13 @@ export class OpenLetterView implements OnInit {
 
   protected short(address: string): string {
     return `${address.slice(0, 8)}…${address.slice(-4)}`;
+  }
+
+  /** A page's text alternative: the transcript when there is one, else what it is. */
+  protected pageLabel(transcript: string | null, index: number, count: number): string {
+    const which = `Handwritten page ${index + 1} of ${count}`;
+    return transcript
+      ? `${which}. The author's transcript of the letter: ${transcript}`
+      : `${which}, no transcript`;
   }
 }

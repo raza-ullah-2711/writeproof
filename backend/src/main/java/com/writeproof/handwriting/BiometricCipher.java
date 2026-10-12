@@ -154,6 +154,11 @@ public class BiometricCipher {
         return "preservation:" + authorId;
     }
 
+    /** The handwritten pages of preserved content, kept apart from its text. */
+    public static String preservationPagesContext(UUID authorId) {
+        return "preservation-pages:" + authorId;
+    }
+
     private static byte[] aad(String context) {
         return ("writeproof/biometric/v1\n" + context).getBytes(StandardCharsets.UTF_8);
     }

@@ -1,6 +1,8 @@
 package com.writeproof.admin;
 
 import com.writeproof.common.Base64Url;
+import com.writeproof.openletters.HandwrittenPage;
+import com.writeproof.openletters.OpenLetterPages;
 import com.writeproof.identity.AccountStatus;
 import com.writeproof.openletters.OpenLetterService;
 import java.sql.ResultSet;
@@ -40,7 +42,7 @@ public class ModerationService {
     /** A reported (or looked-up) open letter with its reports. {@code body} is null once removed. */
     public record Case(String letterHash, String author, String sentAt, String body, long ledgerSeq,
                        Map<String, Integer> openReportsByCategory, int openReports, Instant firstReportedAt,
-                       List<Report> reports, Removal removal, Hold hold) {}
+                       List<Report> reports, Removal removal, Hold hold, List<HandwrittenPage> pages) {}
 
     public record Removal(String category, Instant at, String by) {}
 
@@ -57,8 +59,11 @@ public class ModerationService {
     private final AccountStatus status;
     private final PreservedContent preserved;
     private final Clock clock;
+    private final OpenLetterPages pages;
 
-    ModerationService(JdbcClient jdbc, AuditLog audit, AccountStatus status, PreservedContent preserved, Clock clock) {
+    ModerationService(JdbcClient jdbc, AuditLog audit, AccountStatus status, PreservedContent preserved, Clock clock,
+                      OpenLetterPages pages) {
+        this.pages = pages;
         this.jdbc = jdbc;
         this.audit = audit;
         this.status = status;
@@ -279,6 +284,7 @@ public class ModerationService {
         }
         int open = byCategory.values().stream().mapToInt(Integer::intValue).sum();
         Instant firstReported = first;
+        List<HandwrittenPage> letterPages = pages.of(letterHash);
         return jdbc.sql("""
                 SELECT o.letter_hash, a.public_key, o.sent_at, o.body, o.ledger_seq,
                        r.category, r.removed_at, r.removed_by,
@@ -301,7 +307,8 @@ public class ModerationService {
                                 rs.getObject("delete_after", OffsetDateTime.class).toInstant(),
                                 rs.getString("appeal"),
                                 rs.getObject("appealed_at", OffsetDateTime.class) == null ? null
-                                        : rs.getObject("appealed_at", OffsetDateTime.class).toInstant())))
+                                        : rs.getObject("appealed_at", OffsetDateTime.class).toInstant()),
+                        letterPages))
                 .optional()
                 .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND, "No such open letter"));
     }

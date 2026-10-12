@@ -292,6 +292,11 @@ textarea.writing-paper {
   resize: vertical;
 }
 
+// Components that set their own display (e.g. :host { display: block }) still hide with [hidden].
+[hidden] {
+  display: none !important;
+}
+
 .sr-only {
   position: absolute;
   width: 1px;

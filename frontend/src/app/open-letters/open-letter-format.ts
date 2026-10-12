@@ -20,3 +20,15 @@ export async function openLetterHash(
   const preimage = `${OPEN_LETTER_DOMAIN}\n${author}\n${sentAt}\n${handwritingHash}\n${await bodyHash(body)}`;
   return sha256(utf8(preimage));
 }
+
+/** Version 2: a letter with handwritten pages; `body` is the (possibly empty) transcript. */
+export async function openLetterHashV2(
+  author: string,
+  sentAt: string,
+  handwritingHash: string,
+  body: string,
+  pagesHash: string,
+): Promise<Uint8Array<ArrayBuffer>> {
+  const preimage = `writeproof/open-letter/v2\n${author}\n${sentAt}\n${handwritingHash}\n${await bodyHash(body)}\n${pagesHash}`;
+  return sha256(utf8(preimage));
+}

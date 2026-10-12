@@ -1,3 +1,4 @@
+import { Page } from '@app/pages/page-format';
 import { HttpClient } from '@angular/common/http';
 import { Injectable, inject } from '@angular/core';
 import { firstValueFrom } from 'rxjs';
@@ -27,6 +28,8 @@ export interface ModerationCase {
   author: string;
   sentAt: string;
   body: string | null;
+  /** Handwritten pages (docs/handwritten-pages.md), shown to moderators during a hold too. */
+  pages?: Page[];
   ledgerSeq: number;
   openReportsByCategory: Partial<Record<ReportCategory, number>>;
   openReports: number;
