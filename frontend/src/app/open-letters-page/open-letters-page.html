@@ -48,77 +48,7 @@
         </label>
       } @else {
         <div class="pages">
-          <div class="pen">
-            <label>
-              Pen
-              <select name="nib" [ngModel]="nib()" (ngModelChange)="nib.set($event)">
-                @for (n of nibs; track n.value) {
-                  <option [value]="n.value">{{ n.label }}</option>
-                }
-              </select>
-            </label>
-            <label>
-              Ink
-              <select name="ink" [ngModel]="ink()" (ngModelChange)="ink.set($event)">
-                @for (i of inks; track i.value) {
-                  <option [value]="i.value">{{ i.label }}</option>
-                }
-              </select>
-            </label>
-          </div>
-
-          <div class="page-tabs" role="tablist" aria-label="Pages">
-            @for (id of pageIds(); track id; let i = $index) {
-              <button
-                type="button"
-                role="tab"
-                [attr.aria-selected]="current() === i"
-                [class.on]="current() === i"
-                (click)="current.set(i)"
-              >
-                Page {{ i + 1 }}
-              </button>
-            }
-            @if (pageIds().length < maxPages) {
-              <button type="button" class="add" (click)="addPage()">+ Add page</button>
-            }
-          </div>
-
-          @for (id of pageIds(); track id; let i = $index) {
-            <app-handwriting-pad
-              #pagePad
-              class="page-pad"
-              [hidden]="current() !== i"
-              [width]="pageWidth"
-              [height]="pageHeight"
-              [ruled]="true"
-              [pen]="pen()"
-              (sampleChange)="countPoints(id, $event)"
-            />
-          }
-
-          <div class="page-actions">
-            <button
-              type="button"
-              (click)="currentPad()?.undo()"
-              [disabled]="busy() || currentPad()?.empty()"
-            >
-              Undo
-            </button>
-            <button
-              type="button"
-              (click)="clearPage()"
-              [disabled]="busy() || currentPad()?.empty()"
-            >
-              Clear page
-            </button>
-            @if (pageIds().length > 1) {
-              <button type="button" (click)="removePage()" [disabled]="busy()">Remove page</button>
-            }
-            <span class="hint" [class.warn]="currentPoints() > maxPoints * 0.9">
-              {{ currentPoints() | number }} / {{ maxPoints | number }} points
-            </span>
-          </div>
+          <app-page-composer #composer [disabled]="busy()" />
 
           <label>
             Transcript (optional): what the pages say, for screen readers and search
@@ -164,7 +94,7 @@
         [disabled]="
           !system.status().openLettersEnabled ||
           busy() ||
-          (mode() === 'typed' ? !body.trim() : !hasWriting()) ||
+          (mode() === 'typed' ? !body.trim() : !composer()?.hasWriting()) ||
           !understood ||
           enrolled() !== true ||
           pad()?.empty()

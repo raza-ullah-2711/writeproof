@@ -1,23 +1,48 @@
 import { Routes } from '@angular/router';
-import { Calibration } from './calibration/calibration';
-import { Capture } from './capture/capture';
-import { ContactsPage } from './contacts-page/contacts-page';
 import { Home } from './home/home';
-import { LettersPage } from './letters-page/letters-page';
-import { OpenLetterView } from './open-letter-view/open-letter-view';
-import { OpenLettersPage } from './open-letters-page/open-letters-page';
-import { Verify } from './verify/verify';
 
+// Every page but the home page loads on first visit, so someone opening a shared letter downloads
+// only what that page needs.
 export const routes: Routes = [
   { path: '', component: Home, title: 'Writeproof' },
-  { path: 'letters', component: LettersPage, title: 'Letters · Writeproof' },
-  { path: 'contacts', component: ContactsPage, title: 'Contacts · Writeproof' },
-  { path: 'open', component: OpenLettersPage, title: 'Open letters · Writeproof' },
-  { path: 'open/:hash', component: OpenLetterView, title: 'Open letter · Writeproof' },
-  { path: 'handwriting', component: Verify, title: 'Handwriting · Writeproof' },
-  { path: 'capture', component: Capture, title: 'Capture playground · Writeproof' },
+  {
+    path: 'letters',
+    loadComponent: () => import('./letters-page/letters-page').then((m) => m.LettersPage),
+    title: 'Letters · Writeproof',
+  },
+  {
+    path: 'contacts',
+    loadComponent: () => import('./contacts-page/contacts-page').then((m) => m.ContactsPage),
+    title: 'Contacts · Writeproof',
+  },
+  {
+    path: 'open',
+    loadComponent: () =>
+      import('./open-letters-page/open-letters-page').then((m) => m.OpenLettersPage),
+    title: 'Open letters · Writeproof',
+  },
+  {
+    path: 'open/:hash',
+    loadComponent: () =>
+      import('./open-letter-view/open-letter-view').then((m) => m.OpenLetterView),
+    title: 'Open letter · Writeproof',
+  },
+  {
+    path: 'handwriting',
+    loadComponent: () => import('./verify/verify').then((m) => m.Verify),
+    title: 'Handwriting · Writeproof',
+  },
+  {
+    path: 'capture',
+    loadComponent: () => import('./capture/capture').then((m) => m.Capture),
+    title: 'Capture playground · Writeproof',
+  },
   // The admin area is a separate app on its own origin (projects/admin, docs/admin.md); old links
   // to it here land on the home page.
   { path: 'admin', redirectTo: '' },
-  { path: 'calibration', component: Calibration, title: 'Help improve verification · Writeproof' },
+  {
+    path: 'calibration',
+    loadComponent: () => import('./calibration/calibration').then((m) => m.Calibration),
+    title: 'Help improve verification · Writeproof',
+  },
 ];

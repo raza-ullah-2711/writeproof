@@ -23,6 +23,8 @@ export const LETTER_DOMAIN = 'writeproof/letter/v1';
 /** Hand-signed letters: the header also commits to the handwriting sample's hash. */
 export const LETTER_DOMAIN_V2 = 'writeproof/letter/v2';
 export const LETTER_DOMAIN_V3 = 'writeproof/letter/v3';
+/** Letters with handwritten pages sealed inside (replies too): also commits to their ink hashes. */
+export const LETTER_DOMAIN_V4 = 'writeproof/letter/v4';
 export const LETTER_SIGNATURE_DOMAIN = 'writeproof/letter-signature/v1';
 export const ENCRYPTION_KEY_DOMAIN = 'writeproof/encryption-key/v1';
 export const LEDGER_DOMAIN = 'writeproof/ledger/v1';
@@ -53,6 +55,30 @@ export function letterHeaderV3(
   inReplyTo: string,
 ): string {
   return `${LETTER_DOMAIN_V3}\n${senderKey}\n${recipientKey}\n${sentAt}\n${handwritingHash}\n${inReplyTo}`;
+}
+
+/**
+ * v4 header (handwritten pages, docs/handwritten-pages.md): v2 plus the letter answered (empty
+ * if none) and each sealed page's ink hash in order, so the server can refuse a page sent twice
+ * without ever seeing it.
+ */
+export function letterHeaderV4(
+  senderKey: string,
+  recipientKey: string,
+  sentAt: string,
+  handwritingHash: string,
+  inReplyTo: string | null,
+  pageInkHashes: readonly string[],
+): string {
+  return [
+    LETTER_DOMAIN_V4,
+    senderKey,
+    recipientKey,
+    sentAt,
+    handwritingHash,
+    inReplyTo ?? '',
+    pageInkHashes.join(','),
+  ].join('\n');
 }
 
 /** SHA-256 of the exact handwriting JSON string, base64url. */

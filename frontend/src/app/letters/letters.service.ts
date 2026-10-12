@@ -9,6 +9,15 @@ import { LedgerVerifier } from './ledger-verifier';
 import { LedgerEntry } from './ledger-verify';
 import { HandwritingSample, parseSample, toJson } from '../handwriting/handwriting-sample';
 import { LetterPlaintext, openLetter, sealLetter } from './letter-crypto';
+import { Liveness, checkLiveness } from '../pages/liveness';
+import {
+  MAX_PAGES,
+  MAX_PAGE_POINTS,
+  Page,
+  inkHash,
+  pagePointCount,
+  pageStrokes,
+} from '../pages/page-format';
 import {
   LetterEnvelope,
   encryptionKeyBinding,
@@ -17,6 +26,7 @@ import {
   letterHeader,
   letterHeaderV2,
   letterHeaderV3,
+  letterHeaderV4,
   letterSignedMessage,
 } from './letter-format';
 
@@ -44,6 +54,8 @@ export interface Letter {
   inReplyTo: string | null;
   /** Hash of the letter that started the conversation (its own hash, if it did). */
   threadId: string;
+  /** Ink hashes of the handwritten pages sealed inside (v4); null or absent for other letters. */
+  pageInkHashes?: string[] | null;
 }
 
 /** A conversation, as listed by the server. */
@@ -99,7 +111,28 @@ export interface OpenedLetter {
   ledgerProblem: string | null;
   /** Size of the signed checkpoint the entry was proven against, when the proof held. */
   ledgerCheckpointSize: number | null;
+  /** Handwritten pages sealed inside (v4), with their timing; null for other letters. */
+  pages: Page[] | null;
+  /**
+   * Checked by this browser (the server never sees the pages): each page hashes to the ink the
+   * sender's wallet signed, was written within 12 hours before sending, and looks written live.
+   * Null for letters without pages.
+   */
+  pageChecks: PageCheck[] | null;
 }
+
+/** What this browser found about one sealed page. */
+export interface PageCheck {
+  /** Hashes to the ink hash in the signed header. */
+  matches: boolean;
+  /** First pen-down no more than 12 hours before the letter was sent (nor after it). */
+  fresh: boolean;
+  /** The same liveness heuristics the server runs on open letters' pages. */
+  liveness: Liveness;
+}
+
+/** How long before sending a page may have been written. */
+const MAX_PAGE_AGE_MS = 12 * 60 * 60 * 1000;
 
 export const MAX_BODY_LENGTH = 10_000;
 
@@ -119,14 +152,21 @@ export class LettersService {
     body: string,
     signature: HandwritingSample,
     inReplyTo?: Letter,
+    pages: Page[] = [],
   ): Promise<Letter> {
     const me = this.wallet.publicKey();
     const myEncryptionKey = this.wallet.encryptionPublicKey();
     if (!me || !myEncryptionKey) {
       throw new Error('No wallet is loaded');
     }
-    if (body.trim().length === 0 || body.length > MAX_BODY_LENGTH) {
+    if (body.length > MAX_BODY_LENGTH || (pages.length === 0 && body.trim().length === 0)) {
       throw new Error(`A letter needs 1 to ${MAX_BODY_LENGTH} characters`);
+    }
+    if (pages.length > MAX_PAGES) {
+      throw new Error(`A letter can have at most ${MAX_PAGES} pages`);
+    }
+    if (pages.some((p) => pagePointCount(p) > MAX_PAGE_POINTS)) {
+      throw new Error('A page has too much writing; split it over two pages');
     }
     if (inReplyTo) {
       // A conversation is between two people: the reply goes to whoever else is in it.
@@ -152,7 +192,9 @@ export class LettersService {
 
     const handwriting = toJson(signature);
     const sentAt = new Date().toISOString();
+    const inkHashes = await Promise.all(pages.map((p) => inkHash(p)));
     const sealed = await sealLetter({
+      ...(pages.length > 0 ? { pages: { pages, inkHashes } } : {}),
       handwriting,
       body,
       senderKey: me,
@@ -171,6 +213,7 @@ export class LettersService {
         signature: toBase64Url(walletSignature),
         handwriting,
         ...(inReplyTo ? { inReplyTo: inReplyTo.letterHash } : {}),
+        ...(pages.length > 0 ? { pageInkHashes: inkHashes } : {}),
       }),
     );
     if (letter.letterHash !== toBase64Url(sealed.hash)) {
@@ -237,8 +280,14 @@ export class LettersService {
       }
     }
 
+    const pages = letter.pageInkHashes?.length ? (plaintext?.pages ?? null) : null;
+    const pageChecks = letter.pageInkHashes?.length
+      ? await checkPages(pages ?? [], letter.pageInkHashes, letter.sentAt, signatureValid)
+      : null;
     const ledger = await this.ledger.verifyEntry(letter.ledger, toBase64Url(hash));
     return {
+      pages,
+      pageChecks,
       body: plaintext?.body ?? null,
       handSigned,
       handwriting,
@@ -251,11 +300,51 @@ export class LettersService {
   }
 }
 
-/** The signed header a letter claims: v3 for replies, v2 for hand-signed, v1 from before. */
+/**
+ * Checks sealed pages in this browser: one per signed ink hash, in order, each matching its hash,
+ * written shortly before sending, and passing the liveness heuristics.
+ */
+async function checkPages(
+  pages: Page[],
+  signedInkHashes: readonly string[],
+  sentAt: string,
+  signatureValid: boolean,
+): Promise<PageCheck[]> {
+  const sent = Date.parse(sentAt);
+  return Promise.all(
+    signedInkHashes.map(async (signed, i) => {
+      const page = pages[i];
+      if (!page || !page.timing || !page.capturedAt) {
+        return { matches: false, fresh: false, liveness: checkLiveness([], 'mouse') };
+      }
+      const captured = Date.parse(page.capturedAt);
+      return {
+        matches:
+          signatureValid &&
+          pages.length === signedInkHashes.length &&
+          (await inkHash(page)) === signed,
+        fresh: captured >= sent - MAX_PAGE_AGE_MS && captured <= sent + 2 * 60 * 1000,
+        liveness: checkLiveness(pageStrokes(page), page.device),
+      };
+    }),
+  );
+}
+
+/** The signed header a letter claims: v4 with pages, v3 for replies, v2 hand-signed, v1 before. */
 function headerOf(letter: Letter): string {
   const { sender, recipient, sentAt, handwritingHash: hw, inReplyTo } = letter;
   if (!hw) {
     return letterHeader(sender.publicKey, recipient.publicKey, sentAt);
+  }
+  if (letter.pageInkHashes?.length) {
+    return letterHeaderV4(
+      sender.publicKey,
+      recipient.publicKey,
+      sentAt,
+      hw,
+      inReplyTo ?? null,
+      letter.pageInkHashes,
+    );
   }
   return inReplyTo
     ? letterHeaderV3(sender.publicKey, recipient.publicKey, sentAt, hw, inReplyTo)

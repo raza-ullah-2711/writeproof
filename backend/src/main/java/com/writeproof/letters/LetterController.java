@@ -35,7 +35,9 @@ class LetterController {
             /** The handwriting sample (writeproof.handwriting v1) as a JSON string, hashed byte-for-byte. */
             @NotBlank @Size(max = MAX_HANDWRITING_JSON) String handwriting,
             /** For a reply: the hash of the letter it answers (signed into the v3 header). */
-            String inReplyTo) {}
+            String inReplyTo,
+            /** Ink hashes of the handwritten pages sealed inside (signed into the v4 header); optional. */
+            @Size(max = LetterService.MAX_PAGES) List<String> pageInkHashes) {}
 
     static final int MAX_HANDWRITING_JSON = 500_000;
 
@@ -56,7 +58,8 @@ class LetterController {
      */
     record LetterResponse(UUID letterId, Party sender, Party recipient, String sentAt, LetterEnvelope envelope,
                           String signature, String letterHash, LedgerRef ledger, String handwritingHash,
-                          Double handwritingScore, String inReplyTo, String threadId) {
+                          Double handwritingScore, String inReplyTo, String threadId,
+                    List<String> pageInkHashes) {
         static LetterResponse of(Letter l, Set<UUID> deleted) {
             return new LetterResponse(
                     l.id(),
@@ -70,7 +73,8 @@ class LetterController {
                     l.handSigned() ? Base64Url.encode(l.handwritingHash()) : null,
                     l.handwritingScore() == null ? null : Math.round(l.handwritingScore() * 1000) / 1000.0,
                     l.isReply() ? Base64Url.encode(l.inReplyTo()) : null,
-                    Base64Url.encode(l.threadId()));
+                    Base64Url.encode(l.threadId()),
+                    l.hasPages() ? l.pageInkHashes().stream().map(Base64Url::encode).toList() : null);
         }
     }
 
@@ -107,7 +111,9 @@ class LetterController {
                 request.envelope(),
                 Base64Url.decode(request.signature()),
                 request.handwriting(),
-                request.inReplyTo() == null ? null : hash32(request.inReplyTo()));
+                request.inReplyTo() == null ? null : hash32(request.inReplyTo()),
+                request.pageInkHashes() == null ? List.of()
+                        : request.pageInkHashes().stream().map(LetterController::hash32).toList());
         return ResponseEntity.created(URI.create("/api/letters/" + letter.id())).body(LetterResponse.of(letter, Set.of()));
     }
 

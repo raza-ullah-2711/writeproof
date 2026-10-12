@@ -92,7 +92,10 @@ class OpenLetterRepository {
     /** True if any of these pages was already published (one copy of a page seals one letter). */
     boolean pageUsed(List<byte[]> inkHashes) {
         for (byte[] inkHash : inkHashes) {
-            if (jdbc.sql("SELECT EXISTS (SELECT 1 FROM open_letter_pages WHERE ink_hash = :hash)")
+            if (jdbc.sql("""
+                            SELECT EXISTS (SELECT 1 FROM open_letter_pages WHERE ink_hash = :hash)
+                                OR EXISTS (SELECT 1 FROM letter_pages WHERE ink_hash = :hash)
+                            """)
                     .param("hash", inkHash).query(Boolean.class).single()) {
                 return true;
             }

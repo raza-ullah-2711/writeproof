@@ -17,6 +17,9 @@ import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
 import java.util.List;
+import java.util.HashSet;
+import java.util.Set;
+import com.writeproof.common.Base64Url;
 import java.util.UUID;
 import java.util.regex.Pattern;
 import org.springframework.http.HttpStatus;
@@ -76,8 +79,31 @@ public class LetterService {
     @Transactional
     public Letter send(UUID senderId, byte[] recipientKey, String sentAt, LetterEnvelope envelope, byte[] signature,
                        String handwritingJson, byte[] inReplyTo) {
+        return send(senderId, recipientKey, sentAt, envelope, signature, handwritingJson, inReplyTo, List.of());
+    }
+
+    /** Most pages one letter can carry (docs/handwritten-pages.md). */
+    public static final int MAX_PAGES = 4;
+
+    /**
+     * As {@link #send}, with handwritten pages sealed inside (v4). The server never sees the pages:
+     * {@code pageInkHashes} are their ink hashes, signed into the header, so a page can seal only
+     * one letter. The recipient's browser checks the hashes and that the pages were written live.
+     */
+    @Transactional
+    public Letter send(UUID senderId, byte[] recipientKey, String sentAt, LetterEnvelope envelope, byte[] signature,
+                       String handwritingJson, byte[] inReplyTo, List<byte[]> pageInkHashes) {
         settings.requireSendingEnabled();
-        envelope.validate();
+        boolean pages = !pageInkHashes.isEmpty();
+        if (pageInkHashes.size() > MAX_PAGES) {
+            throw new IllegalArgumentException("A letter can have at most " + MAX_PAGES + " pages");
+        }
+        for (byte[] inkHash : pageInkHashes) {
+            if (inkHash == null || inkHash.length != 32) {
+                throw new IllegalArgumentException("A page ink hash is 32 bytes");
+            }
+        }
+        envelope.validate(pages ? LetterEnvelope.MAX_CIPHERTEXT_WITH_PAGES : LetterEnvelope.MAX_CIPHERTEXT);
         HandwritingSample handwriting = parseHandwriting(handwritingJson);
         byte[] handwritingHash = LetterHashing.handwritingHash(handwritingJson);
         Instant now = clock.instant();
@@ -102,7 +128,10 @@ public class LetterService {
                     .orElseThrow(() -> unprocessable("A reply must answer a letter between you and this recipient"));
             threadId = parent.threadId();
         }
-        String header = inReplyTo == null
+        String header = pages
+                ? LetterHashing.headerV4(sender.publicKey(), recipient.publicKey(), sentAt, handwritingHash, inReplyTo,
+                        pageInkHashes)
+                : inReplyTo == null
                 ? LetterHashing.headerV2(sender.publicKey(), recipient.publicKey(), sentAt, handwritingHash)
                 : LetterHashing.headerV3(sender.publicKey(), recipient.publicKey(), sentAt, handwritingHash, inReplyTo);
         byte[] hash = LetterHashing.letterHash(header, envelope);
@@ -114,6 +143,12 @@ public class LetterService {
         }
         if (letters.existsByHandwritingHash(handwritingHash)) {
             throw new ResponseStatusException(HttpStatus.CONFLICT, "This signature already sealed another letter");
+        }
+        Set<String> distinct = new HashSet<>();
+        for (byte[] inkHash : pageInkHashes) {
+            if (!distinct.add(Base64Url.encode(inkHash)) || letters.pageUsed(inkHash)) {
+                throw new ResponseStatusException(HttpStatus.CONFLICT, "A page can be sent only once");
+            }
         }
 
         // Only after the wallet signature checks out, so only the key holder can probe scores.
@@ -129,10 +164,11 @@ public class LetterService {
         UUID id = UUID.randomUUID();
         letters.insert(id, sender.id(), recipient.id(), sentAt, envelope, signature, hash, entry.seq(), now,
                 handwritingHash, verification.score(), inReplyTo, threadId);
+        letters.insertPages(hash, pageInkHashes);
         handwritingService.recordLetterSignature(sender.id(), handwriting);
         return new Letter(id, sender.id(), sender.publicKey(), recipient.id(), recipient.publicKey(), sentAt,
                 envelope, signature, hash, entry, handwritingHash, verification.score(), inReplyTo,
-                threadId == null ? hash : threadId);
+                threadId == null ? hash : threadId, pageInkHashes);
     }
 
     /** Signed timestamps must be exactly {@code toISOString()} format and within the clock skew of now. */

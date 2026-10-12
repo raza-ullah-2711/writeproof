@@ -6,6 +6,7 @@ import com.writeproof.common.Base64Url;
 import com.writeproof.identity.EncryptionKeyBinding;
 import com.writeproof.ledger.LedgerHashing;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
 import java.time.Instant;
 import org.junit.jupiter.api.Test;
 
@@ -81,6 +82,22 @@ class FormatVectorsTest {
                 + "0POqYGKL8NfQmv7K-jvj8VrFCxClE7yi8Tu3WRxPMKE");
         assertThat(Base64Url.encode(LetterHashing.letterHash(header, ENVELOPE)))
                 .isEqualTo("o9Kh3vyRofTJuiyDzC6mG2PPLAiIGq5wHo0iv9KT4fQ");
+    }
+
+    /** Letters with sealed handwritten pages (shared with letter-format.spec.ts). */
+    @Test
+    void pagesHeader() {
+        byte[] handwritingHash = LetterHashing.handwritingHash("{\"format\":\"writeproof.handwriting\"}");
+        List<byte[]> inks = List.of(Base64Url.decode("ycKsmUVD1_5sd6QCktQe8dELzGq9iLd5_cwRrjLyCfI"), bytes(7, 32));
+
+        assertThat(LetterHashing.headerV4(bytes(1, 32), bytes(101, 32), "2026-10-13T09:20:00.000Z", handwritingHash,
+                null, inks)).isEqualTo("writeproof/letter/v4\n"
+                + "AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA\n"
+                + "ZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGCg4Q\n"
+                + "2026-10-13T09:20:00.000Z\n"
+                + "ENPXVYNKkitwzrhusxhzz4zgCM6PlNr31tF_pUxw9QQ\n"
+                + "\n"
+                + "ycKsmUVD1_5sd6QCktQe8dELzGq9iLd5_cwRrjLyCfI,BwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSY");
     }
 
     @Test

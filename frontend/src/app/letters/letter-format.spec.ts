@@ -7,6 +7,7 @@ import {
   letterHeader,
   letterHeaderV2,
   letterHeaderV3,
+  letterHeaderV4,
   letterSignedMessage,
 } from './letter-format';
 
@@ -87,6 +88,24 @@ describe('letter format (shared vectors with the backend)', () => {
     );
     expect(toBase64Url(await letterHash(header, envelope))).toBe(
       'o9Kh3vyRofTJuiyDzC6mG2PPLAiIGq5wHo0iv9KT4fQ',
+    );
+  });
+
+  it('builds the header of a letter with sealed handwritten pages (v4)', async () => {
+    const hw = await handwritingHash('{"format":"writeproof.handwriting"}');
+    expect(
+      letterHeaderV4(bytes(1, 32), bytes(101, 32), '2026-10-13T09:20:00.000Z', hw, null, [
+        'ycKsmUVD1_5sd6QCktQe8dELzGq9iLd5_cwRrjLyCfI',
+        bytes(7, 32),
+      ]),
+    ).toBe(
+      'writeproof/letter/v4\n' +
+        'AQIDBAUGBwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyA\n' +
+        'ZWZnaGlqa2xtbm9wcXJzdHV2d3h5ent8fX5_gIGCg4Q\n' +
+        '2026-10-13T09:20:00.000Z\n' +
+        'ENPXVYNKkitwzrhusxhzz4zgCM6PlNr31tF_pUxw9QQ\n' +
+        '\n' +
+        'ycKsmUVD1_5sd6QCktQe8dELzGq9iLd5_cwRrjLyCfI,BwgJCgsMDQ4PEBESExQVFhcYGRobHB0eHyAhIiMkJSY',
     );
   });
 

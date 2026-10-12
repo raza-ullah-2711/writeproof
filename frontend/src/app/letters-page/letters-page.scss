@@ -204,3 +204,33 @@
   color: var(--text-muted);
   font-style: italic;
 }
+
+.mode {
+  display: inline-flex;
+  align-self: flex-start;
+  gap: 0.25rem;
+  padding: 0.25rem;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--surface-muted);
+
+  button {
+    box-shadow: none;
+    border-color: transparent;
+    background: transparent;
+    color: var(--text-secondary);
+
+    &.on {
+      color: var(--text);
+      background: var(--surface);
+      box-shadow: var(--shadow-sm);
+    }
+  }
+}
+
+.pages {
+  display: grid;
+  gap: 1rem;
+  margin: 0.75rem 0;
+  max-width: 34rem;
+}

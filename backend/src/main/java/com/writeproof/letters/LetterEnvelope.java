@@ -19,6 +19,8 @@ public record LetterEnvelope(
 
     /** 64 KiB of plaintext plus the 16-byte GCM tag. */
     public static final int MAX_CIPHERTEXT = 64 * 1024 + 16;
+    /** A letter with handwritten pages (v4): up to 4 pages of strokes travel sealed inside. */
+    public static final int MAX_CIPHERTEXT_WITH_PAGES = 2560 * 1024 + 16;
 
     public record WrappedKey(@NotBlank String ephemeralPublicKey, @NotBlank String iv, @NotBlank String wrappedKey) {
 
@@ -31,13 +33,18 @@ public record LetterEnvelope(
 
     /** @throws IllegalArgumentException if any field has the wrong size or encoding */
     public LetterEnvelope validate() {
+        return validate(MAX_CIPHERTEXT);
+    }
+
+    /** As {@link #validate()}, allowing up to {@code maxCiphertext} bytes of ciphertext. */
+    public LetterEnvelope validate(int maxCiphertext) {
         if (version != 1) {
             throw new IllegalArgumentException("Unsupported envelope version");
         }
         requireLength(iv, 12, "iv");
         int length = Base64Url.decode(ciphertext).length;
-        if (length <= 16 || length > MAX_CIPHERTEXT) {
-            throw new IllegalArgumentException("Ciphertext must be 17 to " + MAX_CIPHERTEXT + " bytes");
+        if (length <= 16 || length > maxCiphertext) {
+            throw new IllegalArgumentException("Ciphertext must be 17 to " + maxCiphertext + " bytes");
         }
         recipientKey.validate();
         senderKey.validate();

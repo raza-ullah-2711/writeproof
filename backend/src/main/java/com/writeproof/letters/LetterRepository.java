@@ -8,6 +8,7 @@ import java.sql.SQLException;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
@@ -23,6 +24,8 @@ class LetterRepository {
                    l.sent_at, l.envelope::text AS envelope, l.signature, l.letter_hash,
                    l.handwriting_hash, l.handwriting_score, l.in_reply_to,
                    COALESCE(l.thread_id, l.letter_hash) AS thread_id,
+                   (SELECT array_agg(p.ink_hash ORDER BY p.page_index) FROM letter_pages p
+                     WHERE p.letter_hash = l.letter_hash) AS page_ink_hashes,
                    e.seq, e.prev_hash, e.payload_hash, e.recorded_at, e.entry_hash
               FROM letters l
               JOIN accounts s ON s.id = l.sender_id
@@ -66,6 +69,23 @@ class LetterRepository {
                 .param("inReplyTo", inReplyTo)
                 .param("threadId", threadId)
                 .update();
+    }
+
+    /** The ink hashes of a v4 letter's sealed pages, in order. */
+    void insertPages(byte[] letterHash, List<byte[]> inkHashes) {
+        for (int i = 0; i < inkHashes.size(); i++) {
+            jdbc.sql("INSERT INTO letter_pages (letter_hash, page_index, ink_hash) VALUES (:hash, :index, :ink)")
+                    .param("hash", letterHash).param("index", i).param("ink", inkHashes.get(i)).update();
+        }
+    }
+
+    /** One copy of a page seals one letter, sealed or open. */
+    boolean pageUsed(byte[] inkHash) {
+        return jdbc.sql("""
+                SELECT EXISTS (SELECT 1 FROM letter_pages WHERE ink_hash = :hash)
+                    OR EXISTS (SELECT 1 FROM open_letter_pages WHERE ink_hash = :hash)
+                """)
+                .param("hash", inkHash).query(Boolean.class).single();
     }
 
     /** One signature seals one letter, sealed or open. */
@@ -152,7 +172,19 @@ class LetterRepository {
                 rs.getBytes("handwriting_hash"),
                 rs.getObject("handwriting_score", Double.class),
                 rs.getBytes("in_reply_to"),
-                rs.getBytes("thread_id"));
+                rs.getBytes("thread_id"),
+                pageInkHashes(rs.getArray("page_ink_hashes")));
+    }
+
+    private static List<byte[]> pageInkHashes(java.sql.Array array) throws SQLException {
+        if (array == null) {
+            return List.of();
+        }
+        List<byte[]> hashes = new ArrayList<>();
+        for (Object h : (Object[]) array.getArray()) {
+            hashes.add((byte[]) h);
+        }
+        return hashes;
     }
 
     private String write(LetterEnvelope envelope) {
