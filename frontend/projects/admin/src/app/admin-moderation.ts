@@ -9,6 +9,7 @@ import {
   categoryLabel,
 } from '@app/open-letters/report-categories';
 import { Moderation, ModerationCase } from './moderation';
+import { PageView } from '@app/pages/page-view';
 
 type Action = 'dismiss' | 'remove' | 'restore' | 'uphold';
 
@@ -28,7 +29,7 @@ const DONE: Record<Action, string> = {
 /** The moderation queue: reported open letters, and a lookup for any letter by its link. */
 @Component({
   selector: 'app-admin-moderation',
-  imports: [DatePipe, FormsModule, NgTemplateOutlet, RouterLink],
+  imports: [DatePipe, FormsModule, NgTemplateOutlet, RouterLink, PageView],
   templateUrl: './admin-moderation.html',
   styleUrl: './admin-moderation.scss',
 })

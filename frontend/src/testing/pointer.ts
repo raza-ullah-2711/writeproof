@@ -32,6 +32,9 @@ export function fakeContext(): CanvasRenderingContext2D {
     arc: vi.fn(noop),
     fill: vi.fn(noop),
     fillRect: vi.fn(noop),
+    save: vi.fn(noop),
+    restore: vi.fn(noop),
+    setTransform: vi.fn(noop),
   } as unknown as CanvasRenderingContext2D;
 }
 

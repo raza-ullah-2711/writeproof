@@ -16,6 +16,8 @@ import { drawStrokes } from './ink';
 import { strokesAt } from './replay';
 import { PointerSample, StrokeRecorder } from './stroke-recorder';
 import { ThemeService } from '../theme/theme.service';
+import { Pen } from '../pages/page-format';
+import { drawPage, inkColor } from '../pages/page-ink';
 
 /** The ink when the theme's --ink isn't readable (e.g. in tests). */
 const FALLBACK_INK = '#1b1f3a';
@@ -36,6 +38,10 @@ export class HandwritingPad implements OnDestroy {
   readonly height = input(240);
   /** Display only (e.g. replaying a received signature): pointer input is ignored. */
   readonly readonly = input(false);
+  /** Draw with this pen (a handwritten page) instead of the plain signature ink. */
+  readonly pen = input<Pen | null>(null);
+  /** Ruled guide lines, as on writing paper. Display only: never part of the ink. */
+  readonly ruled = input(false);
   /** Emits the full sample each time a stroke is finished. */
   readonly sampleChange = output<HandwritingSample>();
 
@@ -43,6 +49,7 @@ export class HandwritingPad implements OnDestroy {
   private readonly recorder = new StrokeRecorder();
   private ctx: CanvasRenderingContext2D | null = null;
   private replayFrame: number | null = null;
+  private drawFrame: number | null = null;
   private capturedAt: string | null = null;
 
   private readonly _strokes = signal<readonly Stroke[]>([]);
@@ -70,15 +77,34 @@ export class HandwritingPad implements OnDestroy {
 
   constructor() {
     afterNextRender(() => this.setUpCanvas());
-    // Redraw in the new ink when the theme changes.
+    // Redraw in the new ink when the theme or the pen changes.
     effect(() => {
       this.theme.dark();
+      this.pen();
       this.redraw(this.recorder.strokes);
     });
   }
 
   ngOnDestroy(): void {
     this.stopReplay();
+    if (this.drawFrame !== null) {
+      cancelAnimationFrame(this.drawFrame);
+    }
+  }
+
+  /** Takes back the last stroke. */
+  undo(): void {
+    this.stopReplay();
+    this.recorder.undo();
+    if (this.recorder.strokes.length === 0) {
+      this.capturedAt = null;
+    }
+    this.publish();
+    this.redraw(this.recorder.strokes);
+    const sample = this.sample();
+    if (sample) {
+      this.sampleChange.emit(sample);
+    }
   }
 
   clear(): void {
@@ -145,7 +171,7 @@ export class HandwritingPad implements OnDestroy {
       event.pointerId,
       events.map((e) => this.toPad(e)),
     );
-    this.redraw(this.recorder.strokes);
+    this.scheduleRedraw();
   }
 
   protected onPointerUp(event: PointerEvent): void {
@@ -204,12 +230,29 @@ export class HandwritingPad implements OnDestroy {
     this.redraw(this.recorder.strokes);
   }
 
+  /** At most one redraw per frame while writing: a page holds far more points than a signature. */
+  private scheduleRedraw(): void {
+    if (this.drawFrame !== null) {
+      return;
+    }
+    this.drawFrame = requestAnimationFrame(() => {
+      this.drawFrame = null;
+      this.redraw(this.recorder.strokes);
+    });
+  }
+
   private redraw(strokes: readonly Stroke[]): void {
     if (!this.ctx) {
       return;
     }
     this.ctx.clearRect(0, 0, this.width(), this.height());
-    const ink = getComputedStyle(this.canvas().nativeElement).getPropertyValue('--ink').trim();
+    const canvas = this.canvas().nativeElement;
+    const pen = this.pen();
+    if (pen) {
+      drawPage(this.ctx, strokes, pen, this.recorder.device, inkColor(canvas, pen.ink));
+      return;
+    }
+    const ink = getComputedStyle(canvas).getPropertyValue('--ink').trim();
     drawStrokes(this.ctx, strokes, this.recorder.device, ink || FALLBACK_INK);
   }
 

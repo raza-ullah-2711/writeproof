@@ -10,7 +10,9 @@ import com.writeproof.common.Base64Url;
 import com.writeproof.handwriting.HandwritingSample;
 import com.writeproof.handwriting.SyntheticSignatures;
 import com.writeproof.letters.LetterHashing;
+import com.writeproof.openletters.HandwrittenPage;
 import com.writeproof.openletters.OpenLetterHashing;
+import com.writeproof.openletters.TestPages;
 import java.time.Instant;
 import java.time.OffsetDateTime;
 import java.time.ZoneOffset;
@@ -82,6 +84,28 @@ class ModerationApiTests {
         ResponseEntity<Map> published = rest.exchange("/api/me/open-letters", HttpMethod.POST, new HttpEntity<>(
                 Map.of("sentAt", sentAt, "body", body, "handwriting", handwriting, "signature",
                         Base64Url.encode(TestWallet.sign(author.identity.getPrivate(),
+                                LetterHashing.signedMessage(hash)))), author.headers()), Map.class);
+        assertThat(published.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        return Base64Url.encode(hash);
+    }
+
+    /** Publishes a handwritten letter (one page, replay off) as the author; returns its hash. */
+    private String publishPage() throws Exception {
+        HandwritingSample s = hand.genuine(SEEDS.incrementAndGet(), "pen");
+        String handwriting = json.writeValueAsString(new HandwritingSample(s.format(), s.version(),
+                Instant.now().toString(), s.device(), s.width(), s.height(), s.strokes()));
+        // A writer whose lines fit the sheet; fresh samples each run, since a page can be published once.
+        SyntheticSignatures.Writer pageHand = new SyntheticSignatures.Writer(4111);
+        long seed = System.nanoTime() % 1_000_000_000L;
+        HandwrittenPage page = TestPages.page(Instant.now(), "brush", "sepia",
+                List.of(pageHand.genuine(seed, "pen"), pageHand.genuine(seed + 1, "pen")));
+        String sentAt = SENT_AT.format(Instant.now());
+        byte[] hash = OpenLetterHashing.letterHashV2(author.publicKey, sentAt, LetterHashing.handwritingHash(handwriting),
+                "", OpenLetterHashing.pagesHash(false,
+                        List.of(HandwrittenPage.pageHash(page.inkHash(), page.computeTimingHash()))));
+        ResponseEntity<Map> published = rest.exchange("/api/me/open-letters", HttpMethod.POST, new HttpEntity<>(
+                Map.of("sentAt", sentAt, "body", "", "handwriting", handwriting, "pages", List.of(page), "replay", false,
+                        "signature", Base64Url.encode(TestWallet.sign(author.identity.getPrivate(),
                                 LetterHashing.signedMessage(hash)))), author.headers()), Map.class);
         assertThat(published.getStatusCode()).isEqualTo(HttpStatus.CREATED);
         return Base64Url.encode(hash);
@@ -325,6 +349,26 @@ private ResponseEntity<Map> appeal(TestWallet as, String hash, String text) {
                 Map.of("reportId", "CT-12345")).getBody()).containsEntry("reportId", "CT-12345");
         assertThat(jdbc.sql("SELECT action FROM admin_audit_log WHERE target = :t ORDER BY id").param("t", hash)
                 .query(String.class).list()).contains("moderation.removed", "preserved.read", "preserved.reported");
+    }
+
+    @Test
+    void moderatorsSeeHandwrittenPagesAndAChildSafetyRemovalPreservesThemBeforeBlankingThem() throws Exception {
+        String hash = publishPage();
+
+        Map<String, Object> seen = call(moderator, HttpMethod.GET, "/api/admin/moderation/letters/" + hash, null)
+                .getBody();
+        assertThat((List<?>) seen.get("pages")).hasSize(1);
+
+        call(moderator, HttpMethod.POST, "/api/admin/moderation/letters/" + hash + "/remove",
+                Map.of("category", "child_safety"));
+
+        assertThat(rest.getForEntity("/api/open-letters/" + hash, Map.class).getBody()).containsEntry("pages", null);
+        assertThat(jdbc.sql("SELECT count(*) FROM open_letter_pages WHERE letter_hash = :h AND page_json IS NOT NULL")
+                .param("h", Base64Url.decode(hash)).query(Integer.class).single()).isZero();
+        Map<String, Object> copy = call(admin, HttpMethod.GET, "/api/admin/preserved/" + hash, null).getBody();
+        List<Map<String, Object>> pages = (List<Map<String, Object>>) copy.get("pages");
+        assertThat(pages).hasSize(1);
+        assertThat(pages.getFirst()).containsKey("ink").containsEntry("pen", Map.of("nib", "brush", "ink", "sepia"));
     }
 
     @Test

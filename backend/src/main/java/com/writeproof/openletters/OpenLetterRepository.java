@@ -1,5 +1,8 @@
 package com.writeproof.openletters;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.databind.ObjectMapper;
+import com.writeproof.common.Base64Url;
 import com.writeproof.ledger.LedgerEntry;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -18,7 +21,7 @@ class OpenLetterRepository {
 
     private static final String SELECT = """
             SELECT o.letter_hash, o.author_id, a.public_key AS author_key, o.sent_at, o.body, o.signature,
-                   o.handwriting_hash, o.handwriting_score,
+                   o.handwriting_hash, o.handwriting_score, o.version, o.replay,
                    e.seq, e.prev_hash, e.payload_hash, e.recorded_at, e.entry_hash,
                    COALESCE(r.category, h.category) AS removal_category,
                    COALESCE(r.removed_at, h.held_at) AS removed_at,
@@ -31,10 +34,15 @@ class OpenLetterRepository {
               LEFT JOIN open_letter_holds h ON h.letter_hash = o.letter_hash AND h.decision IS NULL
             """;
 
-    private final JdbcClient jdbc;
+    /** A page's timing as stored when the author opted in to replay. */
+    private record Timing(String capturedAt, long[][] timing) {}
 
-    OpenLetterRepository(JdbcClient jdbc) {
+    private final JdbcClient jdbc;
+    private final ObjectMapper json;
+
+    OpenLetterRepository(JdbcClient jdbc, ObjectMapper json) {
         this.jdbc = jdbc;
+        this.json = json;
     }
 
     void insert(OpenLetter l, Instant createdAt) {
@@ -43,8 +51,9 @@ class OpenLetterRepository {
         }
         jdbc.sql("""
                 INSERT INTO open_letters (letter_hash, author_id, sent_at, body, signature, handwriting_hash,
-                                          handwriting_score, ledger_seq, created_at)
-                VALUES (:hash, :author, :sentAt, :body, :signature, :handwritingHash, :score, :seq, :createdAt)
+                                          handwriting_score, ledger_seq, created_at, version, replay)
+                VALUES (:hash, :author, :sentAt, :body, :signature, :handwritingHash, :score, :seq, :createdAt,
+                        :version, :replay)
                 """)
                 .param("hash", l.letterHash())
                 .param("author", l.authorId())
@@ -55,7 +64,78 @@ class OpenLetterRepository {
                 .param("score", l.handwritingScore())
                 .param("seq", l.ledgerEntry().seq())
                 .param("createdAt", OffsetDateTime.ofInstant(createdAt, ZoneOffset.UTC))
+                .param("version", l.version())
+                .param("replay", l.replay())
                 .update();
+    }
+
+    /**
+     * Stores a letter's pages, each with its timing hash. The timing itself is stored only when the
+     * author opted in to replay; otherwise it was used for the checks and is dropped here.
+     */
+    void insertPages(byte[] letterHash, List<HandwrittenPage> pages, boolean replay) {
+        for (int i = 0; i < pages.size(); i++) {
+            HandwrittenPage p = pages.get(i);
+            HandwrittenPage inkOnly = new HandwrittenPage(p.format(), p.version(), null, p.device(), p.pen(), p.ink(),
+                    null, null);
+            jdbc.sql("""
+                    INSERT INTO open_letter_pages (letter_hash, page_index, page_json, ink_hash, timing_hash, timing_json)
+                    VALUES (:hash, :index, :page, :inkHash, :timingHash, :timing)
+                    """)
+                    .param("hash", letterHash).param("index", i).param("page", write(inkOnly))
+                    .param("inkHash", p.inkHash()).param("timingHash", p.computeTimingHash())
+                    .param("timing", replay ? write(new Timing(p.capturedAt(), p.timing())) : null)
+                    .update();
+        }
+    }
+
+    /** True if any of these pages was already published (one copy of a page seals one letter). */
+    boolean pageUsed(List<byte[]> inkHashes) {
+        for (byte[] inkHash : inkHashes) {
+            if (jdbc.sql("SELECT EXISTS (SELECT 1 FROM open_letter_pages WHERE ink_hash = :hash)")
+                    .param("hash", inkHash).query(Boolean.class).single()) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /** A letter's pages as published: blanked pages (after a takedown) are left out. */
+    List<HandwrittenPage> pages(byte[] letterHash) {
+        return jdbc.sql("""
+                SELECT page_json, timing_hash, timing_json FROM open_letter_pages
+                 WHERE letter_hash = :hash AND page_json IS NOT NULL ORDER BY page_index
+                """)
+                .param("hash", letterHash)
+                .query((rs, row) -> {
+                    HandwrittenPage page = read(rs.getString("page_json"), HandwrittenPage.class);
+                    String timingJson = rs.getString("timing_json");
+                    String timingHash = Base64Url.encode(rs.getBytes("timing_hash"));
+                    if (timingJson == null) {
+                        return new HandwrittenPage(page.format(), page.version(), null, page.device(), page.pen(),
+                                page.ink(), null, timingHash);
+                    }
+                    Timing t = read(timingJson, Timing.class);
+                    return new HandwrittenPage(page.format(), page.version(), t.capturedAt(), page.device(),
+                            page.pen(), page.ink(), t.timing(), timingHash);
+                })
+                .list();
+    }
+
+    private String write(Object value) {
+        try {
+            return json.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private <T> T read(String text, Class<T> type) {
+        try {
+            return json.readValue(text, type);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("A stored page is unreadable", e);
+        }
     }
 
     /** One signature seals one letter, sealed or open. */
@@ -90,8 +170,9 @@ class OpenLetterRepository {
                 rs.getObject("appeal_until", OffsetDateTime.class) == null ? null
                         : rs.getObject("appeal_until", OffsetDateTime.class).toInstant(),
                 rs.getBoolean("appealed"));
+        byte[] letterHash = rs.getBytes("letter_hash");
         return new OpenLetter(
-                rs.getBytes("letter_hash"),
+                letterHash,
                 rs.getObject("author_id", UUID.class),
                 rs.getBytes("author_key"),
                 rs.getString("sent_at"),
@@ -105,7 +186,11 @@ class OpenLetterRepository {
                         rs.getBytes("payload_hash"),
                         rs.getObject("recorded_at", OffsetDateTime.class).toInstant(),
                         rs.getBytes("entry_hash")),
-                removal);
+                removal,
+                rs.getInt("version"),
+                rs.getBoolean("replay"),
+                // Hidden during a hold, gone after, like the body.
+                removal == null && rs.getInt("version") == 2 ? pages(letterHash) : List.of());
     }
 
     /** Records the author's appeal of an active hold; false if there's none to appeal (or it's late). */

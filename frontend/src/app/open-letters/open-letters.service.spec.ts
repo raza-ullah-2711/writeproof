@@ -9,7 +9,8 @@ import { HandwritingSample } from '../handwriting/handwriting-sample';
 import { LedgerVerifier } from '../letters/ledger-verifier';
 import { handwritingHash, letterSignedMessage } from '../letters/letter-format';
 import { WalletService } from '../wallet/wallet.service';
-import { openLetterHash } from './open-letter-format';
+import { openLetterHash, openLetterHashV2 } from './open-letter-format';
+import { Page, inkHash, pageHash, pagesHash, timingHash } from '../pages/page-format';
 import { OpenLetter, OpenLettersService } from './open-letters.service';
 
 const SIGNATURE: HandwritingSample = {
@@ -166,6 +167,104 @@ describe('OpenLettersService', () => {
     expect(http.expectOne('/api/open-letters/h2/reports').request.body).toEqual({
       category: 'other',
       note: 'Looks fake',
+    });
+  });
+
+  describe('handwritten pages (v2)', () => {
+    const PAGE: Page = {
+      format: 'writeproof.page',
+      version: 1,
+      capturedAt: '2026-10-13T09:12:44.120Z',
+      device: 'pen',
+      pen: { nib: 'fountain', ink: 'sepia' },
+      ink: [
+        [1000, 2000, 128, 50, -30, 2, 40, 10, -1],
+        [3000, 4000, 90],
+      ],
+      timing: [[0, 8, 9], [120]],
+    };
+
+    /** Publishes pages as this wallet, playing the server; returns the letter as published. */
+    async function publishPages(transcript: string, replay: boolean): Promise<OpenLetter> {
+      const publishing = service.publish(transcript, SIGNATURE, { pages: [PAGE], replay });
+      const post = await nextRequest(http, '/api/me/open-letters');
+      const sent = post.request.body;
+      expect(sent.pages).toEqual([PAGE]);
+      expect(sent.replay).toBe(replay);
+      const hw = await handwritingHash(sent.handwriting);
+      const th = await timingHash(PAGE);
+      const pages = await pagesHash(replay, [await pageHash(await inkHash(PAGE), th)]);
+      const hash = toBase64Url(
+        await openLetterHashV2(wallet.publicKey()!, sent.sentAt, hw, transcript, pages),
+      );
+      const { timing, capturedAt, ...inkOnly } = PAGE;
+      const stored: OpenLetter = {
+        letterHash: hash,
+        author: wallet.publicKey()!,
+        sentAt: sent.sentAt,
+        body: transcript,
+        signature: sent.signature,
+        handwritingHash: hw,
+        handwritingScore: 0.9,
+        ledger: { seq: 9, prevHash: '', payloadHash: hash, recordedAtMillis: 0, entryHash: 'e9' },
+        removed: null,
+        version: 2,
+        replay,
+        pages: [replay ? { ...PAGE, timingHash: th } : { ...inkOnly, timingHash: th }],
+      };
+      expect(timing && capturedAt).toBeTruthy();
+      post.flush(stored);
+      await publishing;
+      return stored;
+    }
+
+    it('signs the pages and the replay choice, and readers can check them without the timing', async () => {
+      const letter = await publishPages('', false);
+
+      expect(letter.pages![0].timing).toBeUndefined();
+      expect((await service.verify(letter, letter.letterHash)).signatureValid).toBe(true);
+    });
+
+    it('checks published timing against its hash when the author allowed replay', async () => {
+      const letter = await publishPages('Dear Grandma', true);
+
+      expect((await service.verify(letter, letter.letterHash)).signatureValid).toBe(true);
+      const retimed = { ...letter.pages![0], timing: [[0, 8, 10], [120]] };
+      expect(
+        (await service.verify({ ...letter, pages: [retimed] }, letter.letterHash)).signatureValid,
+      ).toBe(false);
+    });
+
+    it('fails on changed ink, a flipped replay flag or timing the author kept private', async () => {
+      const letter = await publishPages('', false);
+      const page = letter.pages![0];
+
+      const inked = {
+        ...page,
+        ink: [
+          [1000, 2000, 128, 50, -30, 2, 40, 11, -1],
+          [3000, 4000, 90],
+        ],
+      };
+      expect(
+        (await service.verify({ ...letter, pages: [inked] }, letter.letterHash)).signatureValid,
+      ).toBe(false);
+      expect(
+        (await service.verify({ ...letter, replay: true }, letter.letterHash)).signatureValid,
+      ).toBe(false);
+      const leaked = { ...page, timing: PAGE.timing, capturedAt: PAGE.capturedAt };
+      expect(
+        (await service.verify({ ...letter, pages: [leaked] }, letter.letterHash)).signatureValid,
+      ).toBe(false);
+      expect(
+        (await service.verify({ ...letter, body: 'added' }, letter.letterHash)).signatureValid,
+      ).toBe(false);
+    });
+
+    it('refuses more than four pages before signing anything', async () => {
+      await expect(
+        service.publish('', SIGNATURE, { pages: [PAGE, PAGE, PAGE, PAGE, PAGE], replay: false }),
+      ).rejects.toThrow('at most 4 pages');
     });
   });
 });

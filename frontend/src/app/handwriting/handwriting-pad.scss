@@ -20,6 +20,18 @@
   touch-action: none;
   user-select: none;
 
+  // A page: faint ruled lines (14 to a sheet), the same in the reader's view.
+  &.ruled {
+    background-image: linear-gradient(
+      to bottom,
+      transparent calc(100% - 1px),
+      var(--rule) calc(100% - 1px)
+    );
+    background-size: 100% calc(100% / 14);
+    background-position: 0 0;
+    background-repeat: repeat-y;
+  }
+
   &.readonly {
     cursor: default;
   }

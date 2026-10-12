@@ -86,6 +86,19 @@ export class StrokeRecorder {
     this.origin = Number.NaN; // restored samples can't be extended
   }
 
+  /** Removes the last finished stroke (not one in progress). */
+  undo(): void {
+    if (this.current) {
+      return;
+    }
+    this.finished.pop();
+    if (this.finished.length === 0) {
+      this.clear();
+      return;
+    }
+    this.lastT = this.finished.at(-1)?.at(-1)?.t ?? 0;
+  }
+
   clear(): void {
     this.finished.length = 0;
     this.current = null;

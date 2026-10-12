@@ -2,6 +2,8 @@ import { DatePipe } from '@angular/common';
 import { HttpClient, HttpErrorResponse } from '@angular/common/http';
 import { Component, OnInit, inject, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
+import { Page } from '@app/pages/page-format';
+import { PageView } from '@app/pages/page-view';
 import { firstValueFrom } from 'rxjs';
 
 /** Mirrors backend `PreservedContent.Summary`: metadata only. */
@@ -23,7 +25,7 @@ interface Preserved {
  */
 @Component({
   selector: 'app-admin-preserved',
-  imports: [DatePipe, FormsModule],
+  imports: [DatePipe, FormsModule, PageView],
   template: `
     <p class="hint">
       Content removed as child sexual abuse or exploitation, kept encrypted for one year as the law
@@ -54,8 +56,17 @@ interface Preserved {
           } @else {
             <p class="warn">Not yet reported to NCMEC.</p>
           }
-          @if (texts()[p.letterHash]; as text) {
-            <div class="body">{{ text }}</div>
+          @if (texts()[p.letterHash]; as copy) {
+            @for (page of copy.pages; track $index; let i = $index) {
+              <app-page-view
+                class="page"
+                [page]="page"
+                [label]="'Preserved handwritten page ' + (i + 1) + ' of ' + copy.pages.length"
+              />
+            }
+            @if (copy.body) {
+              <div class="body">{{ copy.body }}</div>
+            }
           } @else {
             <button type="button" (click)="show(p)" [disabled]="busy()">Show text (audited)</button>
           }
@@ -101,6 +112,10 @@ interface Preserved {
       border-left: 3px solid var(--paper-border);
       margin: 0.5rem 0;
     }
+    .page {
+      max-width: 16rem;
+      margin: 0.5rem 0;
+    }
     .ok {
       color: var(--good-text);
     }
@@ -125,7 +140,7 @@ export class AdminPreserved implements OnInit {
   private readonly http = inject(HttpClient);
 
   protected readonly items = signal<Preserved[] | null>(null);
-  protected readonly texts = signal<Record<string, string>>({});
+  protected readonly texts = signal<Record<string, { body: string; pages: Page[] }>>({});
   protected readonly error = signal<string | null>(null);
   protected readonly busy = signal(false);
   protected reportIds: Record<string, string> = {};
@@ -139,9 +154,14 @@ export class AdminPreserved implements OnInit {
   protected show(p: Preserved): Promise<void> {
     return this.run(async () => {
       const copy = await firstValueFrom(
-        this.http.get<{ body: string }>(`/api/admin/preserved/${encodeURIComponent(p.letterHash)}`),
+        this.http.get<{ body: string; pages?: Page[] }>(
+          `/api/admin/preserved/${encodeURIComponent(p.letterHash)}`,
+        ),
       );
-      this.texts.update((all) => ({ ...all, [p.letterHash]: copy.body }));
+      this.texts.update((all) => ({
+        ...all,
+        [p.letterHash]: { body: copy.body, pages: copy.pages ?? [] },
+      }));
     });
   }
 

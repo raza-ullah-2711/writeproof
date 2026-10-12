@@ -49,18 +49,44 @@
         </ul>
       }
     } @else {
-      <div class="body">{{ l.body }}</div>
+      @if (l.version === 2 && l.pages) {
+        <div class="pages">
+          @for (page of l.pages; track $index; let i = $index) {
+            <app-page-view
+              [page]="page"
+              [replay]="!!l.replay"
+              [label]="pageLabel(l.body, i, l.pages.length)"
+            />
+          }
+        </div>
+        @if (l.body) {
+          <h3 class="transcript-title">Transcript, by the author</h3>
+          <div class="transcript">{{ l.body }}</div>
+        }
+      } @else {
+        <div class="body">{{ l.body }}</div>
+      }
 
       @if (checks(); as c) {
         <ul class="checks">
           <li [class.ok]="c.signatureValid">
-            {{ c.signatureValid ? '✓' : '✗' }} Signed by the author's wallet: exactly this text, at
-            this time
+            {{ c.signatureValid ? '✓' : '✗' }} Signed by the author's wallet: exactly
+            {{
+              l.version === 2
+                ? 'these pages' + (l.body ? ' and this transcript' : '')
+                : 'this text'
+            }}, at this time
           </li>
+          @if (l.version === 2) {
+            <li [class.ok]="c.signatureValid">
+              {{ c.signatureValid ? '✓' : '✗' }} Written live by a hand, page by page (checked by
+              Writeproof at publishing)
+            </li>
+          }
           <li [class.ok]="c.signatureValid">
             {{ c.signatureValid ? '✓' : '✗' }} Signed by hand (similarity
-            {{ l.handwritingScore.toFixed(2) }}, verified by Writeproof at publishing; the strokes
-            are not published)
+            {{ l.handwritingScore.toFixed(2) }}, verified by Writeproof at publishing; the
+            signature's strokes are not published)
           </li>
           <li [class.ok]="c.ledgerValid">
             {{ c.ledgerValid ? '✓' : '✗' }} In the ledger as entry #{{ l.ledger.seq }}

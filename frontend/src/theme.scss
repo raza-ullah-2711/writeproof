@@ -41,6 +41,9 @@
   --ink: #1b1f3a;
   // Brand accent: the wax seal in the logo. An accent, never text or status.
   --seal: #a8322d;
+  // Inks for handwritten pages (page-ink.ts).
+  --page-ink-blue-black: #1f2f5c;
+  --page-ink-sepia: #6b4423;
   --focus: #a8322d;
   --hover-wash: rgba(27, 31, 58, 0.05);
   --button-bg: #fffdf8;
@@ -98,6 +101,8 @@
   --critical-text: #ff8a80;
   --ink: #e6e8f5;
   --seal: #ef6b62;
+  --page-ink-blue-black: #a9bdf0;
+  --page-ink-sepia: #dcb28a;
   --focus: #ef6b62;
   --hover-wash: rgba(255, 255, 255, 0.06);
   --button-bg: #191a27;

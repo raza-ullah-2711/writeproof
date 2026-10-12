@@ -1,7 +1,12 @@
 package com.writeproof.admin;
 
+import com.fasterxml.jackson.core.JsonProcessingException;
+import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.databind.ObjectMapper;
 import com.writeproof.common.Base64Url;
 import com.writeproof.handwriting.BiometricCipher;
+import com.writeproof.openletters.HandwrittenPage;
+import com.writeproof.openletters.OpenLetterPages;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
@@ -35,7 +40,8 @@ public class PreservedContent {
     public record Summary(String letterHash, String author, String sentAt, long ledgerSeq, Instant preservedAt,
                           Instant preserveUntil, String reportId, Instant reportedAt) {}
 
-    public record Copy(Summary summary, String body, String signature) {}
+    /** {@code pages}: the letter's handwritten pages, if it had any (empty otherwise). */
+    public record Copy(Summary summary, String body, String signature, List<HandwrittenPage> pages) {}
 
     private static final Logger log = LoggerFactory.getLogger(PreservedContent.class);
 
@@ -43,12 +49,17 @@ public class PreservedContent {
     private final BiometricCipher cipher;
     private final AuditLog audit;
     private final Clock clock;
+    private final OpenLetterPages pages;
+    private final ObjectMapper json;
 
-    PreservedContent(JdbcClient jdbc, BiometricCipher cipher, AuditLog audit, Clock clock) {
+    PreservedContent(JdbcClient jdbc, BiometricCipher cipher, AuditLog audit, Clock clock, OpenLetterPages pages,
+                     ObjectMapper json) {
         this.jdbc = jdbc;
         this.cipher = cipher;
         this.audit = audit;
         this.clock = clock;
+        this.pages = pages;
+        this.json = json;
     }
 
     /** Copies the letter as it is now, before its text is removed. */
@@ -64,10 +75,13 @@ public class PreservedContent {
         }
         UUID author = (UUID) row.get("author_id");
         Instant now = clock.instant();
+        List<HandwrittenPage> letterPages = pages.of(letterHash);
+        byte[] pagesEncrypted = letterPages.isEmpty() ? null
+                : cipher.encrypt(write(letterPages), BiometricCipher.preservationPagesContext(author));
         jdbc.sql("""
                 INSERT INTO preserved_content (letter_hash, author_id, author_key, sent_at, body_encrypted, signature,
-                                               ledger_seq, preserved_at, preserve_until)
-                VALUES (:hash, :author, :key, :sentAt, :body, :signature, :seq, :at, :until)
+                                               ledger_seq, preserved_at, preserve_until, pages_encrypted)
+                VALUES (:hash, :author, :key, :sentAt, :body, :signature, :seq, :at, :until, :pages)
                 """)
                 .param("hash", letterHash).param("author", author).param("key", row.get("public_key"))
                 .param("sentAt", row.get("sent_at"))
@@ -75,6 +89,7 @@ public class PreservedContent {
                 .param("signature", row.get("signature")).param("seq", row.get("ledger_seq"))
                 .param("at", OffsetDateTime.ofInstant(now, ZoneOffset.UTC))
                 .param("until", OffsetDateTime.ofInstant(now.plus(PRESERVE), ZoneOffset.UTC))
+                .param("pages", pagesEncrypted)
                 .update();
     }
 
@@ -86,13 +101,16 @@ public class PreservedContent {
     @Transactional
     public Copy read(UUID actor, AdminRole role, byte[] letterHash) {
         Summary s = summaryOf(letterHash);
-        Map<String, Object> row = jdbc.sql("SELECT author_id, body_encrypted, signature FROM preserved_content"
-                        + " WHERE letter_hash = :hash")
+        Map<String, Object> row = jdbc.sql("SELECT author_id, body_encrypted, signature, pages_encrypted"
+                        + " FROM preserved_content WHERE letter_hash = :hash")
                 .param("hash", letterHash).query().singleRow();
-        String body = cipher.decrypt((byte[]) row.get("body_encrypted"),
-                BiometricCipher.preservationContext((UUID) row.get("author_id")));
+        UUID author = (UUID) row.get("author_id");
+        String body = cipher.decrypt((byte[]) row.get("body_encrypted"), BiometricCipher.preservationContext(author));
+        byte[] pagesEncrypted = (byte[]) row.get("pages_encrypted");
+        List<HandwrittenPage> preservedPages = pagesEncrypted == null ? List.of()
+                : read(cipher.decrypt(pagesEncrypted, BiometricCipher.preservationPagesContext(author)));
         audit.record(actor, role, "preserved.read", s.letterHash(), Map.of());
-        return new Copy(s, body, Base64Url.encode((byte[]) row.get("signature")));
+        return new Copy(s, body, Base64Url.encode((byte[]) row.get("signature")), preservedPages);
     }
 
     /** Records the report made to NCMEC (its report number), so the same-day duty is tracked. */
@@ -139,5 +157,21 @@ public class PreservedContent {
                 rs.getObject("preserved_at", OffsetDateTime.class).toInstant(),
                 rs.getObject("preserve_until", OffsetDateTime.class).toInstant(), rs.getString("report_id"),
                 reported == null ? null : reported.toInstant());
+    }
+
+    private String write(List<HandwrittenPage> value) {
+        try {
+            return json.writeValueAsString(value);
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException(e);
+        }
+    }
+
+    private List<HandwrittenPage> read(String text) {
+        try {
+            return json.readValue(text, new TypeReference<>() {});
+        } catch (JsonProcessingException e) {
+            throw new IllegalStateException("Preserved pages are unreadable", e);
+        }
     }
 }

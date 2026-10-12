@@ -53,7 +53,22 @@
           }
         </p>
       }
-      <div class="body">{{ c.body }}</div>
+      @if (c.pages?.length) {
+        <div class="pages">
+          @for (page of c.pages; track $index; let i = $index) {
+            <app-page-view
+              [page]="page"
+              [label]="'Handwritten page ' + (i + 1) + ' of ' + c.pages!.length"
+            />
+          }
+        </div>
+        @if (c.body) {
+          <p class="transcript-label">The author's transcript (compare it with the pages):</p>
+        }
+      }
+      @if (c.body || !c.pages?.length) {
+        <div class="body">{{ c.body }}</div>
+      }
     }
     @if (c.openReports > 0) {
       <p class="counts">

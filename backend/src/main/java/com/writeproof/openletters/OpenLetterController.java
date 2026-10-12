@@ -3,6 +3,7 @@ package com.writeproof.openletters;
 import com.writeproof.common.Base64Url;
 import com.writeproof.ledger.LedgerEntry;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 import jakarta.validation.Valid;
 import java.net.URI;
@@ -24,11 +25,17 @@ import org.springframework.web.bind.annotation.RestController;
 @RestController
 class OpenLetterController {
 
+    /**
+     * {@code body} is the letter, or with {@code pages} its optional transcript (may be empty).
+     * {@code replay} lets readers watch the pages being written.
+     */
     record PublishRequest(
             @NotBlank String sentAt,
-            @NotBlank String body,
+            @NotNull String body,
             @NotBlank String signature,
-            @NotBlank @Size(max = 500_000) String handwriting) {}
+            @NotBlank @Size(max = 500_000) String handwriting,
+            @Size(max = OpenLetterService.MAX_PAGES) List<HandwrittenPage> pages,
+            Boolean replay) {}
 
     record LedgerRef(long seq, String prevHash, String payloadHash, long recordedAtMillis, String entryHash) {
         static LedgerRef of(LedgerEntry e) {
@@ -43,11 +50,12 @@ class OpenLetterController {
      */
     record OpenLetterResponse(String letterHash, String author, String sentAt, String body, String signature,
                               String handwritingHash, double handwritingScore, LedgerRef ledger,
-                              OpenLetter.Removal removed) {
+                              OpenLetter.Removal removed, int version, boolean replay, List<HandwrittenPage> pages) {
         static OpenLetterResponse of(OpenLetter l) {
             return new OpenLetterResponse(Base64Url.encode(l.letterHash()), Base64Url.encode(l.authorKey()),
                     l.sentAt(), l.body(), Base64Url.encode(l.signature()), Base64Url.encode(l.handwritingHash()),
-                    Math.round(l.handwritingScore() * 1000) / 1000.0, LedgerRef.of(l.ledgerEntry()), l.removal());
+                    Math.round(l.handwritingScore() * 1000) / 1000.0, LedgerRef.of(l.ledgerEntry()), l.removal(),
+                    l.version(), l.replay(), l.removed() ? null : l.pages());
         }
     }
 
@@ -65,7 +73,8 @@ class OpenLetterController {
     ResponseEntity<OpenLetterResponse> publish(@AuthenticationPrincipal Jwt jwt,
                                                @Valid @RequestBody PublishRequest request) {
         OpenLetter letter = letters.publish(UUID.fromString(jwt.getSubject()), request.sentAt(), request.body(),
-                Base64Url.decode(request.signature()), request.handwriting());
+                Base64Url.decode(request.signature()), request.handwriting(),
+                request.pages() == null ? List.of() : request.pages(), Boolean.TRUE.equals(request.replay()));
         String hash = Base64Url.encode(letter.letterHash());
         return ResponseEntity.created(URI.create("/api/open-letters/" + hash)).body(OpenLetterResponse.of(letter));
     }

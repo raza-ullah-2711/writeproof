@@ -153,4 +153,39 @@ describe('OpenLettersPage', () => {
 
     expect(service.appeal).toHaveBeenCalledWith('hash-1', 'It was not spam');
   });
+
+  it('publishes handwritten pages with the pen, an optional transcript and the replay choice', async () => {
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+    button(el, 'Write it by hand').click();
+    await fixture.whenStable();
+
+    expect(el.querySelector('textarea[name=body]')).toBeNull();
+    const nib = el.querySelector<HTMLSelectElement>('select[name=nib]')!;
+    nib.value = 'brush';
+    nib.dispatchEvent(new Event('change'));
+    scribble(el.querySelector('.page-pad canvas')!);
+    button(el, '+ Add page').click();
+    await fixture.whenStable();
+    expect(el.querySelectorAll('.page-tabs [role=tab]')).toHaveLength(2);
+    scribble(el.querySelectorAll<HTMLCanvasElement>('.page-pad canvas')[1], 1000);
+    el.querySelector<HTMLInputElement>('input[name=replay]')!.click();
+    scribble(el.querySelector('.sign canvas')!, 5000);
+    el.querySelector<HTMLInputElement>('input[name=understood]')!.click();
+    await fixture.whenStable();
+
+    button(el, 'Sign and publish').click();
+    await vi.waitFor(() => expect(service.publish).toHaveBeenCalled());
+
+    const [body, signature, handwritten] = service.publish.mock.calls[0];
+    expect(body).toBe('');
+    expect(signature).toMatchObject({ format: 'writeproof.handwriting' });
+    expect(handwritten.replay).toBe(true);
+    expect(handwritten.pages).toHaveLength(2);
+    expect(handwritten.pages[0]).toMatchObject({
+      format: 'writeproof.page',
+      pen: { nib: 'brush', ink: 'ink' },
+    });
+    expect(handwritten.pages[0].timing[0][0]).toBe(0);
+  });
 });
