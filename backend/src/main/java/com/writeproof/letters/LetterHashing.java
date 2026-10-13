@@ -3,6 +3,8 @@ package com.writeproof.letters;
 import com.writeproof.common.Base64Url;
 import com.writeproof.ledger.LedgerHashing;
 import java.nio.charset.StandardCharsets;
+import java.util.List;
+import java.util.StringJoiner;
 
 /**
  * Canonical letter bytes, mirrored by the frontend's {@code letter-format.ts} and pinned by a
@@ -26,6 +28,11 @@ public final class LetterHashing {
     public static final String DOMAIN_V2 = "writeproof/letter/v2";
     /** Replies: a v2 header that also commits to the hash of the letter being answered. */
     public static final String DOMAIN_V3 = "writeproof/letter/v3";
+    /**
+     * Letters with handwritten pages (Task 14b): also commits to each page's ink hash, in order.
+     * Covers replies too: the reply line is empty for a letter that starts a thread.
+     */
+    public static final String DOMAIN_V4 = "writeproof/letter/v4";
     public static final String SIGNATURE_DOMAIN = "writeproof/letter-signature/v1";
 
     private LetterHashing() {}
@@ -43,6 +50,15 @@ public final class LetterHashing {
                                   byte[] inReplyTo) {
         return DOMAIN_V3 + "\n" + Base64Url.encode(senderKey) + "\n" + Base64Url.encode(recipientKey) + "\n" + sentAt
                 + "\n" + Base64Url.encode(handwritingHash) + "\n" + Base64Url.encode(inReplyTo);
+    }
+
+    public static String headerV4(byte[] senderKey, byte[] recipientKey, String sentAt, byte[] handwritingHash,
+                                  byte[] inReplyTo, List<byte[]> pageInkHashes) {
+        StringJoiner pages = new StringJoiner(",");
+        pageInkHashes.forEach(h -> pages.add(Base64Url.encode(h)));
+        return DOMAIN_V4 + "\n" + Base64Url.encode(senderKey) + "\n" + Base64Url.encode(recipientKey) + "\n" + sentAt
+                + "\n" + Base64Url.encode(handwritingHash) + "\n" + (inReplyTo == null ? "" : Base64Url.encode(inReplyTo))
+                + "\n" + pages;
     }
 
     /** SHA-256 of the exact handwriting JSON as sent (and as sealed inside the letter). */

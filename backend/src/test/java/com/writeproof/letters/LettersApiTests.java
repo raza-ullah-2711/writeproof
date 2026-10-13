@@ -146,6 +146,36 @@ class LettersApiTests {
         return body;
     }
 
+    /** A letter with handwritten pages sealed inside: the v4 header commits to their ink hashes. */
+    private Map<String, Object> signedWithPages(LetterEnvelope envelope, List<byte[]> inkHashes) throws Exception {
+        String sentAt = now();
+        String handwriting = aliceSignsNow();
+        String header = LetterHashing.headerV4(alice.publicKey, bob.publicKey, sentAt,
+                LetterHashing.handwritingHash(handwriting), null, inkHashes);
+        byte[] signature = TestWallet.sign(alice.identity.getPrivate(),
+                LetterHashing.signedMessage(LetterHashing.letterHash(header, envelope)));
+        Map<String, Object> body = new HashMap<>();
+        body.put("recipientPublicKey", Base64Url.encode(bob.publicKey));
+        body.put("sentAt", sentAt);
+        body.put("envelope", envelope);
+        body.put("signature", Base64Url.encode(signature));
+        body.put("handwriting", handwriting);
+        body.put("pageInkHashes", inkHashes.stream().map(Base64Url::encode).toList());
+        return body;
+    }
+
+    private LetterEnvelope envelopeOf(int ciphertextBytes) {
+        return new LetterEnvelope(1, b64(12), b64(ciphertextBytes),
+                new LetterEnvelope.WrappedKey(b64(32), b64(12), b64(48)),
+                new LetterEnvelope.WrappedKey(b64(32), b64(12), b64(48)));
+    }
+
+    private byte[] randomHash() {
+        byte[] h = new byte[32];
+        random.nextBytes(h);
+        return h;
+    }
+
     private Map<String, Object> aliceToBob() throws Exception {
         return signedLetter(alice, bob, now(), envelope(), aliceSignsNow());
     }
@@ -189,6 +219,34 @@ class LettersApiTests {
         String row = jdbc.sql("SELECT row_to_json(l)::text FROM letters l WHERE id = CAST(:id AS uuid)")
                 .param("id", letter.get("letterId")).query(String.class).single();
         assertThat(row).contains(envelope.ciphertext()).doesNotContain("strokes");
+    }
+
+    @Test
+    void aLetterWithSealedPagesCommitsToTheirInkHashesAndAPageSealsOnlyOneLetter() throws Exception {
+        byte[] page1 = randomHash();
+        byte[] page2 = randomHash();
+        // Pages make a letter bigger than a typed one may be.
+        ResponseEntity<Map> sent = send(alice, signedWithPages(envelopeOf(300_000), List.of(page1, page2)));
+        assertThat(sent.getStatusCode()).isEqualTo(HttpStatus.CREATED);
+        assertThat((List<String>) sent.getBody().get("pageInkHashes"))
+                .containsExactly(Base64Url.encode(page1), Base64Url.encode(page2));
+        List<Map<String, Object>> inbox = list(bob, "inbox").getBody();
+        assertThat(inbox.getFirst()).containsEntry("pageInkHashes",
+                List.of(Base64Url.encode(page1), Base64Url.encode(page2)));
+
+        assertThat(send(alice, signedWithPages(envelope(), List.of(page2))).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+        byte[] fresh = randomHash();
+        assertThat(send(alice, signedWithPages(envelope(), List.of(fresh, fresh))).getStatusCode())
+                .isEqualTo(HttpStatus.CONFLICT);
+        // A typed letter keeps the small limit, and v4 needs its hashes signed.
+        assertThat(send(alice, signedLetter(alice, bob, now(), envelopeOf(300_000), aliceSignsNow()))
+                .getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
+        Map<String, Object> unsigned = signedWithPages(envelope(), List.of(randomHash()));
+        unsigned.put("pageInkHashes", List.of(Base64Url.encode(randomHash())));
+        assertThat(send(alice, unsigned).getStatusCode()).isEqualTo(HttpStatus.UNPROCESSABLE_ENTITY);
+        List<byte[]> five = List.of(randomHash(), randomHash(), randomHash(), randomHash(), randomHash());
+        assertThat(send(alice, signedWithPages(envelope(), five)).getStatusCode()).isEqualTo(HttpStatus.BAD_REQUEST);
     }
 
     @Test

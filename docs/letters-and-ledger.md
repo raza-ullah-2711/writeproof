@@ -54,7 +54,9 @@ Every letter is signed twice: by the sender's wallet and by their hand.
 
 Letters sent before hand-signing (v1: header `writeproof/letter/v1` without the handwriting
 hash) are still readable and verifiable. New letters must be v2, or v3 for replies (v2 plus the
-hash of the letter answered; see [threads.md](threads.md)).
+hash of the letter answered; see [threads.md](threads.md)), or v4 for letters written by hand
+(handwritten pages sealed inside, their ink hashes in the header; see
+[handwritten-pages.md](handwritten-pages.md#sealed-letters-14b)).
 
 ## Reading and verifying (recipient or sender)
 

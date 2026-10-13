@@ -11,6 +11,9 @@ import { TestMerkleTree } from '../../testing/merkle-tree';
 import { fromBase64Url, toBase64Url } from '../crypto/base64url';
 import { verifyEd25519 } from '../crypto/ed25519';
 import { HandwritingSample } from '../handwriting/handwriting-sample';
+import livePage from '../../testing/liveness/live-page.json';
+import scriptedPage from '../../testing/liveness/scripted-page.json';
+import { Page, inkHash } from '../pages/page-format';
 import { WalletService } from '../wallet/wallet.service';
 import { Checkpoint, checkpointMessage } from './checkpoint';
 import { GENESIS_PREV_HASH, LedgerEntry, entryHash } from './ledger-verify';
@@ -21,6 +24,7 @@ import {
   letterHash,
   letterHeaderV2,
   letterHeaderV3,
+  letterHeaderV4,
   letterSignedMessage,
 } from './letter-format';
 import { Letter, LettersService, checkThread } from './letters.service';
@@ -296,6 +300,8 @@ describe('LettersService', () => {
       ledgerValid: true,
       ledgerProblem: null,
       ledgerCheckpointSize: 5,
+      pages: null,
+      pageChecks: null,
     });
     expect(ledger.requests).toEqual(['/api/ledger/key', '/api/ledger/proof/inclusion?seq=3']);
   });
@@ -499,6 +505,91 @@ describe('LettersService', () => {
     await expect(letters.send(bob.publicKey, 'x'.repeat(10_001), SIGNATURE)).rejects.toThrow(
       /1 to/,
     );
+  });
+
+  describe('handwritten pages sealed inside (v4)', () => {
+    /** Sends pages to Bob, playing the server; returns what the server stored. */
+    async function sendPagesToBob(pages: Page[]): Promise<Letter> {
+      const sending = letters.send(bob.publicKey, '', SIGNATURE, undefined, pages);
+      (await nextRequest(http, `/api/accounts/by-key/${bob.publicKey}`)).flush(bob.account);
+      const post = await nextRequest(http, '/api/letters');
+      const { sentAt, envelope, signature, handwriting, pageInkHashes } = post.request.body;
+      expect(pageInkHashes).toEqual(await Promise.all(pages.map((p) => inkHash(p))));
+      expect(JSON.stringify(post.request.body)).not.toContain('"ink"'); // the pages are sealed
+      const hwHash = await handwritingHash(handwriting);
+      const header = letterHeaderV4(
+        wallet.publicKey()!,
+        bob.publicKey,
+        sentAt,
+        hwHash,
+        null,
+        pageInkHashes,
+      );
+      const hash = toBase64Url(await letterHash(header, envelope));
+      const stored: Letter = {
+        letterId: 'l4',
+        sender: { accountId: 'alice', publicKey: wallet.publicKey()! },
+        recipient: { accountId: 'bob', publicKey: bob.publicKey },
+        sentAt,
+        envelope,
+        signature,
+        letterHash: hash,
+        ledger: await ledgerFor(hash),
+        handwritingHash: hwHash,
+        handwritingScore: 0.9,
+        inReplyTo: null,
+        threadId: hash,
+        pageInkHashes,
+      };
+      post.flush(stored);
+      await sending;
+      return stored;
+    }
+
+    const fresh = (page: unknown): Page => ({
+      ...(page as Page),
+      capturedAt: new Date().toISOString(),
+    });
+
+    it('seals the pages and checks them in the browser: they match, and which look written live', async () => {
+      const pages = [fresh(livePage), fresh(scriptedPage)];
+      const letter = await sendPagesToBob(pages);
+
+      const opened = await openWithLedger(letter);
+
+      expect(opened.signatureValid).toBe(true);
+      expect(opened.decrypted).toBe(true);
+      expect(opened.pages).toEqual(pages);
+      expect(opened.pageChecks!.map((c) => c.matches)).toEqual([true, true]);
+      expect(opened.pageChecks!.map((c) => c.fresh)).toEqual([true, true]);
+      expect(opened.pageChecks![0].liveness.flags).toEqual([]);
+      expect(opened.pageChecks![1].liveness.flags).toEqual([
+        'CONSTANT_VELOCITY',
+        'CONSTANT_PRESSURE',
+      ]);
+    });
+
+    it('flags pages that do not match the signed ink hashes, or were written long before', async () => {
+      const old = { ...(livePage as Page), capturedAt: '2020-01-01T00:00:00.000Z' };
+      const letter = await sendPagesToBob([old]);
+
+      const swapped = await openWithLedger({
+        ...letter,
+        pageInkHashes: [await inkHash(scriptedPage as Page)],
+      });
+      expect(swapped.signatureValid).toBe(false);
+      expect(swapped.pageChecks![0].matches).toBe(false);
+      const opened = await openWithLedger(letter);
+      expect(opened.pageChecks![0].matches).toBe(true);
+      expect(opened.pageChecks![0].fresh).toBe(false);
+    });
+
+    it('refuses more than four pages before contacting the server', async () => {
+      const page = fresh(livePage);
+      await expect(
+        letters.send(bob.publicKey, '', SIGNATURE, undefined, [page, page, page, page, page]),
+      ).rejects.toThrow('at most 4 pages');
+    });
   });
 });
 

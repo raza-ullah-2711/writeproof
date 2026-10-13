@@ -50,17 +50,49 @@
           }
         </p>
       }
-      <label>
-        Letter
-        <textarea
-          class="writing-paper"
-          name="body"
-          [(ngModel)]="body"
-          rows="5"
-          [maxlength]="maxLength"
-          required
-        ></textarea>
-      </label>
+      <div class="mode" role="radiogroup" aria-label="How to write it">
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="mode() === 'typed'"
+          [class.on]="mode() === 'typed'"
+          (click)="mode.set('typed')"
+        >
+          Type it
+        </button>
+        <button
+          type="button"
+          role="radio"
+          [attr.aria-checked]="mode() === 'handwritten'"
+          [class.on]="mode() === 'handwritten'"
+          (click)="mode.set('handwritten')"
+        >
+          Write it by hand
+        </button>
+      </div>
+      @if (mode() === 'typed') {
+        <label>
+          Letter
+          <textarea
+            class="writing-paper"
+            name="body"
+            [(ngModel)]="body"
+            rows="5"
+            [maxlength]="maxLength"
+            required
+          ></textarea>
+        </label>
+      } @else {
+        <app-page-composer [disabled]="busy()" />
+        <label>
+          A typed note to go with it (optional)
+          <textarea name="note" [(ngModel)]="body" rows="2" [maxlength]="maxLength"></textarea>
+        </label>
+        <p class="seal-note">
+          The pages are sealed with the letter: only you and the recipient can see them, and their
+          browser checks they were written live. The recipient can watch them being written.
+        </p>
+      }
       @if (enrolled() === false) {
         <p class="error">
           Letters are signed by hand. <a routerLink="/handwriting">Enrol your handwriting</a> first.
@@ -68,7 +100,7 @@
       } @else {
         <div class="sign">
           <span>Sign by hand</span>
-          <app-handwriting-pad [height]="200" />
+          <app-handwriting-pad #signaturePad [height]="200" />
           <button type="button" (click)="pad()?.clear()" [disabled]="busy() || pad()?.empty()">
             Clear signature
           </button>
@@ -85,7 +117,7 @@
           busy() ||
           !system.status().sendingEnabled ||
           !recipient.trim() ||
-          !body.trim() ||
+          (mode() === 'typed' ? !body.trim() : !composer()?.hasWriting()) ||
           enrolled() !== true ||
           pad()?.empty()
         "
@@ -220,7 +252,18 @@
     } @else if (state === 'opening') {
       <p>Verifying&hellip;</p>
     } @else if (asOpened(state); as o) {
-      @if (o.body !== null) {
+      @if (o.pages; as pages) {
+        <div class="pages">
+          @for (page of pages; track $index; let i = $index) {
+            <app-page-view
+              [page]="page"
+              [replay]="true"
+              [label]="pageLabel(o.body, i, pages.length)"
+            />
+          }
+        </div>
+      }
+      @if (o.body) {
         <blockquote class="body">{{ o.body }}</blockquote>
       }
       @if (o.handwriting; as signature) {
@@ -245,6 +288,21 @@
           }
         </li>
         <li [class.ok]="o.decrypted">{{ o.decrypted ? '✓' : '✗' }} Sealed for you, unaltered</li>
+        @if (o.pageChecks; as checks) {
+          @let matches = pagesMatch(checks);
+          <li [class.ok]="matches">
+            {{ matches ? '✓' : '✗' }} Exactly the {{ checks.length }}
+            {{ checks.length === 1 ? 'page' : 'pages' }} the sender signed
+          </li>
+          @let live = pagesLive(checks);
+          <li [class.ok]="live">
+            {{ live ? '✓' : '✗' }} Written live by a hand, shortly before sending (checked by your
+            browser)
+            @if (!live) {
+              <span class="problem">{{ pageProblem(checks) }}</span>
+            }
+          </li>
+        }
         <li [class.ok]="o.ledgerValid">
           {{ o.ledgerValid ? '✓' : '✗' }} In the ledger as entry #{{ letter.ledger.seq }}
           @if (o.ledgerCheckpointSize !== null) {

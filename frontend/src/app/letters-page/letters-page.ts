@@ -13,11 +13,14 @@ import {
 import { HandwritingPad } from '../handwriting/handwriting-pad';
 import { HandwritingSample } from '../handwriting/handwriting-sample';
 import { SignatureView } from '../handwriting/signature-view';
+import { PageComposer } from '../pages/page-composer';
+import { PageView } from '../pages/page-view';
 import {
   Letter,
   LettersService,
   MAX_BODY_LENGTH,
   OpenedLetter,
+  PageCheck,
   ThreadSummary,
   checkThread,
 } from '../letters/letters.service';
@@ -36,7 +39,15 @@ interface Conversation {
 
 @Component({
   selector: 'app-letters-page',
-  imports: [FormsModule, NgTemplateOutlet, RouterLink, HandwritingPad, SignatureView],
+  imports: [
+    FormsModule,
+    NgTemplateOutlet,
+    RouterLink,
+    HandwritingPad,
+    SignatureView,
+    PageComposer,
+    PageView,
+  ],
   templateUrl: './letters-page.html',
   styleUrl: './letters-page.scss',
 })
@@ -48,7 +59,11 @@ export class LettersPage {
   protected readonly contacts = inject(ContactsService);
   protected readonly system = inject(SystemStatusService);
 
-  protected readonly pad = viewChild(HandwritingPad);
+  /** The signature that seals the letter. */
+  protected readonly pad = viewChild('signaturePad', { read: HandwritingPad });
+  /** Writing the letter itself by hand (docs/handwritten-pages.md). */
+  protected readonly composer = viewChild(PageComposer);
+  protected readonly mode = signal<'typed' | 'handwritten'>('typed');
   /** Null while unknown; sending needs enrolled handwriting. */
   protected readonly enrolled = signal<boolean | null>(null);
 
@@ -211,8 +226,16 @@ export class LettersPage {
   private async sendSigned(signature: HandwritingSample): Promise<void> {
     const to = this.recipient.trim();
     const parent = this.replyTo() ?? undefined;
-    const letter = await this.letters.send(to, this.body, signature, parent);
+    const handwritten = this.mode() === 'handwritten';
+    const pages = handwritten ? (this.composer()?.pages() ?? []) : [];
+    if (handwritten && pages.length === 0) {
+      throw new Error('Write on at least one page first.');
+    }
+    const letter = await this.letters.send(to, this.body, signature, parent, pages);
     this.body = '';
+    if (handwritten) {
+      this.composer()?.reset();
+    }
     this.replyTo.set(null);
     const name = this.petname(to);
     this.notice.set(
@@ -227,6 +250,35 @@ export class LettersPage {
     } else {
       this.box.set('sent');
     }
+  }
+
+  /** A page's text alternative: the sender's typed note when there is one. */
+  protected pageLabel(note: string | null, index: number, count: number): string {
+    const which = `Handwritten page ${index + 1} of ${count}`;
+    return note ? `${which}. The sender's typed note: ${note}` : `${which}`;
+  }
+
+  protected pagesMatch(checks: readonly PageCheck[]): boolean {
+    return checks.every((c) => c.matches);
+  }
+
+  protected pagesLive(checks: readonly PageCheck[]): boolean {
+    return checks.every((c) => c.fresh && c.liveness.flags.length === 0);
+  }
+
+  /** Why the pages failed the live-writing check, for the first page that did. */
+  protected pageProblem(checks: readonly PageCheck[]): string {
+    const i = checks.findIndex((c) => !c.fresh || c.liveness.flags.length > 0);
+    const c = checks[i];
+    if (!c) {
+      return '';
+    }
+    if (!c.fresh) {
+      return `Page ${i + 1} wasn't written shortly before the letter was sent.`;
+    }
+    return c.liveness.flags.includes('INSUFFICIENT_INPUT')
+      ? `Page ${i + 1} has too little writing to judge.`
+      : `Page ${i + 1} doesn't look written live by a hand (${c.liveness.flags.join(', ')}).`;
   }
 
   protected async open(letter: Letter): Promise<void> {

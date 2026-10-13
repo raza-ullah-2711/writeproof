@@ -1,4 +1,4 @@
-import { DatePipe, DecimalPipe } from '@angular/common';
+import { DatePipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
 import {
   Component,
@@ -18,19 +18,7 @@ import {
   describeRejection,
 } from '../handwriting/handwriting-api';
 import { HandwritingPad } from '../handwriting/handwriting-pad';
-import { HandwritingSample, pointCount } from '../handwriting/handwriting-sample';
-import {
-  INKS,
-  InkName,
-  MAX_PAGES,
-  MAX_PAGE_POINTS,
-  NIBS,
-  Nib,
-  PAGE_HEIGHT,
-  PAGE_WIDTH,
-  Pen,
-  pageFromSample,
-} from '../pages/page-format';
+import { PageComposer } from '../pages/page-composer';
 import {
   MAX_OPEN_LETTER_LENGTH,
   OpenLetter,
@@ -41,7 +29,7 @@ import { SystemStatusService } from '../system/system-status.service';
 
 @Component({
   selector: 'app-open-letters-page',
-  imports: [DatePipe, DecimalPipe, FormsModule, RouterLink, HandwritingPad],
+  imports: [DatePipe, FormsModule, RouterLink, HandwritingPad, PageComposer],
   templateUrl: './open-letters-page.html',
   styleUrl: './open-letters-page.scss',
 })
@@ -53,27 +41,9 @@ export class OpenLettersPage {
 
   /** The signature that seals the letter. */
   protected readonly pad = viewChild('signaturePad', { read: HandwritingPad });
-  /** Handwritten pages, in order (docs/handwritten-pages.md). */
-  protected readonly pagePads = viewChildren('pagePad', { read: HandwritingPad });
+  /** Writing the letter by hand (docs/handwritten-pages.md). */
+  protected readonly composer = viewChild(PageComposer);
   protected readonly mode = signal<'typed' | 'handwritten'>('typed');
-  protected readonly nibs = NIBS;
-  protected readonly inks = INKS;
-  protected readonly nib = signal<Nib>('fountain');
-  protected readonly ink = signal<InkName>('ink');
-  protected readonly pen = computed<Pen>(() => ({ nib: this.nib(), ink: this.ink() }));
-  private nextPageId = 1;
-  protected readonly pageIds = signal<number[]>([0]);
-  protected readonly current = signal(0);
-  protected readonly currentPad = computed(() => this.pagePads()[this.current()]);
-  private readonly points = signal<Record<number, number>>({});
-  protected readonly currentPoints = computed(
-    () => this.points()[this.pageIds()[this.current()]] ?? 0,
-  );
-  protected readonly hasWriting = computed(() => this.pagePads().some((p) => !p.empty()));
-  protected readonly maxPages = MAX_PAGES;
-  protected readonly maxPoints = MAX_PAGE_POINTS;
-  protected readonly pageWidth = PAGE_WIDTH;
-  protected readonly pageHeight = PAGE_HEIGHT;
   /** Readers may watch the pages being written: the author's choice, off by default. */
   protected replay = false;
   protected readonly enrolled = signal<boolean | null>(null);
@@ -111,31 +81,6 @@ export class OpenLettersPage {
     this.copied.set(letter.letterHash);
   }
 
-  protected addPage(): void {
-    if (this.pageIds().length >= MAX_PAGES) {
-      return;
-    }
-    this.pageIds.update((ids) => [...ids, this.nextPageId++]);
-    this.current.set(this.pageIds().length - 1);
-  }
-
-  protected removePage(): void {
-    const index = this.current();
-    const id = this.pageIds()[index];
-    this.pageIds.update((ids) => ids.filter((i) => i !== id));
-    this.points.update(({ [id]: _, ...rest }) => rest);
-    this.current.set(Math.max(0, index - 1));
-  }
-
-  protected clearPage(): void {
-    this.currentPad()?.clear();
-    this.points.update((all) => ({ ...all, [this.pageIds()[this.current()]]: 0 }));
-  }
-
-  protected countPoints(id: number, sample: HandwritingSample): void {
-    this.points.update((all) => ({ ...all, [id]: pointCount(sample) }));
-  }
-
   protected publish(): Promise<void> {
     const signature = this.pad()?.sample();
     if (!signature) {
@@ -143,12 +88,7 @@ export class OpenLettersPage {
       return Promise.resolve();
     }
     const handwritten = this.mode() === 'handwritten';
-    const pages = handwritten
-      ? this.pagePads()
-          .map((p) => p.sample())
-          .filter((s): s is HandwritingSample => s !== null)
-          .map((s) => pageFromSample(s, this.pen()))
-      : [];
+    const pages = handwritten ? (this.composer()?.pages() ?? []) : [];
     if (handwritten && pages.length === 0) {
       this.error.set('Write on at least one page first.');
       return Promise.resolve();
@@ -163,10 +103,7 @@ export class OpenLettersPage {
         this.understood = false;
         this.replay = false;
         if (handwritten) {
-          this.pagePads().forEach((p) => p.clear());
-          this.pageIds.set([this.nextPageId++]);
-          this.current.set(0);
-          this.points.set({});
+          this.composer()?.reset();
         }
         await this.loadMine();
       } finally {

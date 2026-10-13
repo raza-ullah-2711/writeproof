@@ -1,4 +1,5 @@
 import { fromBase64Url, toBase64Url } from '../crypto/base64url';
+import { Page } from '../pages/page-format';
 import {
   LetterEnvelope,
   WrappedKey,
@@ -7,6 +8,7 @@ import {
   letterHeader,
   letterHeaderV2,
   letterHeaderV3,
+  letterHeaderV4,
 } from './letter-format';
 
 /**
@@ -22,6 +24,8 @@ export interface LetterPlaintext {
   body: string;
   /** The handwriting sample JSON that signed the letter (v2 letters). */
   handwriting?: string;
+  /** Handwritten pages, with their timing (v4 letters): only the two readers ever see them. */
+  pages?: Page[];
 }
 
 export interface SealInput {
@@ -38,6 +42,8 @@ export interface SealInput {
   handwriting?: string;
   /** For a reply: the hash of the letter it answers, committed to by the v3 header. */
   inReplyTo?: string;
+  /** Handwritten pages to seal inside, with their ink hashes in order (a v4 header). */
+  pages?: { pages: Page[]; inkHashes: string[] };
 }
 
 export interface Sealed {
@@ -53,29 +59,45 @@ export async function sealLetter(input: SealInput): Promise<Sealed> {
   if (input.inReplyTo !== undefined && input.handwriting === undefined) {
     throw new Error('A reply must be hand-signed');
   }
+  if (input.pages && input.handwriting === undefined) {
+    throw new Error('A letter with pages must be hand-signed');
+  }
   const header =
     input.handwriting === undefined
       ? letterHeader(input.senderKey, input.recipientKey, input.sentAt)
-      : input.inReplyTo === undefined
-        ? letterHeaderV2(
+      : input.pages && input.pages.pages.length > 0
+        ? letterHeaderV4(
             input.senderKey,
             input.recipientKey,
             input.sentAt,
             await handwritingHash(input.handwriting),
+            input.inReplyTo ?? null,
+            input.pages.inkHashes,
           )
-        : letterHeaderV3(
-            input.senderKey,
-            input.recipientKey,
-            input.sentAt,
-            await handwritingHash(input.handwriting),
-            input.inReplyTo,
-          );
+        : input.inReplyTo === undefined
+          ? letterHeaderV2(
+              input.senderKey,
+              input.recipientKey,
+              input.sentAt,
+              await handwritingHash(input.handwriting),
+            )
+          : letterHeaderV3(
+              input.senderKey,
+              input.recipientKey,
+              input.sentAt,
+              await handwritingHash(input.handwriting),
+              input.inReplyTo,
+            );
   const aad = utf8(header);
   const contentKey = crypto.getRandomValues(new Uint8Array(32));
   const iv = crypto.getRandomValues(new Uint8Array(12));
   const bodyKey = await crypto.subtle.importKey('raw', contentKey, 'AES-GCM', false, ['encrypt']);
   const plaintext = utf8(
-    JSON.stringify({ body: input.body, handwriting: input.handwriting } satisfies LetterPlaintext),
+    JSON.stringify({
+      body: input.body,
+      handwriting: input.handwriting,
+      ...(input.pages?.pages.length ? { pages: input.pages.pages } : {}),
+    } satisfies LetterPlaintext),
   );
   const ciphertext = await crypto.subtle.encrypt(
     { name: 'AES-GCM', iv, additionalData: aad },
@@ -123,7 +145,8 @@ export async function openLetter(
   const letter = parsed as LetterPlaintext;
   if (
     typeof letter?.body !== 'string' ||
-    (letter.handwriting !== undefined && typeof letter.handwriting !== 'string')
+    (letter.handwriting !== undefined && typeof letter.handwriting !== 'string') ||
+    (letter.pages !== undefined && !Array.isArray(letter.pages))
   ) {
     throw new Error('Malformed letter body');
   }

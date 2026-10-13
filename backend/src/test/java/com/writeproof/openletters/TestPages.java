@@ -31,8 +31,9 @@ public final class TestPages {
                 long pt = 0;
                 for (int i = 0; i < stroke.size(); i++) {
                     StrokePoint p = stroke.get(i);
-                    int x = (int) Math.round(p.x() * 10);
-                    int y = (int) Math.round((p.y() + l * LINE_HEIGHT) * 10);
+                    // Kept on the sheet, as the browser does: a random sample can stray off its edge.
+                    int x = Math.clamp(Math.round(p.x() * 10), 0, HandwrittenPage.WIDTH * 10);
+                    int y = Math.clamp(Math.round((p.y() + l * LINE_HEIGHT) * 10), 0, HandwrittenPage.HEIGHT * 10);
                     int pr = (int) Math.round(p.pressure() * 255);
                     long t = offset + Math.round(p.t());
                     in[i * 3] = i == 0 ? x : x - px;

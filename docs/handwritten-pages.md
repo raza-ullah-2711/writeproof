@@ -1,6 +1,6 @@
 # Handwritten pages (Task 14)
 
-**Status: 14a built** (open letters with handwritten pages). 14b and 14c are next.
+**Status: 14a and 14b built** (open and sealed letters with handwritten pages). 14c is next.
 
 Today a letter is typed, and only its signature is written by hand; the signature strokes are
 never published. This task lets people **write the letter itself by hand** and share it: stories,
@@ -172,11 +172,40 @@ the same blanking exception for removed letters.
    - server checks;
    - writing UI with pens, and reader rendering with replay;
    - moderation, takedown and preservation.
-2. **14b — Sealed letters with pages.** The same pages go inside the letter's ciphertext. The
-   recipient can always replay, since only they can read it.
+2. **14b — Sealed letters with pages** (built; see below). The same pages go inside the
+   letter's ciphertext. The recipient can always replay, since only they can read it.
 3. **14c — Family archive.** Photos of old paper letters, labelled as archived copies (provably
    unchanged since added, not provably handwritten by the person named). This needs its own
    decisions: image storage, stripping metadata, scanning for known abuse images.
+
+## Sealed letters (14b)
+
+A sealed letter's pages are its private content, so **the server never sees them** (architecture
+rule 6). That moves the "written live" check to the one place that can see the pages: the
+recipient's browser.
+
+- **Sealed inside.** The plaintext becomes `{"body", "handwriting", "pages"}`. Pages keep their
+  timing, so the recipient (and the sender, re-reading) can always replay them. The body is an
+  optional typed note. The envelope may hold up to 2.5 MiB of ciphertext when there are pages
+  (64 KiB otherwise).
+- **The v4 header** (`writeproof/letter/v4`) is v2 plus the letter answered (an empty line if
+  none) and each page's ink hash, comma-separated, in order. The wallet signs it as usual.
+  Shared test vector: `FormatVectorsTest.pagesHeader` and `letter-format.spec.ts`.
+- **The server** knows only those ink hashes. It stores them in `letter_pages` (migration V22,
+  append-only) and refuses a page that already sealed any letter, sealed or open (409). The
+  hashes reveal nothing about the ink.
+- **The recipient's browser checks**, shown under the letter:
+  - "Exactly the pages the sender signed": each decrypted page hashes to the signed ink hash, in
+    order, and there are as many pages as hashes.
+  - "Written live by a hand, shortly before sending (checked by your browser)": each page was
+    started no more than 12 hours before the letter's time (and not after it), and passes the
+    liveness heuristics.
+- **One set of heuristics.** `pages/liveness.ts` ports the server's `LivenessChecker` (with the
+  feature extraction it needs) line for line. Both are pinned to the same two fixture pages and
+  the same numbers (`LivenessFixturesTest`, `liveness.spec.ts`), so the browser judges a page
+  exactly as the server judges an open letter's.
+- **Writing** uses the same page editor as open letters (`PageComposer`), behind the same
+  "Type it / Write it by hand" switch.
 
 ## Test plan (14a)
 

@@ -63,6 +63,8 @@ function opened(overrides: Partial<OpenedLetter> = {}): OpenedLetter {
     ledgerValid: true,
     ledgerProblem: null,
     ledgerCheckpointSize: 12,
+    pages: null,
+    pageChecks: null,
     ...overrides,
   };
 }
@@ -356,6 +358,37 @@ describe('LettersPage', () => {
     await vi.waitFor(() => expect(service.sent).toHaveBeenCalled());
   });
 
+  it('sends a letter written by hand: its pages go to the sealing service with the signature', async () => {
+    service.send.mockResolvedValue({
+      ...letter('out-2'),
+      ledger: { ...letter('x').ledger, seq: 10 },
+    });
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+    const recipient = el.querySelector<HTMLInputElement>('input[name=recipient]')!;
+    recipient.value = BOB;
+    recipient.dispatchEvent(new Event('input'));
+    button(el, 'Write it by hand').click();
+    await fixture.whenStable();
+    expect(button(el, 'Seal and send').disabled).toBe(true); // nothing written yet
+
+    scribble(el.querySelector('app-page-composer canvas')!);
+    scribble(el.querySelector('.sign canvas')!, 2000);
+    await fixture.whenStable();
+    button(el, 'Seal and send').click();
+    await settle(fixture, (e) => !!e.querySelector('.notice'));
+
+    const [to, body, signature, parent, pages] = service.send.mock.calls[0];
+    expect([to, body, parent]).toEqual([BOB, '', undefined]);
+    expect(signature).toMatchObject({ format: 'writeproof.handwriting' });
+    expect(pages).toHaveLength(1);
+    expect(pages[0]).toMatchObject({
+      format: 'writeproof.page',
+      pen: { nib: 'fountain', ink: 'ink' },
+    });
+    expect(pages[0].timing).toBeDefined(); // sealed with its timing: the recipient can replay it
+  });
+
   it('explains a rejected hand signature and asks for a fresh one', async () => {
     service.send.mockRejectedValue(
       new HttpErrorResponse({
@@ -401,6 +434,45 @@ describe('LettersPage', () => {
 
     expect(el.querySelector('[role=alert]')?.textContent).toBe(
       "Your signature didn't match your enrolled handwriting.",
+    );
+  });
+
+  it('opens a letter written by hand: its pages, replayable, and what this browser checked', async () => {
+    const page = {
+      format: 'writeproof.page' as const,
+      version: 1 as const,
+      capturedAt: '2026-10-13T09:12:44.120Z',
+      device: 'pen' as const,
+      pen: { nib: 'brush' as const, ink: 'sepia' as const },
+      ink: [[1000, 2000, 128, 50, -30, 2]],
+      timing: [[0, 8]],
+    };
+    const liveness = { durationMs: 800, pointCount: 40, speedCv: 0.5 };
+    service.open.mockResolvedValue(
+      opened({
+        body: '',
+        pages: [page, page],
+        pageChecks: [
+          { matches: true, fresh: true, liveness: { ...liveness, flags: [] } },
+          { matches: true, fresh: true, liveness: { ...liveness, flags: ['CONSTANT_VELOCITY'] } },
+        ],
+      }),
+    );
+    const fixture = await render();
+    const el: HTMLElement = fixture.nativeElement;
+
+    button(el, 'Open and verify').click();
+    await settle(fixture, (e) => !!e.querySelector('.checks'));
+
+    expect(el.querySelectorAll('app-page-view')).toHaveLength(2);
+    expect(el.querySelector('button.replay')?.textContent).toContain('Watch it being written');
+    expect(el.querySelector('.body')).toBeNull(); // no typed note
+    const checks = [...el.querySelectorAll('.checks li')].map((li) => li.textContent?.trim());
+    expect(checks).toContainEqual(
+      expect.stringMatching(/^✓ Exactly the 2\s+pages the sender signed/),
+    );
+    expect(checks).toContainEqual(
+      expect.stringMatching(/✗ Written live by a hand[\s\S]*Page 2 doesn.t look written live/),
     );
   });
 
