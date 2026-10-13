@@ -97,5 +97,6 @@ sent it can't be edited or unsent — like a sealed letter.
     controls, 13e admin management — see [admin.md](admin.md).
 14. **Handwritten pages** — write the letter itself by hand: up to 4 pages of stroke dynamics with
     pen styles, an optional transcript, and replay only if the author opts in (the ink and the
-    timing hash separately). 14a open letters ✅; 14b sealed letters ✅; 14c family archive — see
+    timing hash separately). 14a open letters ✅; 14b sealed letters ✅; 14c family archive (private
+    entries ✅, public ones after image scanning; see [family-archive.md](family-archive.md)) — see
     [handwritten-pages.md](handwritten-pages.md).

@@ -182,31 +182,32 @@ aren't new findings on their own.
 
 ## Endpoint inventory
 
-Access is enforced in `SecurityConfig`. *Public* means no token. *User* means a public-app
-session. *Admin* and *moderator* mean an admin-app session with that role. All `/api/admin/**`
+Access is enforced in `SecurityConfig`. _Public_ means no token. _User_ means a public-app
+session. _Admin_ and _moderator_ mean an admin-app session with that role. All `/api/admin/**`
 paths are only routed on the admin host.
 
-| Endpoint | Access |
-| --- | --- |
-| `POST /api/accounts` | public |
-| `POST /api/auth/challenge`, `POST /api/auth/verify` | public (admin host: admin-app token, admins and moderators only) |
-| `GET /api/backups/{lookupId}` | public |
-| `GET /api/system/status` | public |
-| `GET /api/open-letters/{letterHash}`, `POST /api/open-letters/{letterHash}/reports` | public |
-| `GET /api/ledger/key`, `/checkpoint`, `/checkpoints`, `/anchors`, `/anchor/latest`, `/proof/inclusion`, `/proof/consistency` | public |
-| `GET /actuator/health` | public (the only actuator endpoint exposed) |
-| `GET /api/ledger/entries`, `GET /api/ledger/verify` | user |
-| `GET /api/accounts/by-key/{publicKey}` | user |
-| `GET /api/me`, `GET /api/me/status`, `PUT /api/me/encryption-key` | user |
-| `POST /api/me/deletion` | user, plus a fresh wallet signature ([launch-policies.md](launch-policies.md)) |
-| `GET`/`PUT /api/me/backup`, `GET`/`PUT /api/me/contacts` | user |
-| `GET`/`POST /api/me/open-letters`, `POST /api/me/open-letters/{letterHash}/appeal` | user |
-| `POST /api/letters`, `GET /api/letters/{id}`, `/inbox`, `/sent`, `/threads`, `/threads/{threadId}` | user |
-| `GET`/`POST /api/handwriting/enrolment`, `POST /api/handwriting/enrolment/deletion`, `POST /api/handwriting/verify` | user |
-| `GET`/`DELETE /api/calibration`, `POST /api/calibration/consent`, `/samples`, `GET /api/calibration/forgery-target` | user |
-| `GET /api/admin/me` | any admin-app session |
-| `GET /api/admin/moderation/queue`, `/appeals`, `GET /api/admin/moderation/letters/{letterHash}`, `POST …/dismiss`, `…/remove`, `…/restore`, `…/uphold` | moderator or admin |
-| `GET /api/admin/preserved`, `GET /api/admin/preserved/{letterHash}` (audited), `POST …/report` | admin |
-| `GET /api/admin/dashboard`, `/audit`, `/accounts`, `/accounts/{id}`, `/admins`, `/system` | admin |
-| `POST /api/admin/accounts/{id}/sign-out`, `/rate-limits/reset`, `POST`/`DELETE …/suspension` | admin |
-| `PUT`/`DELETE /api/admin/admins/{address}`, `PATCH /api/admin/system/settings`, `POST /api/admin/system/ledger/checkpoint`, `/audit` | admin |
+| Endpoint                                                                                                                                                                        | Access                                                                         |
+| ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------ |
+| `POST /api/accounts`                                                                                                                                                            | public                                                                         |
+| `POST /api/auth/challenge`, `POST /api/auth/verify`                                                                                                                             | public (admin host: admin-app token, admins and moderators only)               |
+| `GET /api/backups/{lookupId}`                                                                                                                                                   | public                                                                         |
+| `GET /api/system/status`                                                                                                                                                        | public                                                                         |
+| `GET /api/open-letters/{letterHash}`, `POST /api/open-letters/{letterHash}/reports`                                                                                             | public                                                                         |
+| `GET /api/ledger/key`, `/checkpoint`, `/checkpoints`, `/anchors`, `/anchor/latest`, `/proof/inclusion`, `/proof/consistency`                                                    | public                                                                         |
+| `GET /actuator/health`                                                                                                                                                          | public (the only actuator endpoint exposed)                                    |
+| `GET /api/ledger/entries`, `GET /api/ledger/verify`                                                                                                                             | user                                                                           |
+| `GET /api/accounts/by-key/{publicKey}`                                                                                                                                          | user                                                                           |
+| `GET /api/me`, `GET /api/me/status`, `PUT /api/me/encryption-key`                                                                                                               | user                                                                           |
+| `POST /api/me/deletion`                                                                                                                                                         | user, plus a fresh wallet signature ([launch-policies.md](launch-policies.md)) |
+| `GET`/`PUT /api/me/backup`, `GET`/`PUT /api/me/contacts`                                                                                                                        | user                                                                           |
+| `GET`/`POST /api/me/open-letters`, `POST /api/me/open-letters/{letterHash}/appeal`                                                                                              | user                                                                           |
+| `GET`/`POST /api/me/archive`, `GET /api/me/archive/{entryHash}`, `POST /api/me/archive/photos`, `GET /api/me/archive/photos/{blobHash}` (ciphertext only; readers of the entry) | user                                                                           |
+| `POST /api/letters`, `GET /api/letters/{id}`, `/inbox`, `/sent`, `/threads`, `/threads/{threadId}`                                                                              | user                                                                           |
+| `GET`/`POST /api/handwriting/enrolment`, `POST /api/handwriting/enrolment/deletion`, `POST /api/handwriting/verify`                                                             | user                                                                           |
+| `GET`/`DELETE /api/calibration`, `POST /api/calibration/consent`, `/samples`, `GET /api/calibration/forgery-target`                                                             | user                                                                           |
+| `GET /api/admin/me`                                                                                                                                                             | any admin-app session                                                          |
+| `GET /api/admin/moderation/queue`, `/appeals`, `GET /api/admin/moderation/letters/{letterHash}`, `POST …/dismiss`, `…/remove`, `…/restore`, `…/uphold`                          | moderator or admin                                                             |
+| `GET /api/admin/preserved`, `GET /api/admin/preserved/{letterHash}` (audited), `POST …/report`                                                                                  | admin                                                                          |
+| `GET /api/admin/dashboard`, `/audit`, `/accounts`, `/accounts/{id}`, `/admins`, `/system`                                                                                       | admin                                                                          |
+| `POST /api/admin/accounts/{id}/sign-out`, `/rate-limits/reset`, `POST`/`DELETE …/suspension`                                                                                    | admin                                                                          |
+| `PUT`/`DELETE /api/admin/admins/{address}`, `PATCH /api/admin/system/settings`, `POST /api/admin/system/ledger/checkpoint`, `/audit`                                            | admin                                                                          |

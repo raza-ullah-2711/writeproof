@@ -1,0 +1,199 @@
+<section class="archive">
+  <h2>Family archive</h2>
+  <p class="intro">
+    Keep photos of letters that should never be lost: Grandma's letters, old postcards, notes in a
+    book. Each one is sealed to the people you choose. Writeproof proves who added a copy and that
+    it hasn't changed since; it can't prove who wrote the original.
+  </p>
+
+  @if (!auth.authenticated()) {
+    <p>Sign in with your <a routerLink="/">wallet</a> first.</p>
+  } @else {
+    @if (!adding()) {
+      <button type="button" class="primary" (click)="adding.set(true)">Add a letter</button>
+    } @else {
+      <form class="add" (ngSubmit)="add()">
+        <fieldset class="photos">
+          <legend>Photos of the letter (up to {{ maxPhotos }}, in order)</legend>
+          <div class="thumbs">
+            @for (c of chosen(); track c.preview; let i = $index) {
+              <figure>
+                <img [src]="c.preview" [alt]="'Photo ' + (i + 1)" />
+                <button type="button" class="link" (click)="removePhoto(i)" [disabled]="busy()">
+                  Remove
+                </button>
+              </figure>
+            }
+            @if (chosen().length < maxPhotos) {
+              <label class="pick">
+                {{ preparing() ? 'Preparing…' : '+ Add photos' }}
+                <input
+                  type="file"
+                  accept="image/*"
+                  multiple
+                  (change)="choose($any($event.target))"
+                  [disabled]="busy() || preparing()"
+                />
+              </label>
+            }
+          </div>
+          <p class="hint">
+            Photos are resized and saved without their location or camera details, then encrypted in
+            this browser before upload.
+          </p>
+        </fieldset>
+
+        <label>
+          Title
+          <input name="title" [(ngModel)]="title" [maxlength]="maxTitle" required />
+        </label>
+        <label>
+          When it was written (optional)
+          <input
+            name="writtenOn"
+            [(ngModel)]="writtenOn"
+            [maxlength]="maxWrittenOn"
+            placeholder="e.g. Spring 1962"
+          />
+        </label>
+        <label>
+          A note (optional): who wrote it, to whom, why it matters
+          <textarea name="note" [(ngModel)]="note" rows="3" [maxlength]="maxNote"></textarea>
+        </label>
+
+        <fieldset class="share">
+          <legend>Share with</legend>
+          @for (contact of contacts.contacts() ?? []; track contact.address) {
+            <label class="check">
+              <input
+                type="checkbox"
+                [checked]="shareWith().has(contact.address)"
+                (change)="toggleShare(contact.address, $any($event.target).checked)"
+              />
+              {{ contact.petname }}
+            </label>
+          } @empty {
+            <p class="hint">
+              Add family to your <a routerLink="/contacts">contacts</a> to share with them. Until
+              then, only you can see it.
+            </p>
+          }
+        </fieldset>
+
+        <div class="actions">
+          <button
+            type="submit"
+            class="primary"
+            [disabled]="busy() || preparing() || chosen().length === 0 || !title.trim()"
+          >
+            Seal and add to the archive
+          </button>
+          <button type="button" (click)="adding.set(false)" [disabled]="busy()">Cancel</button>
+          @if (progress(); as p) {
+            <span class="hint" role="status">{{ p }}</span>
+          }
+        </div>
+        <p class="hint">Once added, an entry can't be edited or deleted, like a letter.</p>
+      </form>
+    }
+
+    @if (notice(); as message) {
+      <p class="notice" role="status">{{ message }}</p>
+    }
+    @if (error(); as message) {
+      <p class="error" role="alert">{{ message }}</p>
+    }
+
+    <h3>Your archive</h3>
+    @if (entries(); as list) {
+      @if (list.length === 0) {
+        <p class="empty">
+          Nothing here yet. Letters you add, or that family share with you, appear here.
+        </p>
+      }
+      <ul class="entries">
+        @for (entry of list; track entry.entryHash) {
+          <li class="entry">
+            <div class="meta">
+              <span>{{ isMine(entry) ? 'Added by you' : 'Shared by ' + name(entry.owner) }}</span>
+              <span>{{ entry.addedAt.slice(0, 10) }}</span>
+              <span
+                >{{ entry.photos.length }}
+                {{ entry.photos.length === 1 ? 'photo' : 'photos' }}</span
+              >
+              <span>ledger #{{ entry.ledger.seq }}</span>
+            </div>
+            @let state = viewOf(entry);
+            @if (state === undefined) {
+              <button type="button" (click)="open(entry)">Open and verify</button>
+            } @else if (state === 'opening') {
+              <p>Opening&hellip;</p>
+            } @else if (asViewed(state); as v) {
+              @if (v.opened.description; as d) {
+                <h4>{{ d.title }}</h4>
+                @if (d.writtenOn) {
+                  <p class="written">Written {{ d.writtenOn }}</p>
+                }
+                <figure class="viewer">
+                  @if (v.photos[v.current]; as src) {
+                    <img [src]="src" [alt]="d.title + ', photo ' + (v.current + 1)" />
+                  } @else {
+                    <div class="loading">Decrypting&hellip;</div>
+                  }
+                  <figcaption class="label">
+                    Archived copy, added by {{ name(entry.owner) }} on
+                    {{ entry.addedAt.slice(0, 10) }}
+                  </figcaption>
+                </figure>
+                @if (v.photos.length > 1) {
+                  <div class="strip">
+                    @for (src of v.photos; track $index; let i = $index) {
+                      <button
+                        type="button"
+                        class="thumb"
+                        [class.on]="i === v.current"
+                        (click)="show(entry, i)"
+                        [attr.aria-label]="'Show photo ' + (i + 1)"
+                      >
+                        @if (src) {
+                          <img [src]="src" alt="" />
+                        } @else {
+                          {{ i + 1 }}
+                        }
+                      </button>
+                    }
+                  </div>
+                }
+                @if (d.note) {
+                  <p class="note">{{ d.note }}</p>
+                }
+              }
+              <ul class="checks">
+                <li [class.ok]="v.opened.signatureValid">
+                  {{ v.opened.signatureValid ? '✓' : '✗' }} Added by {{ name(entry.owner) }}, signed
+                  by {{ isMine(entry) ? 'your' : 'their' }} wallet: these exact photos and words
+                </li>
+                <li [class.ok]="v.opened.decrypted">
+                  {{ v.opened.decrypted ? '✓' : '✗' }} Sealed for you, unaltered
+                </li>
+                <li [class.ok]="v.opened.ledgerValid">
+                  {{ v.opened.ledgerValid ? '✓' : '✗' }} Unchanged since
+                  {{ entry.addedAt.slice(0, 10) }}: in the ledger as entry #{{ entry.ledger.seq }}
+                  @if (v.opened.ledgerProblem) {
+                    <span class="problem">{{ v.opened.ledgerProblem }}</span>
+                  }
+                </li>
+                <li class="legacy">
+                  &ndash; Who wrote the original can't be proven: it's a photo of paper
+                </li>
+              </ul>
+              <p class="hint">Shared with {{ sharedWith(entry) }}.</p>
+            }
+          </li>
+        }
+      </ul>
+    } @else if (!error()) {
+      <p>Loading&hellip;</p>
+    }
+  }
+</section>

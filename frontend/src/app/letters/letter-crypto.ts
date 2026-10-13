@@ -153,7 +153,8 @@ export async function openLetter(
   return parsed as LetterPlaintext;
 }
 
-async function wrapFor(
+/** Wraps a content key for one reader's X25519 key (also used by the family archive). */
+export async function wrapFor(
   readerKey: Uint8Array<ArrayBuffer>,
   contentKey: Uint8Array<ArrayBuffer>,
   aad: Uint8Array<ArrayBuffer>,
@@ -180,6 +181,22 @@ async function wrapFor(
     iv: toBase64Url(iv),
     wrappedKey: toBase64Url(new Uint8Array(wrapped)),
   };
+}
+
+/** Recovers a content key wrapped for this wallet's encryption key; throws if anything was altered. */
+export async function unwrapFor(
+  wrapped: WrappedKey,
+  aad: Uint8Array<ArrayBuffer>,
+  myEncryptionKey: string,
+  ecdh: Ecdh,
+): Promise<ArrayBuffer> {
+  const ephemeral = fromBase64Url(wrapped.ephemeralPublicKey);
+  const kek = await deriveKek(await ecdh(ephemeral), ephemeral, fromBase64Url(myEncryptionKey));
+  return crypto.subtle.decrypt(
+    { name: 'AES-GCM', iv: fromBase64Url(wrapped.iv), additionalData: aad },
+    kek,
+    fromBase64Url(wrapped.wrappedKey),
+  );
 }
 
 async function deriveKek(
