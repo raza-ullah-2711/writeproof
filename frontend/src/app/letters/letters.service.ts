@@ -6,6 +6,7 @@ import { toBase64Url } from '../crypto/base64url';
 import { verifyEd25519 } from '../crypto/ed25519';
 import { WalletService } from '../wallet/wallet.service';
 import { LedgerVerifier } from './ledger-verifier';
+import { verifiedEncryptionKey } from './verified-account';
 import { LedgerEntry } from './ledger-verify';
 import { HandwritingSample, parseSample, toJson } from '../handwriting/handwriting-sample';
 import { LetterPlaintext, openLetter, sealLetter } from './letter-crypto';
@@ -176,19 +177,7 @@ export class LettersService {
         throw new Error('A reply goes to the other person in the conversation');
       }
     }
-    const recipient = await firstValueFrom(
-      this.http.get<Account>(`/api/accounts/by-key/${encodeURIComponent(recipientAddress)}`),
-    );
-    if (recipient.publicKey !== recipientAddress) {
-      throw new Error('The server returned a different account than the address asked for');
-    }
-    if (!recipient.encryptionKey || !recipient.encryptionKeySignature) {
-      throw new Error('This recipient has not set up sealed letters yet');
-    }
-    const binding = encryptionKeyBinding(recipient.publicKey, recipient.encryptionKey);
-    if (!(await verifyEd25519(recipient.publicKey, binding, recipient.encryptionKeySignature))) {
-      throw new Error("The recipient's encryption key is not signed by their identity key");
-    }
+    const recipientEncryptionKey = await verifiedEncryptionKey(this.http, recipientAddress);
 
     const handwriting = toJson(signature);
     const sentAt = new Date().toISOString();
@@ -198,16 +187,16 @@ export class LettersService {
       handwriting,
       body,
       senderKey: me,
-      recipientKey: recipient.publicKey,
+      recipientKey: recipientAddress,
       senderEncryptionKey: myEncryptionKey,
-      recipientEncryptionKey: recipient.encryptionKey,
+      recipientEncryptionKey,
       sentAt,
       inReplyTo: inReplyTo?.letterHash,
     });
     const walletSignature = await this.wallet.sign(letterSignedMessage(sealed.hash));
     const letter = await firstValueFrom(
       this.http.post<Letter>('/api/letters', {
-        recipientPublicKey: recipient.publicKey,
+        recipientPublicKey: recipientAddress,
         sentAt,
         envelope: sealed.envelope,
         signature: toBase64Url(walletSignature),

@@ -11,6 +11,11 @@ export const routes: Routes = [
     title: 'Letters · Writeproof',
   },
   {
+    path: 'archive',
+    loadComponent: () => import('./archive-page/archive-page').then((m) => m.ArchivePage),
+    title: 'Family archive · Writeproof',
+  },
+  {
     path: 'contacts',
     loadComponent: () => import('./contacts-page/contacts-page').then((m) => m.ContactsPage),
     title: 'Contacts · Writeproof',

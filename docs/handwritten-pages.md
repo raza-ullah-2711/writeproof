@@ -174,7 +174,7 @@ the same blanking exception for removed letters.
    - moderation, takedown and preservation.
 2. **14b — Sealed letters with pages** (built; see below). The same pages go inside the
    letter's ciphertext. The recipient can always replay, since only they can read it.
-3. **14c — Family archive.** Photos of old paper letters, labelled as archived copies (provably
+3. **14c — Family archive** (private entries built; see [family-archive.md](family-archive.md)). Photos of old paper letters, labelled as archived copies (provably
    unchanged since added, not provably handwritten by the person named). This needs its own
    decisions: image storage, stripping metadata, scanning for known abuse images.
 
